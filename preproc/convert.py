@@ -7,63 +7,15 @@ import argparse
 import sys
 import pandas as pd
 import gc
+import os
 
+import sys
+sys.path.append("../utils")
+from CLI import _get_parser3
 
-def _get_parser():
-    """
-    Parse command line inputs for this function.
-
-    Returns
-    -------
-    parser.parse_args() : argparse dict
-    Notes
-    -----
-    # Argument parser follow template provided by RalphyZ.
-    # https://stackoverflow.com/a/43456577
-    """
-    parser = argparse.ArgumentParser()
-    optional = parser._action_groups.pop()
-    required = parser.add_argument_group("Required Argument:")
-
-    required.add_argument(
-        "-indir",
-        "--input-directory",
-        dest="sourcedata",
-        type=str,
-        help="Specify where you want to save the converted dataset",
-        default=None,
-    )
-    required.add_argument(
-        "-outdir",
-        "--output-directory",
-        dest="scratch",
-        type=str,
-        help="Specify root directory of dataset where sourcedata stands",
-        default=None,
-    )
-    required.add_argument(
-        "-sub",
-        "--subject",
-        dest="sub",
-        type=str,
-        help="Specify subject number, e.g. sub-01",
-    )
-    # optional
-    optional.add_argument(
-        "-ses",
-        "--session",
-        dest="sessions",
-        nargs="*",
-        type=str,
-        help="Specify session number, e.g. ses-001",
-    )
-    return parser
-
-
-def neuromod_phys2bids(sourcedata, scratch, sub, sessions=None):
+def neuromod_phys2bids(sourcedata, scratch, sub, ses=None, tr=1.49):
     """
     Phys2Bids conversion for one subject data
-
 
     Parameters:
     ------------
@@ -75,19 +27,34 @@ def neuromod_phys2bids(sourcedata, scratch, sub, sessions=None):
         name of path for a specific subject (e.g.'sub-03')
     sessions : list
         specific session numbers can be listed (e.g. ['ses-001', 'ses-002']
+    tr : float
+        tr value used for mri acquisition
+    ch_name : list
+        specify the name of the channels in the acqknowledge file
+
     Returns:
     --------
     phys2bids output
     """
     # fetch info
-    info = pd.read_json(f"{scratch}{sub}/{sub}_volumes_all-ses-runs.json")
+    info = pd.read_json(os.path.join(scratch, sub, f"{sub}_volumes_{ses}-runs.json"))
     # define sessions
-    if sessions is None:
-        sessions = info.columns
-    elif isinstance(sessions, list) is False:
-        sessions = [sessions]
+    if ses is None:
+        ses = info.columns
+    elif isinstance(ses, list) is False:
+        ses = [ses]
+    # Define ch_name
+        if ch_name is None:
+            print("Warning: you did not specify a value for ch_name, the values that will be use are the following: ")
+            ch_name = ["EDA", "PPG", "ECG", "TTL", "RSP"]
+            print(ch_name)
+            print("Please make sure, those values are the right ones !")
+            chtrig=4
+        else:
+            chtrig = ch_name.index('TTL')
+
     # iterate through info
-    for col in sessions:
+    for col in ses:
         # skip empty sessions
         if info[col] is None:
             continue
@@ -100,20 +67,20 @@ def neuromod_phys2bids(sourcedata, scratch, sub, sessions=None):
                 phys2bids(
                     filename[i],
                     info=False,
-                    indir=f"{sourcedata}/{sub}/{col}/",
-                    outdir=f"{scratch}/{sub}/{col}",
+                    indir=os.path.join(sourcedata, sub, col),
+                    outdir=os.path.join(scratch, sub, col),
                     heur_file=None,
                     sub=sub[-2:],
                     ses=col[-3:],
-                    chtrig=4,
+                    chtrig=chtrig,
                     chsel=None,
                     num_timepoints_expected=info[col]["recorded_triggers"][
                         f"run-0{i+1}"
                     ],
-                    tr=1.49,
+                    tr=info[col]["tr"],
                     thr=4,
                     pad=9,
-                    ch_name=["EDA", "PPG", "ECG", "TTL", "RSP"],
+                    ch_name=info[col]["ch_name"],
                     yml="",
                     debug=False,
                     quiet=False,
@@ -123,18 +90,18 @@ def neuromod_phys2bids(sourcedata, scratch, sub, sessions=None):
                 phys2bids(
                     filename,
                     info=False,
-                    indir=f"{sourcedata}physio/{sub}/{col}/",
-                    outdir=f"{scratch}/{sub}/{col}",
+                    indir=os.path.join(sourcedata, "physio", sub, col),
+                    outdir=os.path.join(scratch, sub, col),
                     heur_file=None,
                     sub=sub[-2:],
                     ses=col[-3:],
-                    chtrig=4,
+                    chtrig=chtrig,
                     chsel=None,
                     num_timepoints_expected=info[col]["recorded_triggers"]["run-01"],
-                    tr=1.49,
+                    tr=info[col]["tr"],
                     thr=4,
                     pad=9,
-                    ch_name=["EDA", "PPG", "ECG", "TTL", "RSP"],
+                    ch_name=info[col]["ch_name"],
                     yml="",
                     debug=False,
                     quiet=False,
@@ -146,20 +113,20 @@ def neuromod_phys2bids(sourcedata, scratch, sub, sessions=None):
                     phys2bids(
                         filename[i],
                         info=False,
-                        indir=f"{sourcedata}/{sub}/{col}/",
-                        outdir=f"{scratch}/{sub}/{col}",
+                        indir=os.path.join(sourcedata, sub, col),
+                        outdir=os.path.join(scratch, sub, col),
                         heur_file=None,
                         sub=sub[-2:],
                         ses=col[-3:],
-                        chtrig=4,
+                        chtrig=chtrig,
                         chsel=None,
                         num_timepoints_expected=info[col]["recorded_triggers"][
                             f"run-0{i+1}"
                         ],
-                        tr=1.49,
+                        tr=info[col]["tr"],
                         thr=4,
                         pad=9,
-                        ch_name=["EDA", "PPG", "ECG", "TTL", "RSP"],
+                        ch_name=info[col]["ch_name"],
                         yml="",
                         debug=False,
                         quiet=False,
@@ -173,7 +140,7 @@ def neuromod_phys2bids(sourcedata, scratch, sub, sessions=None):
 
 
 def _main(argv=None):
-    options = _get_parser().parse_args(argv)
+    options = _get_parser2().parse_args(argv)
     neuromod_phys2bids(**vars(options))
 
 

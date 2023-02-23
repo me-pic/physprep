@@ -133,6 +133,15 @@ def _get_parser2():
         help="Specify if you want to save the dictionary",
         default=False,
     )
+
+    optional.add_argument(
+        "-tr",
+        "--tr",
+        dest="tr",
+        help="Specify the tr value",
+        default=1.49,
+        type=float,
+    )
     parser._action_groups.append(optional)
 
     return parser

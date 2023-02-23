@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env python -W ignore::DeprecationWarning
+
+#root = '/scratch/mepicard/emotionvideos/'
+#save = '/scratch/mepicard/physio_data/emotionvideos/'
+#python get_info.py -indir '/scratch/mepicard/emotionvideos/' -sub 'sub-02' -ses 'ses-001' -save '/scratch/mepicard/physio_data/emotionvideos/'
+
 """another util for neuromod phys data conversion."""
 import pprintpp
 import glob
@@ -11,11 +16,12 @@ import logging
 from CLI import _get_parser2
 import os
 from neurokit2 import read_acqknowledge
+from argparse import ArgumentParser
 
 LGR = logging.getLogger(__name__)
 
 
-def volume_counter(root, subject, ses=None, tr=1.49):
+def volume_counter(root, sub, ses=None, tr=1.49):
     """
     Volume counting for each run in a session.
 
@@ -41,7 +47,7 @@ def volume_counter(root, subject, ses=None, tr=1.49):
         raise ValueError("Couldn't find the following directory: ", root)
 
     # List the files that have to be counted
-    dirs = list_sub(root, subject, ses)
+    dirs = list_sub(root, sub, ses)
     ses_runs = {}
     # loop iterating through files in each dict key representing session
     # returned by list_sub
@@ -52,7 +58,7 @@ def volume_counter(root, subject, ses=None, tr=1.49):
         for file in sorted(dirs[exp]):
             # reading acq
             bio_df, fs = read_acqknowledge(
-                os.path.join(root, subject, exp, file)
+                os.path.join(root, sub, exp, file)
             )  # resampling
             # find the correct index of Trigger channel
             # NOTE: adapt to other possible names or import as arg from user or import phy2bids util
@@ -128,7 +134,8 @@ def get_info(
     ses=None,
     count_vol=False,
     show=True,
-    save=None
+    save=None,
+    tr=None
 ):
     """
     Get all volumes taken for a sub.
@@ -163,101 +170,125 @@ def get_info(
     ses_runs_matches = list_sub(
         os.path.join(root,"sourcedata/physio/"), sub, ses, type=".tsv", show=show
     )
-    ses_info = list_sub(os.path.join(root, "sourcedata/physio/"), sub, ses, type=".acq")
 
     # go to fmri matches and get entries for each run of a session
     nb_expected_runs = {}
 
-    # iterate through sessions and get _matches.tsv with list_sub dict
-    for exp in ses_runs_matches:
-        print(exp)
+    if not ses_runs_matches[ses]:
+        #If there is no tsv file matching the acq file and the nii.gz files in root
+        run_dict = {}
+        nb_expected_runs[ses] = {}
 
-        # initialize a counter and a dictionary
-        nb_expected_volumes_run = {}
-        tasks = []
-        matches = glob.glob(f"{root}{sub}/{exp}/func/*bold.json")
-        matches.sort()
-        print(matches)
-        # iterate through _bold.json
-        for idx, filename in enumerate(matches):
-            task = filename.rfind(f"{exp}_") + 8
-            task_end = filename.rfind("_")
-            tasks += [filename[task:task_end]]
+        ses_acq_file = list_sub(os.path.join(root, "sourcedata/physio/"), sub, ses, type=".acq")
+        nb_expected_runs[ses]['in_file'] = ses_acq_file[ses][0]
 
-            # read metadata
-            with open(filename) as f:
-                bold = json.load(f)
-            # we want to GET THE NB OF VOLUMES in the _bold.json of a given run
-            nb_expected_volumes_run[f"{idx+1:02d}"] = bold["time"]["samples"][
-                "AcquisitionNumber"
-            ][-1]
-            # we want to have the TR in a _bold.json to later use it in the volume_counter function
-            tr = bold["RepetitionTime"]
+        vol_in_biopac = volume_counter(
+            os.path.join(root, "sourcedata/physio/"), sub, ses=ses, tr=tr
+        )
 
-        # print the thing to show progress
-        print(nb_expected_volumes_run)
-        # push all info in run in dict
-        nb_expected_runs[exp] = {}
-        # the nb of expected volumes in each run of the session (embedded dict)
-        nb_expected_runs[exp] = nb_expected_volumes_run
-        nb_expected_runs[exp]["expected_runs"] = len(matches)
-        # nb_expected_runs[exp]['processed_runs'] = idx  # counter is used here
-        nb_expected_runs[exp]["task"] = tasks
-        # save the name
-        name = ses_info[exp]
-        if name:
-            name.reverse()
-            nb_expected_runs[exp]["in_file"] = name
+        for i, run in enumerate(vol_in_biopac[ses]):
+            run_dict.update({f"run-{i+1:02d}": run})
 
-        if count_vol:
-            run_dict = {}
-            # check if biopac file exist, notify the user that we won't
-            # count volumes
-            try:
-                # do not count the triggers in phys file if no physfile
-                if (
-                    os.path.isfile(os.path.join(root,"sourcedata/physio",sub,exp,name[0]))
-                    is False
-                ):
-                    print(
-                        "cannot find session directory for sourcedata :",
-                        f"{root}sourcedata/physio/{sub}/{exp}/{name[0]}",
-                    )
-                else:
-                    # count the triggers in physfile otherwise
-                    try:
-                        vol_in_biopac = volume_counter(
-                            os.path.join(root, "sourcedata/physio/"), sub, ses=exp, tr=tr
+        nb_expected_runs[ses]['recorded_triggers'] = run_dict
+        nb_expected_runs[ses]['tr'] = tr
+
+    else: 
+        #If there is a tsv file matching the acq file and the nii.gz files in root
+        ses_info = list_sub(os.path.join(root, "sourcedata/physio/"), sub, ses, type=".acq")
+
+        # iterate through sessions and get _matches.tsv with list_sub dict
+        for exp in ses_runs_matches:
+            print(exp)
+
+            # initialize a counter and a dictionary
+            nb_expected_volumes_run = {}
+            tasks = []
+            matches = glob.glob(f"{root}{sub}/{exp}/func/*bold.json")
+            matches.sort()
+            print(matches)
+            # iterate through _bold.json
+            for idx, filename in enumerate(matches):
+                task = filename.rfind(f"{exp}_") + 8
+                task_end = filename.rfind("_")
+                tasks += [filename[task:task_end]]
+
+                # read metadata
+                with open(filename) as f:
+                    bold = json.load(f)
+                # we want to GET THE NB OF VOLUMES in the _bold.json of a given run
+                nb_expected_volumes_run[f"{idx+1:02d}"] = bold["time"]["samples"][
+                    "AcquisitionNumber"
+                ][-1]
+                # we want to have the TR in a _bold.json to later use it in the volume_counter function
+                tr = bold["RepetitionTime"]
+
+            # print the thing to show progress
+            print(nb_expected_volumes_run)
+            # push all info in run in dict
+            nb_expected_runs[exp] = {}
+            # the nb of expected volumes in each run of the session (embedded dict)
+            nb_expected_runs[exp] = nb_expected_volumes_run
+            nb_expected_runs[exp]["expected_runs"] = len(matches)
+            # nb_expected_runs[exp]['processed_runs'] = idx  # counter is used here
+            nb_expected_runs[exp]["task"] = tasks
+            nb_expected_runs[exp]["tr"] = tr
+
+            # save the name
+            name = ses_info[exp]
+            if name:
+                name.reverse()
+                nb_expected_runs[exp]["in_file"] = name
+
+            if count_vol:
+                run_dict = {}
+                # check if biopac file exist, notify the user that we won't
+                # count volumes
+                try:
+                    # do not count the triggers in phys file if no physfile
+                    if (
+                        os.path.isfile(os.path.join(root,"sourcedata/physio",sub,exp,name[0]))
+                        is False
+                    ):
+                        print(
+                            "cannot find session directory for sourcedata :",
+                            f"{root}sourcedata/physio/{sub}/{exp}/{name[0]}",
                         )
-                        print("finished counting volumes in physio file for:", exp)
+                    else:
+                        # count the triggers in physfile otherwise
+                        try:
+                            vol_in_biopac = volume_counter(
+                                os.path.join(root, "sourcedata/physio/"), sub, ses=exp, tr=tr
+                            )
+                            print("finished counting volumes in physio file for:", exp)
 
-                        for i, run in enumerate(vol_in_biopac[exp]):
-                            run_dict.update({f"run-{i+1:02d}": run})
+                            for i, run in enumerate(vol_in_biopac[exp]):
+                                run_dict.update({f"run-{i+1:02d}": run})
 
-                        nb_expected_runs[exp]["recorded_triggers"] = run_dict
+                            nb_expected_runs[exp]["recorded_triggers"] = run_dict
 
-                    # skip the session if we did not find the _bold.json
-                    except KeyError:
-                        continue
-            except KeyError:
-                nb_expected_runs[exp]["recorded_triggers"] = float("nan")
-                print(
-                    "Directory is empty or file is clobbered/No triggers: ",
-                    f"{root}sourcedata/physio/{sub}/{exp}/",
-                )
+                        # skip the session if we did not find the _bold.json
+                        except KeyError:
+                            continue
+                except KeyError:
+                    nb_expected_runs[exp]["recorded_triggers"] = float("nan")
+                    print(
+                        "Directory is empty or file is clobbered/No triggers: ",
+                        f"{root}sourcedata/physio/{sub}/{exp}/",
+                    )
 
-                print(f"skipping :{exp} for task {filename}")
-        print("~" * 30)
+                    print(f"skipping :{exp} for task {filename}")
+            print("~" * 30)
 
     if show:
         pprintpp.pprint(nb_expected_runs)
+        
     if save is not None:
         if os.path.exists(f"{save}{sub}") is False:
             os.mkdir(f"{save}{sub}")
-        with open(f"{save}{sub}/{sub}_volumes_all-ses-runs.json", "w") as fp:
+        with open(f"{save}{sub}/{sub}_volumes_{ses}-runs.json", "w") as fp:
             json.dump(nb_expected_runs, fp, sort_keys=True)
     return nb_expected_runs
-
+        
 
 def _main(argv=None):
     options = _get_parser2().parse_args(argv)
