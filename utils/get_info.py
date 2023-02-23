@@ -10,6 +10,7 @@ import pprintpp
 import glob
 import math
 import sys
+import bioread
 from list_sub import list_sub
 import json
 import logging
@@ -127,6 +128,21 @@ def volume_counter(root, sub, ses=None, tr=1.49):
 
     return ses_runs
 
+def get_acq_channels(source, acq_file):
+    read_acq = bioread.read_file(os.path.join(source, acq_file))
+    ch_name = []
+    for ch in read_acq.channel_headers:
+        if 'PPG' in ch:
+            ch_name.append('PPG')
+        elif 'ECG' in ch:
+            ch_name.append('ECG')
+        elif 'HLT' in ch:
+            ch_name.append('TTL')
+        elif 'DA' in ch:
+            ch_name.append('DA')
+    
+    return ch_name
+
 
 def get_info(
     root=None,
@@ -180,7 +196,11 @@ def get_info(
         nb_expected_runs[ses] = {}
 
         ses_acq_file = list_sub(os.path.join(root, "sourcedata/physio/"), sub, ses, type=".acq")
+
         nb_expected_runs[ses]['in_file'] = ses_acq_file[ses][0]
+
+        ch_name = get_acq_channels(os.path.join(root, "sourcedata/physio/"), ses_acq_file[0])
+        nb_expected_runs[ses]['ch_name'] = ch_name
 
         vol_in_biopac = volume_counter(
             os.path.join(root, "sourcedata/physio/"), sub, ses=ses, tr=tr
@@ -195,6 +215,8 @@ def get_info(
     else: 
         #If there is a tsv file matching the acq file and the nii.gz files in root
         ses_info = list_sub(os.path.join(root, "sourcedata/physio/"), sub, ses, type=".acq")
+
+        ch_name = get_acq_channels(os.path.join(root, "sourcedata/physio/"), ses_info[0])
 
         # iterate through sessions and get _matches.tsv with list_sub dict
         for exp in ses_runs_matches:
@@ -265,6 +287,7 @@ def get_info(
                                 run_dict.update({f"run-{i+1:02d}": run})
 
                             nb_expected_runs[exp]["recorded_triggers"] = run_dict
+                            nb_expected_runs[ses]['ch_name'] = ch_name
 
                         # skip the session if we did not find the _bold.json
                         except KeyError:
