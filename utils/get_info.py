@@ -312,7 +312,11 @@ def get_info(
     if save is not None:
         if os.path.exists(f"{save}{sub}") is False:
             os.mkdir(os.path.join(save, sub))
-        with open(os.path.join(save, sub, f"{sub}_volumes_{ses}-runs.json"), "w") as fp:
+        if not ses_runs_matches[ses]:
+            filename = f"{sub}_volumes_{ses}-runs.json"
+        else:
+            filename = f"{sub}_volumes_all-ses-runs.json"
+        with open(os.path.join(save, sub, filename), "w") as fp:
             json.dump(nb_expected_runs, fp, sort_keys=True)
     return nb_expected_runs
         
