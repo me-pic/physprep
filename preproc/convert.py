@@ -37,7 +37,7 @@ def neuromod_phys2bids(sourcedata, scratch, sub, ses=None, tr=1.49):
     phys2bids output
     """
     # fetch info
-    info = pd.read_json(os.path.join(scratch, sub, f"{sub}_volumes_{ses}-runs.json"))
+    info = pd.read_json(os.path.join(scratch, sub, f"{sub}_volumes_all-ses-runs.json"))
     # define sessions
     if ses is None:
         ses = info.columns
