@@ -37,7 +37,8 @@ def volume_counter(root, sub, ses=None, tr=1.49):
         name of acquisition session. Optional workflow for specific experiment
         default is None
     tr : float
-	value of the TR used in the MRI sequence
+	    value of the TR used in the MRI sequence
+
     Returns:
     --------
     ses_runs: dictionary
@@ -132,14 +133,16 @@ def get_acq_channels(source, acq_file):
     read_acq = bioread.read_file(os.path.join(source, acq_file))
     ch_name = []
     for ch in read_acq.channel_headers:
-        if 'PPG' in ch:
+        if 'PPG' in ch.name:
             ch_name.append('PPG')
-        elif 'ECG' in ch:
+        elif 'ECG' in ch.name:
             ch_name.append('ECG')
-        elif 'HLT' in ch:
+        elif 'HLT' in ch.name:
             ch_name.append('TTL')
-        elif 'DA' in ch:
-            ch_name.append('DA')
+        elif 'DA100C' == ch.name:
+            ch_name.append('RSP')
+        elif 'EDA' in ch.name:
+            ch_name.append('EDA')
     
     return ch_name
 
@@ -175,6 +178,8 @@ def get_info(
     save : path
         Defaults to None and will save where you run the script. Specify where you want to save
         the dictionary in json format
+    tr : float
+        Defaults to None. Value of the TR used in the MRI sequence.
 
     Returns
     -------
@@ -196,10 +201,9 @@ def get_info(
         nb_expected_runs[ses] = {}
 
         ses_acq_file = list_sub(os.path.join(root, "sourcedata/physio/"), sub, ses, type=".acq")
-
         nb_expected_runs[ses]['in_file'] = ses_acq_file[ses][0]
 
-        ch_name = get_acq_channels(os.path.join(root, "sourcedata/physio/"), ses_acq_file[0])
+        ch_name = get_acq_channels(os.path.join(root, "sourcedata/physio/", sub, ses), ses_acq_file[ses][0])
         nb_expected_runs[ses]['ch_name'] = ch_name
 
         vol_in_biopac = volume_counter(
@@ -307,8 +311,8 @@ def get_info(
         
     if save is not None:
         if os.path.exists(f"{save}{sub}") is False:
-            os.mkdir(f"{save}{sub}")
-        with open(f"{save}{sub}/{sub}_volumes_{ses}-runs.json", "w") as fp:
+            os.mkdir(os.path.join(save, sub))
+        with open(os.path.join(save, sub, f"{sub}_volumes_{ses}-runs.json"), "w") as fp:
             json.dump(nb_expected_runs, fp, sort_keys=True)
     return nb_expected_runs
         
