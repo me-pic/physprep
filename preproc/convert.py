@@ -11,17 +11,17 @@ import os
 
 import sys
 sys.path.append("../utils")
-from CLI import _get_parser3
+from CLI import _get_parser
 
-def neuromod_phys2bids(sourcedata, scratch, sub, ses=None, tr=1.49):
+def neuromod_phys2bids(root, save, sub, ses=None, tr=1.49):
     """
     Phys2Bids conversion for one subject data
 
     Parameters:
     ------------
-    sourcedata : path
+    root : path
         main directory containing the biopac data (e.g. /to/dataset/info)
-    scratch : path
+    save : path
         directory to save data and to retrieve acquisition info (`.json file`)
     subject : string
         name of path for a specific subject (e.g.'sub-03')
@@ -67,8 +67,8 @@ def neuromod_phys2bids(sourcedata, scratch, sub, ses=None, tr=1.49):
                 phys2bids(
                     filename[i],
                     info=False,
-                    indir=os.path.join(sourcedata, sub, col),
-                    outdir=os.path.join(scratch, sub, col),
+                    indir=os.path.join(root, sub, col),
+                    outdir=os.path.join(save, sub, col),
                     heur_file=None,
                     sub=sub[-2:],
                     ses=col[-3:],
@@ -90,8 +90,8 @@ def neuromod_phys2bids(sourcedata, scratch, sub, ses=None, tr=1.49):
                 phys2bids(
                     filename,
                     info=False,
-                    indir=os.path.join(sourcedata, "physio", sub, col),
-                    outdir=os.path.join(scratch, sub, col),
+                    indir=os.path.join(root, "physio", sub, col),
+                    outdir=os.path.join(save, sub, col),
                     heur_file=None,
                     sub=sub[-2:],
                     ses=col[-3:],
@@ -113,8 +113,8 @@ def neuromod_phys2bids(sourcedata, scratch, sub, ses=None, tr=1.49):
                     phys2bids(
                         filename[i],
                         info=False,
-                        indir=os.path.join(sourcedata, sub, col),
-                        outdir=os.path.join(scratch, sub, col),
+                        indir=os.path.join(root, sub, col),
+                        outdir=os.path.join(save, sub, col),
                         heur_file=None,
                         sub=sub[-2:],
                         ses=col[-3:],
@@ -140,7 +140,7 @@ def neuromod_phys2bids(sourcedata, scratch, sub, ses=None, tr=1.49):
 
 
 def _main(argv=None):
-    options = _get_parser2().parse_args(argv)
+    options = _get_parser().parse_args(argv)
     neuromod_phys2bids(**vars(options))
 
 
