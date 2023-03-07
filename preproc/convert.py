@@ -8,10 +8,17 @@ import sys
 import pandas as pd
 import gc
 import os
+import click
 
 import sys
 sys.path.append("../utils")
 from CLI import _get_parser
+
+@click.command()
+@click.argument("root", type=click.Path(exists=True))
+@click.argument("save", type=click.Path())
+@click.argument("sub", type=str)
+@click.argument("ses", type=str)
 
 def neuromod_phys2bids(root, save, sub, ses=None, tr=1.49):
     """
@@ -37,31 +44,35 @@ def neuromod_phys2bids(root, save, sub, ses=None, tr=1.49):
     phys2bids output
     """
     # fetch info
-    info = pd.read_json(os.path.join(scratch, sub, f"{sub}_volumes_all-ses-runs.json"))
+    info = pd.read_json(os.path.join(save, sub, f"{sub}_volumes_{ses}-runs.json"))
+    
     # define sessions
     if ses is None:
         ses = info.columns
     elif isinstance(ses, list) is False:
         ses = [ses]
-    # Define ch_name
-        if ch_name is None:
-            print("Warning: you did not specify a value for ch_name, the values that will be use are the following: ")
-            ch_name = ["EDA", "PPG", "ECG", "TTL", "RSP"]
-            print(ch_name)
-            print("Please make sure, those values are the right ones !")
-            chtrig=4
-        else:
-            chtrig = ch_name.index('TTL')
 
     # iterate through info
     for col in ses:
         # skip empty sessions
         if info[col] is None:
             continue
-        print(col)
+
+         # Define ch_name
+        if not info[col]['ch_name']:
+            print("Warning: you did not specify a value for ch_name, the values that will be use are the following: ")
+            ch_name = ["EDA", "PPG", "ECG", "TTL", "RSP"]
+            print(ch_name)
+            print("Please make sure, those values are the right ones !")
+            chtrig=4
+        else:
+            chtrig = info[col]['ch_name'].index('TTL') + 1
+
+        print(os.path.join(root, sub, col))
 
         # Iterate through files in each session and run phys2bids
         filename = info[col]["in_file"]
+
         if filename is list:
             for i in range(len(filename) - 1):
                 phys2bids(
@@ -90,14 +101,14 @@ def neuromod_phys2bids(root, save, sub, ses=None, tr=1.49):
                 phys2bids(
                     filename,
                     info=False,
-                    indir=os.path.join(root, "physio", sub, col),
+                    indir=os.path.join(root, sub, col),
                     outdir=os.path.join(save, sub, col),
                     heur_file=None,
                     sub=sub[-2:],
                     ses=col[-3:],
                     chtrig=chtrig,
                     chsel=None,
-                    num_timepoints_expected=info[col]["recorded_triggers"]["run-01"],
+                    num_timepoints_expected=info[col]["recorded_triggers"][f"run-01"],
                     tr=info[col]["tr"],
                     thr=4,
                     pad=9,
@@ -140,9 +151,9 @@ def neuromod_phys2bids(root, save, sub, ses=None, tr=1.49):
 
 
 def _main(argv=None):
-    options = _get_parser().parse_args(argv)
-    neuromod_phys2bids(**vars(options))
-
+    #options = _get_parser().parse_args(argv)
+    #neuromod_phys2bids(**vars(options))
+    neuromod_phys2bids()
 
 if __name__ == "__main__":
-    _main(sys.argv[1:])
+    _main() #sys.argv[1:])

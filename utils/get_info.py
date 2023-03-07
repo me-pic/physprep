@@ -310,7 +310,7 @@ def get_info(
         pprintpp.pprint(nb_expected_runs)
         
     if save is not None:
-        if os.path.exists(f"{save}{sub}") is False:
+        if os.path.exists(os.path.join(save,sub)) is False:
             os.mkdir(os.path.join(save, sub))
         if not ses_runs_matches[ses]:
             filename = f"{sub}_volumes_{ses}-runs.json"
