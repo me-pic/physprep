@@ -217,7 +217,9 @@ def load_segmented_runs(source, sub, ses):
     """
     data_tsv, filenames = [], []
     files_tsv = [f for f in os.listdir(os.path.join(source, sub, ses)) if 'tsv.gz' in f]
-    
+    #Remove files ending with _01
+    files_tsv = [f for f in files_tsv if '_01.' not in f]
+
     for tsv in files_tsv:
         filename = tsv.split(".")[0]
         filenames.append(filename)
@@ -243,7 +245,7 @@ def process_ppg_data(source, sub, ses, outdir, save=True):
     """
     """
     data_tsv, filenames_tsv = load_segmented_runs(source, sub, ses)
-    summary_processing = open(os.path.join(save, sub, ses, f'summary_processing_{sub}_{ses}.txt'), 'w')
+    summary_processing = open(os.path.join(outdir, sub, ses, f'summary_processing_{sub}_{ses}.txt'), 'w')
     for idx, d in enumerate(data_tsv):
         print(f"---Processing PPG signal for {sub} {ses}: run {filenames_tsv[idx][-2:]}---")
         try:
