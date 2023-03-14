@@ -10,11 +10,11 @@ import click
 import os
 import json
 # high-level processing utils
-from neurokit2 import eda_process, rsp_process, ecg_peaks,  ppg_findpeaks
-from systole.correction import correct_rr, correct_peaks
+from neurokit2 import eda_process, rsp_process, ecg_peaks,  ppg_findpeaks, ecg_process
+#from systole.correction import correct_rr, correct_peaks
 from heartpy import process, enhance_peaks, exceptions
 # signal utils
-from systole.utils import input_conversion
+#from systole.utils import input_conversion
 from neurokit2.misc import as_vector
 from neurokit2 import signal_rate, signal_fixpeaks, signal_filter
 from neurokit2.signal.signal_formatpeaks import _signal_from_indices
@@ -248,7 +248,7 @@ def process_ppg_data(source, sub, ses, outdir, save=True):
     """
     """
     data_tsv, filenames_tsv = load_segmented_runs(source, sub, ses)
-    summary_processing = open(os.path.join(outdir, sub, ses, f'summary_processing_{sub}_{ses}.txt'), 'w')
+    summary_processing = open(os.path.join(outdir, sub, ses, f'summary_ppg_processing_{sub}_{ses}.txt'), 'w')
     for idx, d in enumerate(data_tsv):
         print(f"---Processing PPG signal for {sub} {ses}: run {filenames_tsv[idx][-2:]}---")
         try:
@@ -265,6 +265,39 @@ def process_ppg_data(source, sub, ses, outdir, save=True):
 
     summary_processing.close()
 
+@click.command()
+@click.argument('source', type=str)
+@click.argument('sub', type=str)
+@click.argument('ses', type=str)
+@click.argument('outdir', type=str)
+@click.argument('save', type=bool)
+
+def process_ecg_data(source, sub, ses, outdir, save=True):
+    """
+    """
+    data_tsv, filenames_tsv = load_segmented_runs(source, sub, ses)
+    summary_processing = open(os.path.join(outdir, sub, ses, f'summary_ecg_processing_{sub}_{ses}.txt'), 'w')
+    for idx, d in enumerate(data_tsv):
+        print(f"---Processing ECG signal for {sub} {ses}: run {filenames_tsv[idx][-2:]}---")
+        #try:
+        print('--Cleaning the signal---')
+        clean_ecg = neuromod_ecg_clean(d['ECG'], d['TTL'], sampling_rate=10000., method='bottenhorn', me=True)
+        print('---Processing the signal---')
+        signals, info = ecg_process(clean_ecg, sampling_rate=10000.)
+        if save:
+            print("Saving processed data")
+            signals.to_csv(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_ecg_signals"+".tsv"), sep="\t")
+            with open(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_ecg_info"+".json"), 'w') as fp:
+                json.dump(info, fp)
+        #except:
+        #    error_txt = f"Error in processing of {sub} {ses} run{filenames_tsv[idx][-2:]}\n Could not determine best fit for given signal"
+        #    print(error_txt)
+        #    summary_processing.write("%s\n" % error_txt)
+    summary_processing.close()
+
 
 if __name__ == "__main__":
-    process_ppg_data()
+    #PPG processing pipeline
+    #process_ppg_data()
+    #ECG processing pipeline
+    process_ecg_data()
