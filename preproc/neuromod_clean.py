@@ -194,6 +194,16 @@ def _ecg_clean_schmidt(ecg_signal, sampling_rate=16000):
 
     return ecg_clean
 
+def _eda_clean_bottenhorn(eda_signal, trigger_pulse, sampling_rate=10000., Q=100, mb=4, tr=1.49, slices=60):
+
+    notches = {'slices': slices / mb / tr,'tr': 1 / tr}
+
+    #hp_eda = butter_highpass_filter(scan1['EDA'], 1, fs, order=5)
+    bottenhorn_filtered = eda_signal
+    for notch in notches:
+        bottenhorn_filtered = _comb_band_stop(notches[notch], np.float64(sampling_rate/2), bottenhorn_filtered, Q, sampling_rate)
+
+            
 
 # =============================================================================
 # ECG internal : biopac recommendations
@@ -225,6 +235,7 @@ def _ecg_clean_biopac(timeseries, sampling_rate=10000., tr=1.49):
 
     return filtered
 
+
 def _comb_band_stop(notches, nyquist, filtered, Q, sampling_rate):
     """
     A serie of notch filters aligned with the scanner gradient's harmonics
@@ -242,3 +253,36 @@ def _comb_band_stop(notches, nyquist, filtered, Q, sampling_rate):
             b,a = signal.iirnotch(w0, Q)
             filtered = signal.filtfilt(b, a, filtered)
     return filtered
+
+def _consecutive(data, stepsize=0.000501):
+    """
+    reference: https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
+    """
+    return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
+
+def _butter_highpass(cutoff, fs, order=5):
+    """
+    reference: https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
+    """
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = signal.butter(order, normal_cutoff, btype='high', analog=False)
+    return b, a
+
+def _butter_highpass_filter(data, cutoff, fs, order=5):
+    """
+    reference: https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
+    """
+    b, a = butter_highpass(cutoff, fs, order=order)
+    y = signal.filtfilt(b, a, data)
+    return y
+
+def _fourier_freq(timeseries, d, fmax):
+    """
+    reference: https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
+    """
+    fft = np.fft.fft(timeseries)
+    freq = np.fft.fftfreq(timeseries.shape[-1], d=d)
+    fft_db = 10 * np.log10(abs(fft))
+    limit = np.where(freq >= fmax)[0][0]
+    return fft, fft_db, freq, limit

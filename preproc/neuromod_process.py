@@ -205,6 +205,9 @@ def neuromod_ecg_process(ecg_raw, sampling_rate=10000, method='fmri'):
                          'ECG_Rate': rate,
                          'ECG_Peaks': instant_peaks}), rpeaks
 
+def neuromod_eda_process():
+    return
+
 def load_json(filename):
     tmp = open(filename)
     data = json.load(tmp)
