@@ -4,6 +4,8 @@
 Neuromod processing utilities
 """
 # dependencies
+import math
+
 import pandas as pd
 import numpy as np
 import click
@@ -243,7 +245,6 @@ def load_segmented_runs(source, sub, ses):
 @click.argument('ses', type=str)
 @click.argument('outdir', type=str)
 @click.argument('save', type=bool)
-
 def process_ppg_data(source, sub, ses, outdir, save=True):
     """
     """
@@ -265,13 +266,13 @@ def process_ppg_data(source, sub, ses, outdir, save=True):
 
     summary_processing.close()
 
+
 @click.command()
 @click.argument('source', type=str)
 @click.argument('sub', type=str)
 @click.argument('ses', type=str)
 @click.argument('outdir', type=str)
 @click.argument('save', type=bool)
-
 def process_ecg_data(source, sub, ses, outdir, save=True):
     """
     """
@@ -279,25 +280,48 @@ def process_ecg_data(source, sub, ses, outdir, save=True):
     summary_processing = open(os.path.join(outdir, sub, ses, f'summary_ecg_processing_{sub}_{ses}.txt'), 'w')
     for idx, d in enumerate(data_tsv):
         print(f"---Processing ECG signal for {sub} {ses}: run {filenames_tsv[idx][-2:]}---")
-        #try:
-        print('--Cleaning the signal---')
-        clean_ecg = neuromod_ecg_clean(d['ECG'], d['TTL'], sampling_rate=10000., method='bottenhorn', me=True)
-        print('---Processing the signal---')
-        signals, info = ecg_process(clean_ecg, sampling_rate=10000.)
-        if save:
-            print("Saving processed data")
-            signals.to_csv(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_ecg_signals"+".tsv"), sep="\t")
-            with open(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_ecg_info"+".json"), 'w') as fp:
-                json.dump(info, fp)
-        #except:
-        #    error_txt = f"Error in processing of {sub} {ses} run{filenames_tsv[idx][-2:]}\n Could not determine best fit for given signal"
-        #    print(error_txt)
-        #    summary_processing.write("%s\n" % error_txt)
+        try:
+            print('--Cleaning the signal---')
+            clean_ecg = neuromod_ecg_clean(d['ECG'], d['TTL'], sampling_rate=10000, method='bottenhorn', me=True)
+            df_ecg = pd.DataFrame({'clean_ecg': clean_ecg})
+            df_ecg.to_csv(os.path.join(outdir, sub, ses , f"{filenames_tsv[idx]}_clean_ecg.tsv"), sep="\t")
+            print('---Processing the signal---')
+            signals, info = ecg_process(clean_ecg, sampling_rate=10000)
+            if save:
+                print("Saving processed data")
+                signals.to_csv(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_ecg_signals"+".tsv"), sep="\t")
+                with open(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_ecg_info"+".json"), 'w') as fp:
+                    json.dump(info, fp)
+        except:
+            error_txt = f"Error in processing of {sub} {ses} run{filenames_tsv[idx][-2:]}"
+            print(error_txt)
+            summary_processing.write("%s\n" % error_txt)
     summary_processing.close()
+
+
+@click.command()
+@click.argument('source', type=str)
+@click.argument('sub', type=str)
+@click.argument('ses', type=str)
+@click.argument('outdir', type=str)
+@click.argument('save', type=bool)
+def process_rsp_data(source, sub, ses, outdir, save =True):
+    """
+    """
+    data_tsv, filenames_tsv = load_segmented_runs(source, sub, ses)
+    summary_processing = open(os.path.join(outdir, sub, ses, f'summary_rsp_processing_{sub}_{ses}.txt'), 'w')
+    for idx, d in enumerate(data_tsv):
+        print(f"---Processing RSP signal for {sub} {ses}: run {filenames_tsv[idx][-2:]}---")
+        signals, info = rsp_process(d['RSP'], sampling_rate=10000, method='khodadad2018')
+        signals.to_csv(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_rsp_signals"+".tsv"), sep="\t")
+        with open(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_rsp_info"+".json"), 'w') as fp:
+            json.dump(info, fp)
 
 
 if __name__ == "__main__":
     #PPG processing pipeline
     #process_ppg_data()
     #ECG processing pipeline
-    process_ecg_data()
+    #process_ecg_data()
+    #RSP processing pipeline
+    process_rsp_data()

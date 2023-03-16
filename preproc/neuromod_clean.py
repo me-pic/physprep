@@ -284,8 +284,6 @@ def _comb_band_stop(notches, nyquist, filtered, Q, sampling_rate):
     """
     # band stoping each frequency specified with notches dict
     for notch in notches:
-        print(notch)
-        print(np.arange(1, (nyquist / notches[notch])).shape)
         for i in np.arange(1, (nyquist / notches[notch])):
             f0 = notches[notch] * i
             w0 = f0/nyquist
