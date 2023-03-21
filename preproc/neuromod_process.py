@@ -309,25 +309,25 @@ def process_rsp_data(source, sub, ses, outdir, save =True):
     """
     """
     data_tsv, filenames_tsv = load_segmented_runs(source, sub, ses)
-    summary_processing = open(os.path.join(outdir, sub, ses, f'summary_rsp_processing_{sub}_{ses}.txt'), 'w')
+    #summary_processing = open(os.path.join(outdir, sub, ses, f'summary_rsp_processing_{sub}_{ses}.txt'), 'w')
     for idx, d in enumerate(data_tsv):
         print(f"---Processing RSP signal for {sub} {ses}: run {filenames_tsv[idx][-2:]}---")
-        try:
-            signals, info = rsp_process(d['RSP'], sampling_rate=10000, method='khodadad2018')
-            signals.to_csv(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_rsp_signals"+".tsv"), sep="\t")
-            info['RSP_Peaks'] = info['RSP_Peaks'].tolist()
-            info['RSP_Troughs'] = info['RSP_Troughs'].tolist()
-            with open(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_rsp_info"+".json"), 'w') as fp:
-                json.dump(info, fp)
-        except:
-            error_txt = f"Error in processing of {sub} {ses} run{filenames_tsv[idx][-2:]}"
-            print(error_txt)
-            summary_processing.write("%s\n" % error_txt)
+        #try:
+        signals, info = rsp_process(d['RSP'], sampling_rate=10000, method='khodadad2018')
+        signals.to_csv(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_rsp_signals"+".tsv"), sep="\t")
+        info['RSP_Peaks'] = info['RSP_Peaks'].tolist()
+        info['RSP_Troughs'] = info['RSP_Troughs'].tolist()
+        with open(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_rsp_info"+".json"), 'w') as fp:
+            json.dump(info, fp)
+        #except:
+        #    error_txt = f"Error in processing of {sub} {ses} run{filenames_tsv[idx][-2:]}"
+        #    print(error_txt)
+        #    summary_processing.write("%s\n" % error_txt)
 
 if __name__ == "__main__":
-    #PPG processing pipeline
-    #process_ppg_data()
-    #ECG processing pipeline
-    #process_ecg_data()
-    #RSP processing pipeline
+    PPG processing pipeline
+    process_ppg_data()
+    ECG processing pipeline
+    process_ecg_data()
+    RSP processing pipeline
     process_rsp_data()
