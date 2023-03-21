@@ -154,9 +154,9 @@ def neuromod_ecg_clean(ecg_signal, trigger_pulse,
         if method in ["biopac"]:
             clean = _ecg_clean_biopac(timeseries, sampling_rate)
         if method in ['bottenhorn', 'bottenhorn2022']:
-            #Remove respiration-related noise using a 1Hz highpass filter
+            #Remove respiration-related noise using a 2Hz highpass filter
             print('---Cleaning respiration-related noise---')
-            ecg_signal_hp = _butter_highpass_filter(ecg_signal, 1., sampling_rate)
+            ecg_signal_hp = _butter_highpass_filter(ecg_signal, 2., sampling_rate)
             #Apply comb band pass filter with Bottenhorn correction
             print('---Applying the corrected comb band pass filter---')
             clean = _ecg_clean_bottenhorn(ecg_signal_hp, sampling_rate=sampling_rate, tr=tr, mb=mb, slices=slices)
