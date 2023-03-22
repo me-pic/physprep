@@ -123,7 +123,6 @@ def neuromod_ppg_process(ppg_raw, sampling_rate=10000):
     wd, m = process(ppg_cleaned, sampling_rate, reject_segmentwise=True,
                     interp_clipping=True, report_time=True)
         
-    #peak_list_hp = _signal_from_indices(wd['peaklist_cor'], desired_length=len(ppg_cleaned))
     cumsum=0
     rejected_segments=[]
     for i in wd['rejected_segments']:
@@ -153,7 +152,7 @@ def neuromod_ppg_process(ppg_raw, sampling_rate=10000):
     info.update({'PPG_ectopic': int(corrected['ectopic']), 'PPG_short': int(corrected['short']), 
                  'PPG_clean_rr_systole': corrected['clean_rr'].tolist(),'PPG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
                  'PPG_long': int(corrected['long']), 'PPG_extra': int(corrected['extra']), 
-                 'PPG_missed': int(corrected['missed']),'PPG_rejected_segments': rejected_segments, #'PPG_Peaks_corrected':wd['peaklist_cor'],
+                 'PPG_missed': int(corrected['missed']),'PPG_rejected_segments': rejected_segments, 
                  'PPG_cumulseconds_rejected': int(cumsum), 
                  'PPG_%_rejected_segments': float(cumsum/(len(ppg_signal)/sampling_rate))})
 
@@ -166,7 +165,7 @@ def neuromod_ppg_process(ppg_raw, sampling_rate=10000):
 
     return signals, info
 
-def neuromod_ecg_process(ecg_raw, sampling_rate=10000, method='fmri'):
+def neuromod_ecg_process(ecg_raw, trigger_pulse, sampling_rate=10000, method='bottenhorn'):
     """
     Process neuromod ECG.
 
@@ -191,21 +190,58 @@ def neuromod_ecg_process(ecg_raw, sampling_rate=10000, method='fmri'):
     info : dict
         containing list of peaks
     """
-    # prepare signal for processing
-    ecg_clean = neuromod_ecg_clean(ecg_raw, sampling_rate=sampling_rate,
-                                   method=method)
-    # Detect beats
-    instant_peaks, rpeaks, = ecg_peaks(ecg_cleaned=ecg_clean,
-                                       sampling_rate=sampling_rate,
-                                       correct_artifacts=True)
-    # Compute rate based on peaks
-    rate = signal_rate(rpeaks, sampling_rate=sampling_rate,
-                       desired_length=len(ecg_clean))
+    ecg_signal = as_vector(ecg_raw)
 
-    return pd.DataFrame({'ECG_Raw': ecg_raw,
-                         'ECG_Clean': ecg_clean,
-                         'ECG_Rate': rate,
-                         'ECG_Peaks': instant_peaks}), rpeaks
+    # prepare signal for processing
+    ecg_cleaned = neuromod_ecg_clean(ecg_signal, trigger_pulse, sampling_rate=10000, method=method, me=True)
+
+    #heartpy
+    print("HeartPy processing started")
+    wd, m = process(ecg_cleaned, sampling_rate, reject_segmentwise=True,
+                    interp_clipping=True, report_time=True)
+    cumsum=0
+    rejected_segments=[]
+    for i in wd['rejected_segments']:
+        cumsum += int(np.diff(i)/sampling_rate)
+        rejected_segments.append((int(i[0]),int(i[1])))
+    print('Heartpy found peaks')
+    
+    # Find peaks
+    print("Neurokit processing started")
+    _, info = ecg_peaks(ecg_cleaned=ecg_clean, 
+                        sampling_rate=sampling_rate, 
+                        method='nabian2018',
+                        correct_artifacts=True)
+    info['ECG_R_Peaks'] = info['ECG_R_Peaks'].tolist()
+    peak_list_nk = _signal_from_indices(info['ECG_R_Peaks'], desired_length=len(ecg_cleaned))
+    print('Neurokit found peaks')
+    
+    # peak to intervals
+    rr = input_conversion(info['ECG_R_Peaks'], input_type='peaks_idx', output_type='rr_ms', sfreq=sampling_rate)
+    
+    # correct beat detection
+    corrected = correct_rr(rr, n_iterations=4)
+    corrected_peaks = correct_peaks(peak_list_nk, n_iterations=4)
+    print('systole corrected RR series')
+    
+    # Compute rate based on peaks
+    rate = signal_rate(info['PPG_Peaks'], sampling_rate=sampling_rate,
+                       desired_length=len(ecg_signal))
+
+    # sanitize info dict    
+    info.update({'ECG_ectopic': int(corrected['ectopic']), 'ECG_short': int(corrected['short']), 
+                'ECG_clean_rr_systole': corrected['clean_rr'].tolist(),'ECG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
+                'ECG_long': int(corrected['long']), 'ECG_extra': int(corrected['extra']), 
+                'ECG_missed': int(corrected['missed']),'ECG_rejected_segments': rejected_segments, 
+                'EcG_cumulseconds_rejected': int(cumsum), 
+                'ECG_%_rejected_segments': float(cumsum/(len(ecg_signal)/sampling_rate))})
+    # Prepare output  
+    signals = pd.DataFrame(
+                {"ECG_Raw": ecg_signal, "ECG_Clean": ecg_cleaned, "ECG_Peaks_NK": peak_list_nk,
+                "ECG_Peaks_Systole": corrected_peaks['clean_peaks'],
+                "ECG_Rate": rate})
+
+    return signals, info
 
 def neuromod_eda_process():
     return
@@ -272,12 +308,10 @@ def process_ecg_data(source, sub, ses, outdir, save=True):
     """
     """
     data_tsv, filenames_tsv = load_segmented_runs(source, sub, ses)
-    for idx, d in enumerate(data_tsv):
+    for idx, d in enumerate(data_tsv[:1]):
         print(f"---Processing ECG signal for {sub} {ses}: run {filenames_tsv[idx][-2:]}---")
         print('--Cleaning the signal---')
-        clean_ecg = neuromod_ecg_clean(d['ECG'], d['TTL'], sampling_rate=10000, method='bottenhorn', me=True)
-        df_ecg = pd.DataFrame({'clean_ecg': clean_ecg})
-        df_ecg.to_csv(os.path.join(outdir, sub, ses , f"{filenames_tsv[idx]}_clean_ecg.tsv"), sep="\t")
+        clean_ecg = neuromod_ecg_process(d['ECG'], d['TTL'], sampling_rate=10000, method='bottenhorn')
         print('---Processing the signal---')
         signals, info = ecg_process(clean_ecg, sampling_rate=10000)
         if save:
@@ -301,16 +335,12 @@ def process_rsp_data(source, sub, ses, outdir, save =True):
     data_tsv, filenames_tsv = load_segmented_runs(source, sub, ses)
     for idx, d in enumerate(data_tsv):
         print(f"---Processing RSP signal for {sub} {ses}: run {filenames_tsv[idx][-2:]}---")
-        signals, info = rsp_process(d['RSP'], sampling_rate=10000, method='khodadad2018')
-        info['RSP_Peaks'] = info['RSP_Peaks'].tolist()
-        info['RSP_Troughs'] = info['RSP_Troughs'].tolist()
+        signals, _ = rsp_process(d['RSP'], sampling_rate=10000, method='khodadad2018')
         if save:
             print("Saving processed data")
             signals.to_csv(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_rsp_signals"+".tsv"), sep="\t")
-            with open(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_rsp_info"+".json"), 'w') as fp:
-                json.dump(info, fp)
 
-    return signals, info
+    return signals
 
 if __name__ == "__main__":
     PPG processing pipeline
