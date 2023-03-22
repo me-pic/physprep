@@ -343,9 +343,9 @@ def process_rsp_data(source, sub, ses, outdir, save =True):
     return signals
 
 if __name__ == "__main__":
-    PPG processing pipeline
+    #PPG processing pipeline
     process_ppg_data()
-    ECG processing pipeline
+    #ECG processing pipeline
     process_ecg_data()
-    RSP processing pipeline
+    #RSP processing pipeline
     process_rsp_data()
