@@ -150,7 +150,7 @@ def neuromod_ppg_process(ppg_raw, sampling_rate=10000):
     
     # sanitize info dict    
     info.update({'PPG_ectopic': nEctopic, 'PPG_short': nShort, 'PPG_long': nLong, 'PPG_extra': nExtra, 'PPG_missed': nMissed,
-                 'PPG_clean_rr_systole': corrected['clean_rr'].tolist(),'PPG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
+                 'PPG_clean_rr_systole': corrected.tolist(),'PPG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
                  'PPG_rejected_segments': rejected_segments, 
                  'PPG_cumulseconds_rejected': int(cumsum), 
                  'PPG_%_rejected_segments': float(cumsum/(len(ppg_signal)/sampling_rate))})
@@ -228,7 +228,7 @@ def neuromod_ecg_process(ecg_raw, trigger_pulse, sampling_rate=10000, method='bo
 
     # sanitize info dict    
     info.update({'ECG_ectopic': nEctopic, 'ECG_short': nShort, 'ECG_long': nLong, 'ECG_extra': nExtra, 'ECG_missed': nMissed,
-                'ECG_clean_rr_systole': corrected['clean_rr'].tolist(),'ECG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
+                'ECG_clean_rr_systole': corrected,'ECG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
                 'ECG_rejected_segments': rejected_segments, 
                 'EcG_cumulseconds_rejected': int(cumsum), 
                 'ECG_%_rejected_segments': float(cumsum/(len(ecg_signal)/sampling_rate))})
