@@ -13,10 +13,10 @@ import os
 import json
 # high-level processing utils
 from neurokit2 import eda_process, rsp_process, ecg_peaks,  ppg_findpeaks, ecg_process
-#from systole.correction import correct_rr, correct_peaks
+from systole.correction import correct_rr, correct_peaks
 from heartpy import process, enhance_peaks, exceptions
 # signal utils
-#from systole.utils import input_conversion
+from systole.utils import input_conversion
 from neurokit2.misc import as_vector
 from neurokit2 import signal_rate, signal_fixpeaks, signal_filter
 from neurokit2.signal.signal_formatpeaks import _signal_from_indices
@@ -140,7 +140,7 @@ def neuromod_ppg_process(ppg_raw, sampling_rate=10000):
     rr = input_conversion(info['PPG_Peaks'], input_type='peaks_idx', output_type='rr_ms', sfreq=sampling_rate)
     
     # correct beat detection
-    corrected = correct_rr(rr, n_iterations=4)
+    corrected, (nMissed, nExtra, nEctopic, nShort, nLong) = correct_rr(rr) 
     corrected_peaks = correct_peaks(peak_list_nk, n_iterations=4)
     print('systole corrected RR series')
     
@@ -149,10 +149,9 @@ def neuromod_ppg_process(ppg_raw, sampling_rate=10000):
     
     
     # sanitize info dict    
-    info.update({'PPG_ectopic': int(corrected['ectopic']), 'PPG_short': int(corrected['short']), 
+    info.update({'PPG_ectopic': nEctopic, 'PPG_short': nShort, 'PPG_long': nLong, 'PPG_extra': nExtra, 'PPG_missed': nMissed,
                  'PPG_clean_rr_systole': corrected['clean_rr'].tolist(),'PPG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
-                 'PPG_long': int(corrected['long']), 'PPG_extra': int(corrected['extra']), 
-                 'PPG_missed': int(corrected['missed']),'PPG_rejected_segments': rejected_segments, 
+                 'PPG_rejected_segments': rejected_segments, 
                  'PPG_cumulseconds_rejected': int(cumsum), 
                  'PPG_%_rejected_segments': float(cumsum/(len(ppg_signal)/sampling_rate))})
 
@@ -220,19 +219,17 @@ def neuromod_ecg_process(ecg_raw, trigger_pulse, sampling_rate=10000, method='bo
     rr = input_conversion(info['ECG_R_Peaks'], input_type='peaks_idx', output_type='rr_ms', sfreq=sampling_rate)
     
     # correct beat detection
-    corrected = correct_rr(rr, n_iterations=4)
+    corrected, (nMissed, nExtra, nEctopic, nShort, nLong) = correct_rr(rr) 
     corrected_peaks = correct_peaks(peak_list_nk, n_iterations=4)
     print('systole corrected RR series')
-    
     # Compute rate based on peaks
-    rate = signal_rate(info['PPG_Peaks'], sampling_rate=sampling_rate,
+    rate = signal_rate(info['ECG_R_Peaks'], sampling_rate=sampling_rate,
                        desired_length=len(ecg_signal))
 
     # sanitize info dict    
-    info.update({'ECG_ectopic': int(corrected['ectopic']), 'ECG_short': int(corrected['short']), 
+    info.update({'ECG_ectopic': nEctopic, 'ECG_short': nShort, 'ECG_long': nLong, 'ECG_extra': nExtra, 'ECG_missed': nMissed,
                 'ECG_clean_rr_systole': corrected['clean_rr'].tolist(),'ECG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
-                'ECG_long': int(corrected['long']), 'ECG_extra': int(corrected['extra']), 
-                'ECG_missed': int(corrected['missed']),'ECG_rejected_segments': rejected_segments, 
+                'ECG_rejected_segments': rejected_segments, 
                 'EcG_cumulseconds_rejected': int(cumsum), 
                 'ECG_%_rejected_segments': float(cumsum/(len(ecg_signal)/sampling_rate))})
     # Prepare output  
