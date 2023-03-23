@@ -208,7 +208,7 @@ def neuromod_ecg_process(ecg_raw, trigger_pulse, sampling_rate=10000, method='bo
     
     # Find peaks
     print("Neurokit processing started")
-    _, info = ecg_peaks(ecg_cleaned=ecg_clean, 
+    _, info = ecg_peaks(ecg_cleaned=ecg_cleaned, 
                         sampling_rate=sampling_rate, 
                         method='nabian2018',
                         correct_artifacts=True)
@@ -260,8 +260,9 @@ def load_segmented_runs(source, sub, ses):
     files_tsv = [f for f in os.listdir(os.path.join(source, sub, ses)) if 'tsv.gz' in f]
     #Remove files ending with _01
     files_tsv = [f for f in files_tsv if '_01.' not in f]
+    files_tsv.sort()
 
-    for tsv in files_tsv:
+    for tsv in files_tsv[:1]:
         filename = tsv.split(".")[0]
         filenames.append(filename)
         print(f"---Reading data for {sub} {ses}: run {filename[-2:]}---")
@@ -344,8 +345,8 @@ def process_rsp_data(source, sub, ses, outdir, save =True):
 
 if __name__ == "__main__":
     #PPG processing pipeline
-    process_ppg_data()
+    #process_ppg_data()
     #ECG processing pipeline
     process_ecg_data()
     #RSP processing pipeline
-    process_rsp_data()
+    #process_rsp_data()
