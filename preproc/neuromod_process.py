@@ -230,7 +230,7 @@ def neuromod_ecg_process(ecg_raw, trigger_pulse, sampling_rate=10000, method='bo
     info.update({'ECG_ectopic': nEctopic, 'ECG_short': nShort, 'ECG_long': nLong, 'ECG_extra': nExtra, 'ECG_missed': nMissed,
                 'ECG_clean_rr_systole': corrected.tolist(),'ECG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
                 'ECG_rejected_segments': rejected_segments, 
-                'EcG_cumulseconds_rejected': int(cumsum), 
+                'ECG_cumulseconds_rejected': int(cumsum), 
                 'ECG_%_rejected_segments': float(cumsum/(len(ecg_signal)/sampling_rate))})
     # Prepare output  
     signals = pd.DataFrame(
@@ -259,7 +259,7 @@ def load_segmented_runs(source, sub, ses):
     files_tsv = [f for f in files_tsv if '_01.' not in f]
     files_tsv.sort()
 
-    for tsv in files_tsv[:1]:
+    for tsv in files_tsv:
         filename = tsv.split(".")[0]
         filenames.append(filename)
         print(f"---Reading data for {sub} {ses}: run {filename[-2:]}---")
@@ -306,7 +306,7 @@ def process_ecg_data(source, sub, ses, outdir, save=True):
     """
     """
     data_tsv, filenames_tsv = load_segmented_runs(source, sub, ses)
-    for idx, d in enumerate(data_tsv[:1]):
+    for idx, d in enumerate(data_tsv):
         print(f"---Processing ECG signal for {sub} {ses}: run {filenames_tsv[idx][-2:]}---")
         print('--Cleaning the signal---')
         signals, info = neuromod_ecg_process(d['ECG'], d['TTL'], sampling_rate=10000, method='bottenhorn')
