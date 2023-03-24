@@ -147,7 +147,7 @@ def neuromod_ppg_process(ppg_raw, sampling_rate=10000):
     rate = signal_rate(info['PPG_Peaks'], sampling_rate=sampling_rate,
                        desired_length=len(ppg_signal))
     
-    
+    del info['PPG_Peaks']
     # sanitize info dict    
     info.update({'PPG_ectopic': nEctopic, 'PPG_short': nShort, 'PPG_long': nLong, 'PPG_extra': nExtra, 'PPG_missed': nMissed,
                  'PPG_clean_rr_systole': corrected.tolist(),'PPG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
@@ -225,6 +225,7 @@ def neuromod_ecg_process(ecg_raw, trigger_pulse, sampling_rate=10000, method='bo
     # Compute rate based on peaks
     rate = signal_rate(info['ECG_R_Peaks'], sampling_rate=sampling_rate,
                        desired_length=len(ecg_signal))
+    del info['ECG_R_Peaks']
 
     # sanitize info dict    
     info.update({'ECG_ectopic': nEctopic, 'ECG_short': nShort, 'ECG_long': nLong, 'ECG_extra': nExtra, 'ECG_missed': nMissed,
