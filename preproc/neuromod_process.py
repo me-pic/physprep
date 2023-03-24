@@ -228,7 +228,7 @@ def neuromod_ecg_process(ecg_raw, trigger_pulse, sampling_rate=10000, method='bo
 
     # sanitize info dict    
     info.update({'ECG_ectopic': nEctopic, 'ECG_short': nShort, 'ECG_long': nLong, 'ECG_extra': nExtra, 'ECG_missed': nMissed,
-                'ECG_clean_rr_systole': corrected,'ECG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
+                'ECG_clean_rr_systole': corrected.tolist(),'ECG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
                 'ECG_rejected_segments': rejected_segments, 
                 'EcG_cumulseconds_rejected': int(cumsum), 
                 'ECG_%_rejected_segments': float(cumsum/(len(ecg_signal)/sampling_rate))})
@@ -309,9 +309,7 @@ def process_ecg_data(source, sub, ses, outdir, save=True):
     for idx, d in enumerate(data_tsv[:1]):
         print(f"---Processing ECG signal for {sub} {ses}: run {filenames_tsv[idx][-2:]}---")
         print('--Cleaning the signal---')
-        clean_ecg = neuromod_ecg_process(d['ECG'], d['TTL'], sampling_rate=10000, method='bottenhorn')
-        print('---Processing the signal---')
-        signals, info = ecg_process(clean_ecg, sampling_rate=10000)
+        signals, info = neuromod_ecg_process(d['ECG'], d['TTL'], sampling_rate=10000, method='bottenhorn')
         if save:
             print("Saving processed data")
             signals.to_csv(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}"+"_ecg_signals"+".tsv"), sep="\t")
