@@ -86,6 +86,69 @@ def neuromod_bio_process(tsv=None, h5=None, df=None, sampling_rate=10000):
 
     return(bio_df, bio_info)
 
+def neuromod_process_cardiac(signal_raw, signal_cleaned, sampling_rate = 10000, data_type='PPG'):
+    """
+    signal_raw
+    signal_cleaned
+    sampling_rate
+    data_type
+
+    signals, info
+    """
+    #heartpy
+    print("HeartPy processing started")
+    wd, m = process(signal_cleaned, sampling_rate, reject_segmentwise=True,
+                    interp_clipping=True, report_time=True)
+    cumsum=0
+    rejected_segments=[]
+    for i in wd['rejected_segments']:
+        cumsum += int(np.diff(i)/sampling_rate)
+        rejected_segments.append((int(i[0]),int(i[1])))
+    print('Heartpy found peaks')
+    
+    # Find peaks
+    print("Neurokit processing started")
+    if data_type in ['ecg', 'ECG']:
+        _, info = ecg_peaks(ecg_cleaned=ecg_cleaned, 
+                            sampling_rate=sampling_rate, 
+                            method='nabian2018',
+                            correct_artifacts=True)
+        info[f'{data_type.upper()}_Peaks'] = info[f'{data_type.upper()}_R_Peaks']
+    elif data_type in ['ppg', 'PPG']:
+        info = ppg_findpeaks(ppg_cleaned, sampling_rate=sampling_rate)
+    else:
+        print("Please use a valid data type: 'ECG' or 'PPG'")
+
+    info[f'{data_type.upper()}_Peaks'] = info[f'{data_type.upper()}_Peaks'].tolist()
+    peak_list_nk = _signal_from_indices(info[f'{data_type.upper()}_Peaks'], desired_length=len(ecg_cleaned))
+    print('Neurokit found peaks')
+    
+    # peak to intervals
+    rr = input_conversion(info[f'{data_type.upper()}_Peaks'], input_type='peaks_idx', output_type='rr_ms', sfreq=sampling_rate)
+    
+    # correct beat detection
+    corrected, (nMissed, nExtra, nEctopic, nShort, nLong) = correct_rr(rr) 
+    corrected_peaks = correct_peaks(peak_list_nk, n_iterations=4)
+    print('systole corrected RR series')
+    # Compute rate based on peaks
+    rate = signal_rate(info[f'{data_type.upper()}_Peaks'], sampling_rate=sampling_rate,
+                       desired_length=len(signal_raw))
+    
+    # sanitize info dict    
+    info.update({f'{data_type.upper()}_ectopic': nEctopic, f'{data_type.upper()}_short': nShort, f'{data_type.upper()}_long': nLong, f'{data_type.upper()}_extra': nExtra, f'{data_type.upper()}_missed': nMissed,
+                f'{data_type.upper()}_clean_rr_systole': corrected.tolist(),f'{data_type.upper()}_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
+                f'{data_type.upper()}_rejected_segments': rejected_segments, 
+                f'{data_type.upper()}_cumulseconds_rejected': int(cumsum), 
+                f'{data_type.upper()}_%_rejected_segments': float(cumsum/(len(signal_raw)/sampling_rate))})
+    del info[f'{data_type.upper()}_Peaks']
+    # Prepare output  
+    signals = pd.DataFrame(
+                {f'{data_type.upper()}_Raw': ecg_signal, f'{data_type.upper()}_Clean': ecg_cleaned, f'{data_type.upper()}_Peaks_NK': peak_list_nk,
+                f'{data_type.upper()}_Peaks_Systole': corrected_peaks['clean_peaks'],
+                f'{data_type.upper()}_Rate': rate})
+
+    return signals, info
+
 
 def neuromod_ppg_process(ppg_raw, sampling_rate=10000):
     """
@@ -118,50 +181,7 @@ def neuromod_ppg_process(ppg_raw, sampling_rate=10000):
                                 lowcut=0.5, highcut=8, order=3)
     print('PPG Cleaned')
     
-    # heartpy
-    print("HeartPy processing started")
-    wd, m = process(ppg_cleaned, sampling_rate, reject_segmentwise=True,
-                    interp_clipping=True, report_time=True)
-        
-    cumsum=0
-    rejected_segments=[]
-    for i in wd['rejected_segments']:
-        cumsum += int(np.diff(i)/sampling_rate)
-        rejected_segments.append((int(i[0]),int(i[1])))
-    print('Heartpy found peaks')
-    
-    # Find peaks
-    info = ppg_findpeaks(ppg_cleaned, sampling_rate=sampling_rate)
-    info['PPG_Peaks'] = info['PPG_Peaks'].tolist()
-    peak_list_nk = _signal_from_indices(info['PPG_Peaks'], desired_length=len(ppg_cleaned))
-    print('Neurokit found peaks')
-    
-    # peak to intervals
-    rr = input_conversion(info['PPG_Peaks'], input_type='peaks_idx', output_type='rr_ms', sfreq=sampling_rate)
-    
-    # correct beat detection
-    corrected, (nMissed, nExtra, nEctopic, nShort, nLong) = correct_rr(rr) 
-    corrected_peaks = correct_peaks(peak_list_nk, n_iterations=4)
-    print('systole corrected RR series')
-    
-    rate = signal_rate(info['PPG_Peaks'], sampling_rate=sampling_rate,
-                       desired_length=len(ppg_signal))
-    
-    # sanitize info dict    
-    info.update({'PPG_ectopic': nEctopic, 'PPG_short': nShort, 'PPG_long': nLong, 'PPG_extra': nExtra, 'PPG_missed': nMissed,
-                 'PPG_clean_rr_systole': corrected.tolist(),'PPG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
-                 'PPG_rejected_segments': rejected_segments, 
-                 'PPG_cumulseconds_rejected': int(cumsum), 
-                 'PPG_%_rejected_segments': float(cumsum/(len(ppg_signal)/sampling_rate))})
-
-    del info['PPG_Peaks']
-
-    # Prepare output  
-    signals = pd.DataFrame(
-                {"PPG_Raw": ppg_signal, "PPG_Clean": ppg_cleaned, "PPG_Peaks_NK": peak_list_nk,
-                 "PPG_Peaks_Systole": corrected_peaks['clean_peaks'],
-                 "PPG_Rate": rate}
-    )
+    signals, info = neuromod_process_cardiac(ppg_signal, ppg_cleaned, sampling_rate = 10000, data_type='PPG')
 
     return signals, info
 
@@ -195,50 +215,9 @@ def neuromod_ecg_process(ecg_raw, trigger_pulse, sampling_rate=10000, method='bo
     # prepare signal for processing
     ecg_cleaned = neuromod_ecg_clean(ecg_signal, trigger_pulse, sampling_rate=10000, method=method, me=True)
 
-    #heartpy
-    print("HeartPy processing started")
-    wd, m = process(ecg_cleaned, sampling_rate, reject_segmentwise=True,
-                    interp_clipping=True, report_time=True)
-    cumsum=0
-    rejected_segments=[]
-    for i in wd['rejected_segments']:
-        cumsum += int(np.diff(i)/sampling_rate)
-        rejected_segments.append((int(i[0]),int(i[1])))
-    print('Heartpy found peaks')
-    
-    # Find peaks
-    print("Neurokit processing started")
-    _, info = ecg_peaks(ecg_cleaned=ecg_cleaned, 
-                        sampling_rate=sampling_rate, 
-                        method='nabian2018',
-                        correct_artifacts=True)
-    info['ECG_R_Peaks'] = info['ECG_R_Peaks'].tolist()
-    peak_list_nk = _signal_from_indices(info['ECG_R_Peaks'], desired_length=len(ecg_cleaned))
-    print('Neurokit found peaks')
-    
-    # peak to intervals
-    rr = input_conversion(info['ECG_R_Peaks'], input_type='peaks_idx', output_type='rr_ms', sfreq=sampling_rate)
-    
-    # correct beat detection
-    corrected, (nMissed, nExtra, nEctopic, nShort, nLong) = correct_rr(rr) 
-    corrected_peaks = correct_peaks(peak_list_nk, n_iterations=4)
-    print('systole corrected RR series')
-    # Compute rate based on peaks
-    rate = signal_rate(info['ECG_R_Peaks'], sampling_rate=sampling_rate,
-                       desired_length=len(ecg_signal))
-    
-    # sanitize info dict    
-    info.update({'ECG_ectopic': nEctopic, 'ECG_short': nShort, 'ECG_long': nLong, 'ECG_extra': nExtra, 'ECG_missed': nMissed,
-                'ECG_clean_rr_systole': corrected.tolist(),'ECG_clean_rr_hp': [float(v) for v in wd['RR_list_cor']],
-                'ECG_rejected_segments': rejected_segments, 
-                'ECG_cumulseconds_rejected': int(cumsum), 
-                'ECG_%_rejected_segments': float(cumsum/(len(ecg_signal)/sampling_rate))})
-    del info['ECG_R_Peaks']
-    # Prepare output  
-    signals = pd.DataFrame(
-                {"ECG_Raw": ecg_signal, "ECG_Clean": ecg_cleaned, "ECG_Peaks_NK": peak_list_nk,
-                "ECG_Peaks_Systole": corrected_peaks['clean_peaks'],
-                "ECG_Rate": rate})
+    print('ECG Cleaned')
+
+    signals, info = neuromod_process_cardiac(ecg_signal, ecg_cleaned, sampling_rate = 10000, data_type='ECG')
 
     return signals, info
 
