@@ -25,4 +25,3 @@ python neuromod_process.py $SOURCE "sub-05" "ses-004" $OUTDIR True
 
 
 
-
