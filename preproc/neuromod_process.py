@@ -33,9 +33,9 @@ def neuromod_bio_process(tsv=None, h5=None, df=None, sampling_rate=10000):
     df (optional) :
         pandas DataFrame object
     """
-    #if df and tsv and h5 is None:
-        #raise ValueError("You have to give at least one of the two \n"
-            #             "parameters: tsv or df")
+    if df and tsv and h5 is None:
+        raise ValueError("You have to give at least one of the two \n"
+                         "parameters: tsv or df")
 
     if tsv is not None:
         df = pd.read_csv(tsv, sep='\t', compression='gzip')
@@ -63,9 +63,9 @@ def neuromod_bio_process(tsv=None, h5=None, df=None, sampling_rate=10000):
         bio_df = pd.concat([bio_df, ppg], axis=1)
 
         # ecg
-       # ecg, ecg_info = neuromod_ecg_process(ecg_raw, sampling_rate=sampling_rate)
-        #bio_info.update(ecg_info)
-        bio_df = pd.concat([bio_df, ecg_raw], axis=1)
+        ecg, ecg_info = neuromod_ecg_process(ecg_raw, sampling_rate=sampling_rate)
+        bio_info.update(ecg_info)
+        bio_df = pd.concat([bio_df, ecg], axis=1)
 
         #  rsp
         rsp, rsp_info = rsp_process(rsp_raw, sampling_rate=sampling_rate,
@@ -88,12 +88,32 @@ def neuromod_bio_process(tsv=None, h5=None, df=None, sampling_rate=10000):
 
 def neuromod_process_cardiac(signal_raw, signal_cleaned, sampling_rate = 10000, data_type='PPG'):
     """
-    signal_raw
-    signal_cleaned
-    sampling_rate
-    data_type
+    Process cardiac signal
 
-    signals, info
+    Extract features of interest for neuromod project
+
+    Parameters
+    -----------
+    signal_raw : array
+        Raw PPG/ECG signal
+    signal_cleaned : array
+        Cleaned PPG/ECG signal
+    sampling_rate : int
+        The sampling frequency of `signal_raw` (in Hz, i.e., samples/second).
+        Defaults to 10000.
+    data_type : str
+        Precise the type of signal to be processed. The function currently support PPG and ECG signal processing
+        Default to 'PPG'
+    Returns
+    -------
+    signals : DataFrame
+        A DataFrame containing the cleaned PPG/ECG signals.
+        - the raw signal.
+        - the cleaned signal.
+        - the heart rate as measured based on PPG/ECG peaks.
+        - the PPG/ECG peaks marked as "1" in a list of zeros.
+    info : dict
+        containing list of intervals between peaks
     """
     #heartpy
     print("HeartPy processing started")
@@ -176,18 +196,18 @@ def neuromod_ppg_process(ppg_raw, sampling_rate=10000):
     """
     ppg_signal = as_vector(ppg_raw)
 
-    # Clean signal
+    # Prepare signal for processing
     ppg_cleaned = signal_filter(ppg_signal, sampling_rate=sampling_rate,
                                 lowcut=0.5, highcut=8, order=3)
     print('PPG Cleaned')
-    
+    # Process clean signal
     signals, info = neuromod_process_cardiac(ppg_signal, ppg_cleaned, sampling_rate = 10000, data_type='PPG')
 
     return signals, info
 
 def neuromod_ecg_process(ecg_raw, trigger_pulse, sampling_rate=10000, method='bottenhorn'):
     """
-    Process neuromod ECG.
+    Process ECG signal.
 
     Custom processing for neuromod ECG acquisition.
 
@@ -212,16 +232,16 @@ def neuromod_ecg_process(ecg_raw, trigger_pulse, sampling_rate=10000, method='bo
     """
     ecg_signal = as_vector(ecg_raw)
 
-    # prepare signal for processing
+    # Prepare signal for processing
     ecg_cleaned = neuromod_ecg_clean(ecg_signal, trigger_pulse, sampling_rate=10000, method=method, me=True)
-
     print('ECG Cleaned')
-
+    # Process clean signal
     signals, info = neuromod_process_cardiac(ecg_signal, ecg_cleaned, sampling_rate = 10000, data_type='ECG')
 
     return signals, info
 
 def neuromod_eda_process():
+    #TO DO
     return
 
 def load_json(filename):
