@@ -276,7 +276,6 @@ def process_ppg_data(source, sub, ses, outdir, save=True):
     return signals, info
 
 
-
 @click.command()
 @click.argument('source', type=str)
 @click.argument('sub', type=str)
