@@ -159,7 +159,8 @@ def neuromod_ecg_clean(ecg_signal, trigger_pulse,
             ecg_signal_hp = _butter_highpass_filter(ecg_signal, 2., sampling_rate)
             #Apply comb band pass filter with Bottenhorn correction
             print('---Applying the corrected comb band pass filter---')
-            clean = _ecg_clean_bottenhorn(ecg_signal_hp, sampling_rate=sampling_rate, tr=tr, mb=mb, slices=slices)
+            ecg_bottenhorn = _ecg_clean_bottenhorn(ecg_signal_hp, sampling_rate=sampling_rate, tr=tr, mb=mb, slices=slices)
+        clean = _bandpass_filter(ecg_bottenhorn, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate=sampling_rate)
 
     return clean
 
@@ -323,3 +324,12 @@ def _fourier_freq(timeseries, d, fmax):
     fft_db = 10 * np.log10(abs(fft))
     limit = np.where(freq >= fmax)[0][0]
     return fft, fft_db, freq, limit
+
+def _bandpass_filter(signal, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate=10000):
+    """
+    """
+    nyquist = sampling_rate / 2
+    w0 = f0 / nyquist
+    sos = signal.butter(order, [low / nyquist, high / nyquist], btype='band', output='sos')
+    ecg_clean = signal.sosfiltfilt(sos, signal)
+    return ecg_clean
