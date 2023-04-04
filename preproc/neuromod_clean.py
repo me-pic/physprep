@@ -8,8 +8,11 @@ import pandas as pd
 import neurokit2 as nk
 from scipy import signal
 
+import sys
+sys.path.append("../visu")
+import make_pipeline
 
-def neuromod_bio_clean(tsv=None, data=None, h5=None, sampling_rate=1000):
+def neuromod_bio_clean(tsv=None, data=None, h5=None, sampling_rate=1000, pipeline=False):
     """
     Filter biosignals.
 
@@ -26,6 +29,14 @@ def neuromod_bio_clean(tsv=None, data=None, h5=None, sampling_rate=1000):
         directory of h5 file
     data (optional) :
         pandas DataFrame object
+    sampling_rate : int
+        The sampling frequency of `signal_raw` (in Hz, i.e., samples/second).
+        Default to 10000.
+    pipeline : bool
+        If True the pipeline figure will be generated for each signal, including
+        the filter applied to each step and the related parameters, and a 10s window
+        of the processed signal following each step.
+        Default to False .
     """
 
     # check input and sanitize
@@ -75,7 +86,7 @@ def neuromod_bio_clean(tsv=None, data=None, h5=None, sampling_rate=1000):
     # PPG_
     if ppg is not None:
         ppg = nk.as_vector(ppg)
-        ppg_clean = neuromod_ppg_clean(ppg, sampling_rate=sampling_rate)
+        ppg_clean = neuromod_ppg_clean(ppg, sampling_rate=sampling_rate, pipeline=pipeline)
 
         bio_df = pd.concat([bio_df, ppg_clean], axis=1)
     # ECG
@@ -268,14 +279,14 @@ def _eda_clean_bottenhorn(eda_signal, sampling_rate=10000., Q=100, mb=4, tr=1.49
     #hp_eda = butter_highpass_filter(scan1['EDA'], 1, fs, order=5)
     bottenhorn_filtered = eda_signal
     for notch in notches:
-        bottenhorn_filtered = _comb_band_stop(notches[notch], np.float64(sampling_rate/2), bottenhorn_filtered, Q, sampling_rate)
+        bottenhorn_filtered = comb_band_stop(notches[notch], np.float64(sampling_rate/2), bottenhorn_filtered, Q, sampling_rate)
 
 
 # =============================================================================
 # General functions
 # =============================================================================
 
-def _comb_band_stop(notches, nyquist, filtered, Q, sampling_rate):
+def comb_band_stop(notches, nyquist, filtered, Q, sampling_rate):
     """
     A serie of notch filters aligned with the scanner gradient's harmonics
 
@@ -292,30 +303,37 @@ def _comb_band_stop(notches, nyquist, filtered, Q, sampling_rate):
             filtered = signal.filtfilt(b, a, filtered)
     return filtered
 
-def _consecutive(data, stepsize=0.000501):
+def consecutive(data, stepsize=0.000501):
     """
     reference: https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
     """
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
 
-def _butter_highpass(cutoff, fs, order=5):
+def butter_freq_pass(cutoff, fs, order=5, btype='high'):
     """
     reference: https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
     """
     nyq = 0.5 * fs
     normal_cutoff = cutoff / nyq
-    b, a = signal.butter(order, normal_cutoff, btype='high', analog=False)
+    b, a = signal.butter(order, normal_cutoff, btype=btype, analog=False)
     return b, a
 
-def _butter_highpass_filter(data, cutoff, fs, order=5):
+def butter_highpass_filter(data, cutoff, fs, order=5):
     """
     reference: https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
     """
-    b, a = _butter_highpass(cutoff, fs, order=order)
+    b, a = butter_freq_pass(cutoff, fs, order=order, btype='high')
     y = signal.filtfilt(b, a, data)
     return y
 
-def _fourier_freq(timeseries, d, fmax):
+def butter_lowpass_filter(data, cutoff, fs, order=5):
+    """
+    """
+    b, a = butter_freq_pass(cutoff, fs, order=order, btype='low')
+    y = signal.filtfilt(b, a, data)
+    return y
+
+def fourier_freq(timeseries, d, fmax):
     """
     reference: https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
     """
@@ -325,7 +343,7 @@ def _fourier_freq(timeseries, d, fmax):
     limit = np.where(freq >= fmax)[0][0]
     return fft, fft_db, freq, limit
 
-def _bandpass_filter(signal, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate=10000):
+def bandpass_filter(signal, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate=10000):
     """
     """
     nyquist = sampling_rate / 2
