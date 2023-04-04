@@ -17,6 +17,7 @@ def neuromod_bio_clean(tsv=None, data=None, h5=None, sampling_rate=1000, pipelin
     Filter biosignals.
 
     NOTE : add downsampling option
+    NOTE : add neuromod_rsp_clean and neuromod_eda_clean functions
 
     Prepare biosignals for extraction of characteristics of physiological
     activity with a set of filters and smoothing functions
@@ -86,25 +87,25 @@ def neuromod_bio_clean(tsv=None, data=None, h5=None, sampling_rate=1000, pipelin
     # PPG_
     if ppg is not None:
         ppg = nk.as_vector(ppg)
-        ppg_clean = neuromod_ppg_clean(ppg, sampling_rate=sampling_rate, pipeline=pipeline)
+        ppg_clean, ppg_pipeline = neuromod_ppg_clean(ppg, sampling_rate=sampling_rate, pipeline=pipeline)
 
         bio_df = pd.concat([bio_df, ppg_clean], axis=1)
     # ECG
     if ecg is not None:
         ecg = nk.as_vector(ecg)
-        ecg_clean = neuromod_ecg_clean(ecg, sampling_rate=sampling_rate)
+        ecg_clean, ecg_pipeline = neuromod_ecg_clean(ecg, sampling_rate=sampling_rate, pipeline=pipeline)
         bio_df = pd.concat([bio_df, ecg_clean], axis=1)
 
     # RSP
     if rsp is not None:
         rsp = nk.as_vector(rsp)
-        rsp_clean = nk.rsp_clean(rsp, sampling_rate=sampling_rate)
+        rsp_clean, rsp_pipeline = nk.rsp_clean(rsp, sampling_rate=sampling_rate) #pipeline=pipeline 
         bio_df = pd.concat([bio_df, rsp_clean], axis=1)
 
     # EDA
     if eda is not None:
         eda = nk.as_vector(eda)
-        eda_clean = nk.eda_clean(eda, sampling_rate=sampling_rate)
+        eda_clean, eda_pipeline = nk.eda_clean(eda, sampling_rate=sampling_rate) #pipeline=pipeline
         bio_df = pd.concat([bio_df, eda_clean], axis=1)
 
     return bio_df
@@ -121,8 +122,7 @@ def neuromod_ppg_clean(ppg_signal, sampling_rate=10000, method='nabian2018'):
 # Electrocardiogram (ECG)
 # =======================================================================
 
-def neuromod_ecg_clean(ecg_signal, trigger_pulse,
-                       sampling_rate=10000., method='biopac', me=False):
+def neuromod_ecg_clean(ecg_signal, trigger_pulse, sampling_rate=10000., method='biopac', me=False, pipeline=False):
     """
     Clean an ECG signal.
 
@@ -144,6 +144,11 @@ def neuromod_ecg_clean(ecg_signal, trigger_pulse,
     array
         Vector containing the cleaned ECG signal.
     """
+    make_pipeline = dict()
+    step_idx = 1
+    start = 10*sampling_rate
+    end = start + 10*sampling_rate
+
     if me:
         tr=2.65
         mb=2
@@ -167,13 +172,33 @@ def neuromod_ecg_clean(ecg_signal, trigger_pulse,
         if method in ['bottenhorn', 'bottenhorn2022']:
             #Remove respiration-related noise using a 2Hz highpass filter
             print('---Cleaning respiration-related noise---')
-            ecg_signal_hp = _butter_highpass_filter(ecg_signal, 2., sampling_rate)
+            ecg_signal_hp, info_filter = butter_highpass_filter(ecg_signal, 2., sampling_rate)
+            if pipeline:
+                make_pipeline.update({
+                    step_idx: info_filter.update({
+                        'signal' : ecg_signal_hp[start:end]
+                        })
+                    })
+                step_idx+=1
             #Apply comb band pass filter with Bottenhorn correction
             print('---Applying the corrected comb band pass filter---')
-            ecg_bottenhorn = _ecg_clean_bottenhorn(ecg_signal_hp, sampling_rate=sampling_rate, tr=tr, mb=mb, slices=slices)
-        clean = _bandpass_filter(ecg_bottenhorn, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate=sampling_rate)
-
-    return clean
+            ecg_bottenhorn, info_filter = _ecg_clean_bottenhorn(ecg_signal_hp, sampling_rate=sampling_rate, tr=tr, mb=mb, slices=slices)
+            if pipeline:
+                make_pipeline.update({
+                    step_idx: info_filter.update({
+                        'signal' : ecg_bottenhorn[start:end]
+                        })
+                    })
+                step_idx+=1        
+        clean, info_filter = _bandpass_filter(ecg_bottenhorn, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate=sampling_rate)
+        if pipeline:
+            make_pipeline.update({
+                step_idx: info_filter.update({
+                    'signal' : ecg_bottenhorn[start:end]
+                    })
+                })
+       
+    return clean, make_pipeline
 
 
 # =============================================================================
