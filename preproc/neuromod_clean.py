@@ -204,7 +204,7 @@ def neuromod_ecg_clean(ecg_signal, trigger_pulse, sampling_rate=10000., method='
 # =============================================================================
 # ECG internal : Schmidt et al. 2016
 # =============================================================================
-def _ecg_clean_schmidt(ecg_signal, sampling_rate=16000):
+def _ecg_clean_schmidt(ecg_signal, sampling_rate=10000):
     """
     from Schmidt, M., Krug, J. W., & Rose, G. (2016).
     Reducing of gradient induced artifacts on the ECG signal during MRI
@@ -251,11 +251,41 @@ def _ecg_clean_schmidt(ecg_signal, sampling_rate=16000):
 # =============================================================================
 # ECG internal : biopac recommendations
 # =============================================================================
-def _ecg_clean_biopac(timeseries, sampling_rate=10000., tr=1.49, mb=4, slices=60, Q=100):
+def _ecg_clean_biopac(timeseries, sampling_rate=10000., tr=1.49, slices=60, Q=100):
     """
+    Clean the ECG signal using a comb band stop filter implemented according to Biopac
+    application note on ECG signal processing during fMRI.
+
+    Parameters
+    ----------
+    timeseries : DataFrame
+        DataFrame containing the ECG signal and the trigger timeseries
+    sampling_rate : int
+        The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
+        Defaults to 10000.
+    tr : float
+        TR 
+    slice : int
+        Number of slices
+    Q : float
+        Quality factor
+    
+    Returns
+    -------
+    filtered : array
+        Filtered signal
+    info : dict
+        Dictionary containing filter info
+
+    Reference
+    ---------
     Biopac Systems, Inc. Application Notes: application note 242
     ECG Signal Processing During fMRI
     https://www.biopac.com/wp-content/uploads/app242x.pdf
+
+    See also
+    --------
+    https://neuropsychology.github.io/NeuroKit/functions/signal.html#signal-filter
     """
     # Setting scanner sequence parameters
     nyquist = np.float64(sampling_rate/2)
@@ -268,16 +298,53 @@ def _ecg_clean_biopac(timeseries, sampling_rate=10000., tr=1.49, mb=4, slices=60
     filtered = nk.signal_filter(timeseries['ECG'][triggers[1]:triggers[-1]],
                                 sampling_rate=int(sampling_rate), lowcut = 2)
     # Filtering at specific harmonics, with trigger timing info
-    filtered = _comb_band_stop(notches, nyquist, filtered, Q, sampling_rate)
+    filtered, info = comb_band_stop(notches, nyquist, filtered, Q, sampling_rate)
     # bandpass filtering
     filtered = nk.signal_filter(filtered, sampling_rate=sampling_rate, lowcut=2,
                                  highcut=20, method='butter', order=5)
 
-    return filtered
+    return filtered, info
 
 def _ecg_clean_bottenhorn(ecg_signal, sampling_rate=10000., tr=1.49, mb=4, slices=60, Q=100):
     """
+    Clean the ECG signal using a comb band stop filter implementing the correction for multiband 
+    factor proposed in Bottenhorn et al. 2021
+
+    Parameters
+    ----------
+    ecg_signal : list, array or Series
+        The ECG channel to filtered.
+    sampling_rate : int
+        The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
+        Defaults to 10000.
+    tr : float
+        TR 
+    mb : int
+        Multiband acceleration factor
+    slice : int
+        Number of slices
+    Q : float
+        Quality factor
+
+    Returns
+    -------
+    filtered : array
+        Filtered signal
+    info : dict
+        Dictionary containing filter info
+
+    Reference
+    ---------
+    Bottenhorn, K. L., Salo, T., Riedel, M. C., Sutherland, M. T., Robinson, J. L., Musser, E. D., 
+        & Laird, A. R. (2021). Denoising physiological data collected during multi-band, multi-echo 
+        EPI sequences. bioRxiv, 2021-04. https://doi.org/10.1101/2021.04.01.437293
+    
     https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
+    
+    See also
+    --------
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.iirnotch.html 
+    https://neuropsychology.github.io/NeuroKit/functions/signal.html#signal-filter 
     """
     # Setting scanner sequence parameters
     nyquist = np.float64(sampling_rate/2)
@@ -287,12 +354,12 @@ def _ecg_clean_bottenhorn(ecg_signal, sampling_rate=10000., tr=1.49, mb=4, slice
     filtered = nk.signal_filter(ecg_signal,
                                 sampling_rate=int(sampling_rate), lowcut = 2)
     # Filtering at specific harmonics, with trigger timing info
-    filtered = _comb_band_stop(notches, nyquist, filtered, Q, sampling_rate)
+    filtered, info = comb_band_stop(notches, nyquist, filtered, Q, sampling_rate)
     # bandpass filtering
     filtered = nk.signal_filter(filtered, sampling_rate=sampling_rate, lowcut=2,
                                  highcut=20, method='butter', order=5)
 
-    return filtered
+    return filtered, info
 
 # =============================================================================
 # EDA
@@ -314,7 +381,26 @@ def _eda_clean_bottenhorn(eda_signal, sampling_rate=10000., Q=100, mb=4, tr=1.49
 def comb_band_stop(notches, nyquist, filtered, Q, sampling_rate):
     """
     A serie of notch filters aligned with the scanner gradient's harmonics
+    
+    Parameters
+    ----------
+    notches : 
+    nyquist : 
+    filtered : 
+    Q : float
+        Quality factor
+    sampling_rate : int
+        The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
+        Defaults to 10000.
 
+    Returns
+    -------
+    filtered : 
+    dict
+        Dictionary containing filter info
+    
+    Reference
+    ---------
     Biopac Systems, Inc. Application Notes: application note 242
     ECG Signal Processing During fMRI
     https://www.biopac.com/wp-content/uploads/app242x.pdf
@@ -329,7 +415,7 @@ def comb_band_stop(notches, nyquist, filtered, Q, sampling_rate):
             w0 = f0/nyquist
             b,a = signal.iirnotch(w0, Q)
             filtered = signal.filtfilt(b, a, filtered)
-    return filtered, info
+    return filtered, {'parameters': info, 'filter': 'Comb band stop'}
 
 def consecutive(data, stepsize=0.000501):
     """
@@ -337,41 +423,124 @@ def consecutive(data, stepsize=0.000501):
     """
     return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
 
-def butter_freq_pass(cutoff, fs, order=5, btype='high'):
+def butter_freq_pass(cutoff, sampling_rate, order=5, btype='high'):
     """
-    reference: https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
+    Parameters
+    ----------
+    cutoff : float
+    sampling_rate : int
+        The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
+        Defaults to 10000.
+    order
+    btype : str
+
+    Returns
+    -------
+    b
+    a
+
+    Reference
+    ---------
+    https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
+    
+    See also
+    --------
+
     """
-    nyq = 0.5 * fs
+    nyq = 0.5 * sampling_rate
     normal_cutoff = cutoff / nyq
     b, a = signal.butter(order, normal_cutoff, btype=btype, analog=False)
     return b, a
 
-def butter_highpass_filter(data, cutoff, fs, order=5):
+def butter_highpass_filter(data, cutoff, sampling_rate, order=5):
     """
-    reference: https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
-    """
-    # Save argument values 
-    info = locals()
-    del info['data'] # Remove 'data' from info dictionnary
-    # Compute filter
-    b, a = butter_freq_pass(cutoff, fs, order=order, btype='high')
-    y = signal.filtfilt(b, a, data)
-    return y, info
+    Parameters
+    ----------
+    data 
+    cutoff : float
+    sampling_rate : int
+        The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
+        Defaults to 10000.
+    order
 
-def butter_lowpass_filter(data, cutoff, fs, order=5):
-    """
+    Returns
+    -------
+    y : 
+    dict
+        Dictionary containing filter info
+
+    Reference
+    ---------
+    https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
+
+    See also
+    --------
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.filtfilt.html
     """
     # Save argument values 
     info = locals()
     del info['data'] # Remove 'data' from info dictionnary
     # Compute filter
-    b, a = butter_freq_pass(cutoff, fs, order=order, btype='low')
+    b, a = butter_freq_pass(cutoff, sampling_rate, order=order, btype='high')
     y = signal.filtfilt(b, a, data)
-    return y, info
+    return y,  {'parameters': info, 'filter': 'Butterworth high pass'}
+
+def butter_lowpass_filter(data, cutoff, sampling_rate, order=5):
+    """
+    Parameters
+    ----------
+    data 
+    cutoff : float
+    sampling_rate : int
+        The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
+        Defaults to 10000.
+    order : 
+
+    Returns
+    -------
+    y : 
+    dict
+        Dictionary containing filter info
+
+    Reference
+    ---------
+    https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
+
+    See also
+    --------
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.filtfilt.html
+    """
+    # Save argument values 
+    info = locals()
+    del info['data'] # Remove 'data' from info dictionnary
+    # Compute filter
+    b, a = butter_freq_pass(cutoff, sampling_rate, order=order, btype='low')
+    y = signal.filtfilt(b, a, data)
+    return y, {'parameters': info, 'filter': 'Butterworth low pass'}
 
 def fourier_freq(timeseries, d, fmax):
     """
-    reference: https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
+    Parameters
+    ----------
+    timeseries
+    d
+    fmax
+
+    Returns
+    -------
+    fft
+    fft_db
+    freq
+    limit
+
+    Reference
+    ---------
+    https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
+    
+    See also
+    --------
+    https://numpy.org/doc/stable/reference/generated/numpy.fft.fft.html
+    https://numpy.org/doc/stable/reference/generated/numpy.fft.fftfreq.html
     """
     fft = np.fft.fft(timeseries)
     freq = np.fft.fftfreq(timeseries.shape[-1], d=d)
@@ -381,6 +550,25 @@ def fourier_freq(timeseries, d, fmax):
 
 def bandpass_filter(signal, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate=10000):
     """
+    Parameters
+    ----------
+    signal
+    f0
+    Q : float
+        Quality factor
+    low
+    high
+    order
+    sampling_rate : int
+        The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
+        Defaults to 10000.
+
+    Return
+    ------
+    ecg_clean
+    
+    See also
+    --------
     """
     nyquist = sampling_rate / 2
     w0 = f0 / nyquist
