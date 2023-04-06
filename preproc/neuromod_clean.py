@@ -319,14 +319,17 @@ def comb_band_stop(notches, nyquist, filtered, Q, sampling_rate):
     ECG Signal Processing During fMRI
     https://www.biopac.com/wp-content/uploads/app242x.pdf
     """
-    # band stoping each frequency specified with notches dict
+    # Save argument values 
+    info = locals()
+    # Compute filter
+    ## band stoping each frequency specified with notches dict
     for notch in notches:
         for i in np.arange(1, (nyquist / notches[notch])):
             f0 = notches[notch] * i
             w0 = f0/nyquist
             b,a = signal.iirnotch(w0, Q)
             filtered = signal.filtfilt(b, a, filtered)
-    return filtered
+    return filtered, info
 
 def consecutive(data, stepsize=0.000501):
     """
@@ -347,16 +350,24 @@ def butter_highpass_filter(data, cutoff, fs, order=5):
     """
     reference: https://github.com/62442katieb/mbme-physio-denoising/blob/main/notebooks/denoising_eda.ipynb
     """
+    # Save argument values 
+    info = locals()
+    del info['data'] # Remove 'data' from info dictionnary
+    # Compute filter
     b, a = butter_freq_pass(cutoff, fs, order=order, btype='high')
     y = signal.filtfilt(b, a, data)
-    return y
+    return y, info
 
 def butter_lowpass_filter(data, cutoff, fs, order=5):
     """
     """
+    # Save argument values 
+    info = locals()
+    del info['data'] # Remove 'data' from info dictionnary
+    # Compute filter
     b, a = butter_freq_pass(cutoff, fs, order=order, btype='low')
     y = signal.filtfilt(b, a, data)
-    return y
+    return y, info
 
 def fourier_freq(timeseries, d, fmax):
     """
