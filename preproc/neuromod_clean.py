@@ -2,6 +2,9 @@
 # !/usr/bin/env python
 """
 Neuromod cleaning utilities
+
+NOTE : add downsampling option
+NOTE : add neuromod_rsp_clean and neuromod_eda_clean functions
 """
 import numpy as np
 import pandas as pd
@@ -15,9 +18,6 @@ import make_pipeline
 def neuromod_bio_clean(tsv=None, data=None, h5=None, sampling_rate=1000, pipeline=False):
     """
     Filter biosignals.
-
-    NOTE : add downsampling option
-    NOTE : add neuromod_rsp_clean and neuromod_eda_clean functions
 
     Prepare biosignals for extraction of characteristics of physiological
     activity with a set of filters and smoothing functions
@@ -37,7 +37,11 @@ def neuromod_bio_clean(tsv=None, data=None, h5=None, sampling_rate=1000, pipelin
         If True the pipeline figure will be generated for each signal, including
         the filter applied to each step and the related parameters, and a 10s window
         of the processed signal following each step.
-        Default to False .
+        Default to False.
+    
+    Return
+    ------
+    bio_df : DataFrame
     """
 
     # check input and sanitize
@@ -146,8 +150,9 @@ def neuromod_ecg_clean(ecg_signal, trigger_pulse, sampling_rate=10000., method='
     """
     make_pipeline = dict()
     step_idx = 1
-    start = 10*sampling_rate
-    end = start + 10*sampling_rate
+    window_duration = 10
+    start = window_duration*sampling_rate
+    end = start + window_duration*sampling_rate
 
     if me:
         tr=2.65
@@ -483,7 +488,7 @@ def butter_highpass_filter(data, cutoff, sampling_rate, order=5):
     # Compute filter
     b, a = butter_freq_pass(cutoff, sampling_rate, order=order, btype='high')
     y = signal.filtfilt(b, a, data)
-    return y,  {'parameters': info, 'filter': 'Butterworth high pass'}
+    return y,  {'parameters': info, 'filter': 'Butterworth high pass', 'signal': }
 
 def butter_lowpass_filter(data, cutoff, sampling_rate, order=5):
     """
