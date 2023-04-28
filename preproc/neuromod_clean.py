@@ -13,7 +13,7 @@ from scipy import signal
 
 import sys
 sys.path.append("../visu")
-import make_pipeline
+#import make_pipeline
 
 def neuromod_bio_clean(tsv=None, data=None, h5=None, sampling_rate=1000, pipeline=False):
     """
@@ -195,7 +195,7 @@ def neuromod_ecg_clean(ecg_signal, trigger_pulse, sampling_rate=10000., method='
                         })
                     })
                 step_idx+=1        
-        clean, info_filter = _bandpass_filter(ecg_bottenhorn, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate=sampling_rate)
+        clean = bandpass_filter(ecg_bottenhorn, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate=sampling_rate)
         if pipeline:
             make_pipeline.update({
                 step_idx: info_filter.update({
@@ -488,7 +488,7 @@ def butter_highpass_filter(data, cutoff, sampling_rate, order=5):
     # Compute filter
     b, a = butter_freq_pass(cutoff, sampling_rate, order=order, btype='high')
     y = signal.filtfilt(b, a, data)
-    return y,  {'parameters': info, 'filter': 'Butterworth high pass', 'signal': }
+    return y,  {'parameters': info, 'filter': 'Butterworth high pass'} #, 'signal': y[]}
 
 def butter_lowpass_filter(data, cutoff, sampling_rate, order=5):
     """
@@ -553,11 +553,11 @@ def fourier_freq(timeseries, d, fmax):
     limit = np.where(freq >= fmax)[0][0]
     return fft, fft_db, freq, limit
 
-def bandpass_filter(signal, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate=10000):
+def bandpass_filter(data, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate=10000):
     """
     Parameters
     ----------
-    signal
+    data
     f0
     Q : float
         Quality factor
@@ -565,7 +565,7 @@ def bandpass_filter(signal, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate
     high
     order
     sampling_rate : int
-        The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
+        The sampling frequency of `data` (in Hz, i.e., samples/second).
         Defaults to 10000.
 
     Return
@@ -578,5 +578,5 @@ def bandpass_filter(signal, f0=24.0, Q=6, low=3, high=34, order=5, sampling_rate
     nyquist = sampling_rate / 2
     w0 = f0 / nyquist
     sos = signal.butter(order, [low / nyquist, high / nyquist], btype='band', output='sos')
-    ecg_clean = signal.sosfiltfilt(sos, signal)
+    ecg_clean = signal.sosfiltfilt(sos, data)
     return ecg_clean
