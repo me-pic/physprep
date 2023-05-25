@@ -11,6 +11,7 @@ import click
 import logging
 import pprintpp
 import fnmatch
+import pandas as pd
 from list_sub import list_sub
 from neurokit2 import read_acqknowledge
 LGR = logging.getLogger(__name__)
@@ -132,8 +133,9 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
 @click.option("--save", type=str, default=None, required=False)
 @click.option("--tr", type=float, default=None, required=False)
 @click.option("--tr_channel", type=str, default=None, required=False)
+@click.option("--scanning_sheet", type=str)
 def call_get_info(
-    root, sub, ses=None, count_vol=False, show=True, save=None, tr=None, tr_channel=None
+    root, sub, ses=None, count_vol=False, show=True, save=None, tr=None, tr_channel=None, scanning_sheet=None,
 ):
     """
     Call `get_info` function only if `get_info.py` is called as CLI
@@ -141,11 +143,11 @@ def call_get_info(
     For parameters description, please refer to the documentation of the `get_info` function
     """
     LGR = logging.getLogger(__name__)
-    get_info(root, sub, ses, count_vol, show, save, tr, tr_channel)
+    get_info(root, sub, ses, count_vol, show, save, tr, tr_channel, scanning_sheet)
 
 
 def get_info(
-    root, sub, ses=None, count_vol=False, show=True, save=None, tr=None, tr_channel=None
+    root, sub, ses=None, count_vol=False, show=True, save=None, tr=None, tr_channel=None, scanning_sheet=None,
 ):
     """
     Get all volumes taken for a sub.
@@ -243,13 +245,27 @@ def get_info(
             # read metadata
             with open(filename) as f:
                 bold = json.load(f)
-            # we want to GET THE NB OF VOLUMES in the _bold.json of a given run
-            nb_expected_volumes_run[f"{idx+1:02d}"] = bold["dcmmeta_shape"][-1]
             # we want to have the TR in a _bold.json to later use it in the volume_counter function
             tr = bold["RepetitionTime"]
+            # we want to GET THE NB OF VOLUMES in the _bold.json of a given run
+            try:
+                nb_expected_volumes_run[f"{idx+1:02d}"] = bold["dcmmeta_shape"][-1]
+            except KeyError:
+                pprintpp.pprint(f"skipping {exp} because .json info non-existant")
+                if scanning_sheet is not None:
+                    pprintpp.pprint(f"checking scanning sheet for {sub}/{exp}")
+                    df_sheet=pd.read_csv(scanning_sheet)
+                    vol_idx=df_sheet[df_sheet[sub]==f"p{sub[4:]}_friends{exp[4:]}"].index+idx
+                    vols=int(df_sheet["#volumes"].iloc[vol_idx])
+                    nb_expected_volumes_run[f'{idx+1:02d}']=vols
+                # log that we are unable to run the thing
+                else:
+                    LGR.info(f"Cannot access Nifti BIDS metadata")
+                    continue
+
 
         # print the thing to show progress
-        LGR.info(f"Nifti metadata; number of volumes per run:\n{nb_expected_volumes_run}")
+        LGR.info(f"Nifti BIDS metadata; number of volumes per run:\n{nb_expected_volumes_run}")
         # push all info in run in dict
         nb_expected_runs[exp] = {}
         # the nb of expected volumes in each run of the session (embedded dict)
