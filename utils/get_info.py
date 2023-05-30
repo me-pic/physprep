@@ -60,9 +60,12 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
             # find the correct index of Trigger channel
             if trigger_ch in bio_df.columns:
                 trigger_index = list(bio_df.columns).index(trigger_ch)
-
-            # initialize a df with TTL values over 4 (switch either ~0 or ~5)
-            query_df = bio_df[bio_df[bio_df.columns[trigger_index]] > 4]
+                # initialize a df with TTL values over 4 (switch either ~0 or ~5)
+                query_df = bio_df[bio_df[bio_df.columns[trigger_index]] > 4]
+            else:
+                trigger_index = list(bio_df.columns).index('TTL')
+                # initialize a df with TTL values over 4 (switch either ~0 or ~5)
+                query_df = bio_df[bio_df[bio_df.columns[trigger_index]] > 4]
 
             # Define session length - this list will be less
             # memory expensive to play with than dataframe
@@ -72,7 +75,12 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
             tr_period = fs * math.ceil(tr)
 
             # Define session length and adjust with padding
-            start = int(session[0])
+            try:
+                start = int(session[0])
+            except IndexError:
+                LGR.info(f"No trigger channel input apparently; skipping {file}")
+                return "No trigger input", bio_df.columns
+                continue
             end = int(session[-1])
 
             # initialize list of sample index to compute nb of volumes per run
@@ -251,16 +259,16 @@ def get_info(
             try:
                 nb_expected_volumes_run[f"{idx+1:02d}"] = bold["dcmmeta_shape"][-1]
             except KeyError:
-                pprintpp.pprint(f"skipping {exp} because .json info non-existant")
+                pprintpp.pprint(f"{exp} .json info non-existant")
                 if scanning_sheet is not None:
                     pprintpp.pprint(f"checking scanning sheet for {sub}/{exp}")
                     df_sheet=pd.read_csv(scanning_sheet)
-                    vol_idx=df_sheet[df_sheet[sub]==f"p{sub[4:]}_friends{exp[4:]}"].index+idx
+                    vol_idx=df_sheet[df_sheet[sub]==f"p{sub[-2:]}_friends{exp[-3:]}"].index+idx
                     vols=int(df_sheet["#volumes"].iloc[vol_idx])
                     nb_expected_volumes_run[f'{idx+1:02d}']=vols
                 # log that we are unable to run the thing
                 else:
-                    LGR.info(f"Cannot access Nifti BIDS metadata")
+                    LGR.info(f"Cannot access Nifti BIDS metadata nor scanninf sheet")
                     continue
 
 
@@ -306,14 +314,16 @@ def get_info(
                             trigger_ch=tr_channel,
                         )
                         LGR.info(f"finished counting volumes in physio file for: {exp}")
-
-                        for i, run in enumerate(vol_in_biopac[exp]):
-                            run_dict.update({f"run-{i+1:02d}": run})
-
+                        try:
+                            for i, run in enumerate(vol_in_biopac[exp]):
+                                run_dict.update({f"run-{i+1:02d}": run})
+                        except TypeError:
+                            # there were no triggers so stocking a place holder
+                            run_dict = vol_in_biopac[exp]
                         nb_expected_runs[exp]["recorded_triggers"] = run_dict
-                        nb_expected_runs[ses]["ch_names"] = ch_names
+                        nb_expected_runs[exp]["ch_names"] = list(ch_names)
 
-                    # skip the session if we did not find the _bold.json
+                    # skip the session if we did not find the file
                     except KeyError:
                         continue
             except KeyError:
@@ -330,12 +340,11 @@ def get_info(
         pprintpp.pprint(nb_expected_runs)
 
     if save is not None:
-        nb_expected_runs = pprintpp.pformat(nb_expected_runs)
         if os.path.exists(os.path.join(save, sub)) is False:
             os.mkdir(os.path.join(save, sub))
         filename = f"{sub}_volumes_all-ses-runs.json"
-        with open(os.path.join(save, sub, filename), "w") as fp:
-            fp.write(nb_expected_runs)
+        with open(os.path.join(save, sub, filename), 'w') as f:
+            json.dump(nb_expected_runs, f, indent=4)
     return nb_expected_runs
 
 
