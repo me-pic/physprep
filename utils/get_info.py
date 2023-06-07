@@ -48,6 +48,8 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
         raise ValueError("Couldn't find the following directory: ", root)
 
     # List the files that have to be counted
+    if ses == 'files':
+        ses = None
     dirs = list_sub(root, sub, ses)
     ses_runs = {}
     # loop iterating through files in each dict key representing session returned by list_sub
@@ -56,7 +58,11 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
         LGR.info(f"counting volumes in physio file for: {exp}")
         for file in sorted(dirs[exp]):
             # reading acq
-            bio_df, fs = read_acqknowledge(os.path.join(root, sub, exp, file))
+            if exp == 'files':
+                path_to_file = os.path.join(root, sub, file)
+            else:
+                path_to_file = os.path.join(root, sub, exp, file)
+            bio_df, fs = read_acqknowledge(path_to_file)
             # find the correct index of Trigger channel
             if trigger_ch in bio_df.columns:
                 trigger_index = list(bio_df.columns).index(trigger_ch)
@@ -232,21 +238,33 @@ def get_info(
     # iterate through sessions and get _matches.tsv with list_sub dict
     for exp in sorted(ses_runs_matches):
         LGR.info(exp)
+        matches = glob.glob(os.path.join(root, sub, exp, "func", "*bold.json"))
+        path_to_source = os.path.join(root, "sourcedata/physio", sub, exp)
         if ses_info[exp] == []:
             LGR.info("No acq file found for this session")
             continue
+        elif exp == 'files':
+            LGR.info("No SES IDs")
+            path_to_nifti = os.path.join(root, sub, "func")
+            path_to_source = os.path.join(root, "sourcedata/physio", sub)
+            matches = glob.glob(os.path.join(path_to_nifti, "*bold.json"))
 
         # initialize a counter and a dictionary
         nb_expected_volumes_run = {}
         tasks = []
-        matches = glob.glob(os.path.join(root, sub, exp, "func", "*bold.json"))
+        if matches == []:
+            LGR.info(f"No Nifti metadata to match : {exp}")
+            continue
         # we want only want to keep 1 of the two files per run
         if "mario" in matches[0]:
             matches = fnmatch.filter(matches, "*-mag*")
         matches.sort()
         # iterate through _bold.json
-        for idx, filename in enumerate(matches):                
-            task = filename.rfind(f"{exp}_") + 8
+        for idx, filename in enumerate(matches):
+            if exp == 'files':
+                task = filename.find(f"func/{sub}")+12
+            else:
+                task = filename.rfind(f"{exp}_") + 8
             task_end = filename.rfind("_")
             tasks += [filename[task:task_end]]
 
@@ -297,7 +315,7 @@ def get_info(
                 # do not count the triggers in phys file if no physfile
                 if (
                     os.path.isfile(
-                        os.path.join(root, "sourcedata/physio", sub, exp, name[0])
+                        os.path.join(path_to_source, name[0])
                     )
                     is False
                 ):
@@ -330,7 +348,7 @@ def get_info(
                 nb_expected_runs[exp]["recorded_triggers"] = "No triggers found"
                 LGR.info(
                     "Directory is empty or file is clobbered/No triggers:\n"
-                    f"{os.path.join(root, 'sourcedata/physio', sub, exp)}",
+                    f"{os.path.join(path_to_source, sub, exp)}",
                 )
 
                 LGR.info(f"skipping :{exp} for task {filename}")

@@ -92,6 +92,12 @@ def convert(root, save, sub, ses=None, tr=None, ch_names=None, overwrite=False, 
     
     # iterate through info
     for col in sorted(ses):
+        if "harrypotter" in root:
+            ses_id = "001"
+            indir = os.path.join(root, sub)
+        else:
+            ses_id = col[-3:]
+            indir = os.path.join(root, sub, col)
         # skip empty sessions
         if info[col] is None:
             logger.info(f"Empty session : {col}")
@@ -122,11 +128,11 @@ def convert(root, save, sub, ses=None, tr=None, ch_names=None, overwrite=False, 
                 phys2bids(
                     filename[i],
                     info=False,
-                    indir=os.path.join(root, sub, col),
+                    indir=indir,
                     outdir=os.path.join(save, sub, col),
                     heur_file=None,
                     sub=sub[-2:],
-                    ses=col[-3:],
+                    ses=ses_id,
                     chtrig=chtrig,
                     chsel=None,
                     num_timepoints_expected=info[col]["recorded_triggers"][
@@ -149,7 +155,7 @@ def convert(root, save, sub, ses=None, tr=None, ch_names=None, overwrite=False, 
                     outdir=os.path.join(save, sub, col),
                     heur_file=None,
                     sub=sub[-2:],
-                    ses=col[-3:],
+                    ses=ses_id[-3:],
                     chtrig=chtrig,
                     chsel=None,
                     num_timepoints_expected=info[col]["recorded_triggers"]["run-01"],
@@ -172,7 +178,7 @@ def convert(root, save, sub, ses=None, tr=None, ch_names=None, overwrite=False, 
                         outdir=os.path.join(save, sub, col),
                         heur_file=None,
                         sub=sub[-2:],
-                        ses=col[-3:],
+                        ses=ses_id[-3:],
                         chtrig=chtrig,
                         chsel=None,
                         num_timepoints_expected=info[col]["recorded_triggers"][

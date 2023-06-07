@@ -139,7 +139,7 @@ def list_sub(root, sub, ses=None, ext=".acq", save=None, show=False):
             if filename.endswith(ext):
                 file_list += [filename]
         # store list
-        ses_runs["random_files"] = file_list
+        ses_runs["files"] = file_list
 
         if save is not None:
             with open(os.path.join(save, sub, "list_sub_acq_files.json"), "w") as fp:
