@@ -67,11 +67,10 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
             if trigger_ch in bio_df.columns:
                 trigger_index = list(bio_df.columns).index(trigger_ch)
                 # initialize a df with TTL values over 4 (switch either ~0 or ~5)
-                query_df = bio_df[bio_df[bio_df.columns[trigger_index]] > 4]
             else:
                 trigger_index = list(bio_df.columns).index('TTL')
                 # initialize a df with TTL values over 4 (switch either ~0 or ~5)
-                query_df = bio_df[bio_df[bio_df.columns[trigger_index]] > 4]
+            query_df = bio_df[bio_df[bio_df.columns[trigger_index]] > 4]
 
             # Define session length - this list will be less
             # memory expensive to play with than dataframe
@@ -337,7 +336,7 @@ def get_info(
                                 run_dict.update({f"run-{i+1:02d}": run})
                         except TypeError:
                             # there were no triggers so stocking a place holder
-                            run_dict = vol_in_biopac[exp]
+                            run_dict = vol_in_biopac
                         nb_expected_runs[exp]["recorded_triggers"] = run_dict
                         nb_expected_runs[exp]["ch_names"] = list(ch_names)
 
