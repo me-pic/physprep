@@ -9,6 +9,7 @@ import json
 import click
 import numpy as np
 import pandas as pd
+from pathlib import Path
 
 # high-level processing utils
 from heartpy import process
@@ -16,6 +17,7 @@ from systole.correction import correct_rr, correct_peaks
 from neurokit2 import ecg_peaks, ppg_findpeaks
 
 # signal utils
+import timeit
 import neurokit2 as nk
 from neurokit2.misc import as_vector
 from systole.utils import input_conversion
@@ -23,7 +25,7 @@ from neurokit2 import signal_rate
 from neurokit2.signal.signal_formatpeaks import _signal_from_indices
 
 # home brewed cleaning utils
-from clean import neuromod_ecg_clean, neuromod_eda_clean, neuromod_ppg_clean
+from clean import neuromod_ecg_clean, neuromod_eda_clean, neuromod_ppg_clean, neuromod_rsp_clean
 
 
 # ==================================================================================
@@ -36,7 +38,6 @@ from clean import neuromod_ecg_clean, neuromod_eda_clean, neuromod_ppg_clean
 @click.argument("sub", type=str)
 @click.argument("ses", type=str)
 @click.argument("outdir", type=str)
-@click.argument("save", type=bool)
 @click.argument("multi_echo", type=bool)
 def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
     """
@@ -58,16 +59,22 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
     Examples
     --------
     In terminal
-    >>> python process.py /home/user/dataset/converted/ sub-01 ses-001 /home/user/dataset/derivatives/ True False
+    >>> python process.py /home/user/dataset/converted/ sub-01 ses-001 /home/user/dataset/derivatives/ True
     """
+    # Check if `outdir` exists, otherwise create it
+
+    if not os.path.exists(os.path.join(outdir, sub, ses)):
+        os.makedirs(os.path.join(outdir, sub, ses))
+
     # Load tsv files contained in source/sub/ses
-    data_tsv, data_json, filenames_tsv = load_segmented_runs(source, sub, ses)
+    data_tsv, data_json, filenames_tsv = load_segmented_runs(source, sub, ses, outdir, remove_padding=True)
     sampling_rate = data_json["SamplingFrequency"]
 
     # initialize returned objects
     for idx, df in enumerate(data_tsv):
+        run = filenames_tsv[idx].split("_")[2]
         print(
-            f"---Processing biosignals for {sub} {ses}: run {filenames_tsv[idx][-2:]}---"
+            f"---Processing biosignals for {sub} {ses}: {run}---"
         )
 
         bio_info = {}
@@ -81,52 +88,69 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
 
         # ppg
         print("******PPG workflow: begin***")
+        start_time = timeit.default_timer()
         ppg, ppg_info = ppg_process(ppg_raw, sampling_rate=sampling_rate)
         bio_info["PPG"] = ppg_info
         bio_df = pd.concat([bio_df, ppg], axis=1)
-        print("***PPG workflow: done***")
+        print(f"***PPG workflow: done in {timeit.default_timer()-start_time} sec***")
 
-        # ecg
+        #  ecg
         print("***ECG workflow: begin***")
+        start_time = timeit.default_timer()
         ecg, ecg_info = ecg_process(ecg_raw, sampling_rate=sampling_rate, me=multi_echo)
         bio_info["ECG"] = ecg_info
         bio_df = pd.concat([bio_df, ecg], axis=1)
-        print("***ECG workflow: done***")
+        print(f"***ECG workflow: done in {timeit.default_timer()-start_time} sec***")
 
         #  rsp
         print("***Respiration workflow: begin***")
-        rsp, rsp_info = rsp_process(
-            rsp_raw, sampling_rate=sampling_rate, method="khodadad2018"
-        )
+        start_time = timeit.default_timer()
+        rsp, rsp_info = rsp_process(rsp_raw, sampling_rate=sampling_rate, method="khodadad2018")
         bio_info["RSP"] = rsp_info
         bio_df = pd.concat([bio_df, rsp], axis=1)
-        print("***Respiration workflow: done***")
+        print(f"***Respiration workflow: done in {timeit.default_timer()-start_time} sec***")
 
         #  eda
         print("***Electrodermal activity workflow: begin***")
+        start_time = timeit.default_timer()
         eda, eda_info = eda_process(eda_raw, sampling_rate, me=multi_echo)
         bio_info["EDA"] = eda_info
         bio_df = pd.concat([bio_df, eda], axis=1)
-        print("***Electrodermal activity workflow: done***")
+        print(f"***Electrodermal activity workflow: done in {timeit.default_timer()-start_time} sec***")
 
         # return a dataframe
         bio_df["time"] = df["time"]
 
-        print("***Saving processed biosignals***")
-        bio_df.to_csv(
+        tmp = pd.read_csv(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.tsv.gz"), sep="\t")
+        tmp["EDA_Raw"] = bio_df["EDA_Raw"]
+        tmp["RSP_Raw"] = bio_df["RSP_Raw"]
+
+        print("***Saving processed biosignals: begin***")
+        start_time = timeit.default_timer()
+        filename = Path(source)
+        tmp.to_csv(
             os.path.join(
-                outdir, sub, ses, f"{filenames_tsv[idx]}" + "_physio" + ".tsv.gz"
+                outdir, sub, ses, f"{sub}_{ses}_{run}_physio.tsv.gz"
             ),
             sep="\t",
+            index=False
+            )
+        bio_df.to_csv(
+            os.path.join(
+                outdir, sub, ses, f"{sub}_{ses}_{run}_physio.tsv.gz"
+            ),
+            sep="\t",
+            index=False
         )
         with open(
             os.path.join(
-                outdir, sub, ses, f"{filenames_tsv[idx]}" + "_physio" + ".json"
+                outdir, sub, ses, f"{sub}_{ses}_{run}_physio.json"
             ),
             "w",
         ) as fp:
             json.dump(bio_info, fp)
             fp.close()
+        print(f"***Saving processed biosignals: done in {timeit.default_timer()-start_time} sec***")
 
 
 # ==================================================================================
@@ -153,7 +177,7 @@ def load_json(filename):
     return data
 
 
-def load_segmented_runs(source, sub, ses):
+def load_segmented_runs(source, sub, ses, outdir, remove_padding=True):
     """
     Parameters
     ----------
@@ -163,6 +187,14 @@ def load_segmented_runs(source, sub, ses):
         The id of the subject.
     ses : str
         The id of the session.
+    outdir : str
+        The directory to save the start padding, only if `remove_padding`
+        is True.
+    remove_padding : bool
+        Indicate if the padding should be removed or not from the data. 
+        If True, the signal included in the start padding is saved in outdir.
+        If no padding was used, `remove_padding`should be False. 
+        Default to True.
 
     Returns
     -------
@@ -175,26 +207,40 @@ def load_segmented_runs(source, sub, ses):
     """
     data_tsv, filenames = [], []
     files_tsv = [f for f in os.listdir(os.path.join(source, sub, ses)) if "tsv.gz" in f]
-    # Remove files ending with _01
-    files_tsv = [f for f in files_tsv if "_01." not in f]
     files_tsv.sort()
 
     for tsv in files_tsv:
         filename = tsv.split(".")[0]
         filenames.append(filename)
-        print(f"---Reading data for {sub} {ses}: run {filename[-2:]}---")
-        json = filename + ".json"
+        print(f"---Reading data for {sub} {ses}: {filename.split('_')[2]}---")
+        json_file = filename + ".json"
         print("Reading json file")
-        data_json = load_json(os.path.join(source, sub, ses, json))
+        data_json = load_json(os.path.join(source, sub, ses, json_file))
         print("Reading tsv file")
-        data_tsv.append(
-            pd.read_csv(
-                os.path.join(source, sub, ses, tsv),
-                sep="\t",
-                compression="gzip",
-                names=data_json["Columns"],
-            )
+        tmp_csv = pd.read_csv(
+            os.path.join(source, sub, ses, tsv),
+            sep="\t",
+            compression="gzip",
+            names=data_json["Columns"],
         )
+        if remove_padding:
+            # Get triggers
+            trigger = tmp_csv[tmp_csv['TTL'] > 4]
+            # First trigger
+            start = list(trigger.index)[0]
+            # Last trigger
+            end = list(trigger.index)[-1] 
+
+            data_tsv.append(tmp_csv[start:end].reset_index(drop=True))
+            tmp_csv[:start].to_csv(
+                os.path.join(
+                    outdir, sub, ses, f"{filename}_noseq.tsv.gz"
+                    ), 
+                sep='\t',
+                index=False
+                )
+        else:
+            data_tsv.append(tmp_csv)
 
     return data_tsv, data_json, filenames
 
@@ -328,7 +374,7 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
     return signals, info
 
 
-def ppg_process(ppg_raw, sampling_rate=10000):
+def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=2500):
     """
     Process PPG signal.
 
@@ -341,6 +387,10 @@ def ppg_process(ppg_raw, sampling_rate=10000):
     sampling_rate : int
         The sampling frequency of `ppg_raw` (in Hz, i.e., samples/second).
         Default to 10000.
+    downsampling_rate : int
+        The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
+        If None, the signals are not downsampled.
+        Default to 2500.
 
     Returns
     -------
@@ -357,17 +407,30 @@ def ppg_process(ppg_raw, sampling_rate=10000):
 
     # Prepare signal for processing
     print("Cleaning PPG")
-    ppg_cleaned = neuromod_ppg_clean(ppg_signal, sampling_rate=10000.0)
+    ppg_signal, ppg_cleaned = neuromod_ppg_clean(
+        ppg_signal, sampling_rate=sampling_rate, downsampling=downsampling_rate
+    )
     print("PPG Cleaned")
     # Process clean signal
-    signals, info = process_cardiac(
-        ppg_signal, ppg_cleaned, sampling_rate=10000, data_type="PPG"
-    )
+    try:
+        if downsampling_rate is None:
+            signals, info = process_cardiac(
+                ppg_signal, ppg_cleaned, sampling_rate=sampling_rate, data_type="PPG"
+            )
+        else:
+            signals, info = process_cardiac(
+                ppg_signal, ppg_cleaned, sampling_rate=downsampling_rate, data_type="PPG"
+            )
+        info["Processed"] = True
+    except:
+        print("ERROR in PPG processing procedure")
+        signals = pd.DataFrame({"PPG_Raw": ppg_signal, "PPG_Clean": ppg_cleaned})
+        info = {"Processed": False}
 
     return signals, info
 
 
-def ecg_process(ecg_raw, sampling_rate=10000, method="bottenhorn", me=True):
+def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=2500, method="bottenhorn", me=True):
     """
     Process ECG signal.
 
@@ -380,6 +443,10 @@ def ecg_process(ecg_raw, sampling_rate=10000, method="bottenhorn", me=True):
     sampling_rate : int
         The sampling frequency of `ecg_raw` (in Hz, i.e., samples/second).
         Default to 10000.
+    downsampling_rate : int
+        The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
+        If None, the signals are not downsampled.
+        Default to 2500.
     method : str
         The processing pipeline to apply.
         Default to 'bottenhorn'.
@@ -402,19 +469,30 @@ def ecg_process(ecg_raw, sampling_rate=10000, method="bottenhorn", me=True):
 
     # Prepare signal for processing
     print("Cleaning ECG")
-    ecg_cleaned = neuromod_ecg_clean(
-        ecg_signal, sampling_rate=sampling_rate, method=method, me=me
+    ecg_signal, ecg_cleaned = neuromod_ecg_clean(
+        ecg_signal, sampling_rate=sampling_rate, method=method, me=me, downsampling=downsampling_rate
     )
     print("ECG Cleaned")
     # Process clean signal
-    signals, info = process_cardiac(
-        ecg_signal, ecg_cleaned, sampling_rate=sampling_rate, data_type="ECG"
-    )
+    try:
+        if downsampling_rate is None:
+            signals, info = process_cardiac(
+                ecg_signal, ecg_cleaned, sampling_rate=sampling_rate, data_type="ECG"
+            )
+        else:
+            signals, info = process_cardiac(
+                ecg_signal, ecg_cleaned, sampling_rate=downsampling_rate, data_type="ECG"
+            )
+        info["Processed"] = True
+    except:
+        print("ERROR in ECG processing procedure")
+        signals = pd.DataFrame({"ECG_Raw": ecg_signal, "ECG_Clean": ecg_cleaned})
+        info = {"Processed": False}
 
     return signals, info
 
 
-def eda_process(eda_raw, sampling_rate=10000, me=True):
+def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=2500, me=True):
     """
     Process EDA signal.
 
@@ -427,6 +505,10 @@ def eda_process(eda_raw, sampling_rate=10000, me=True):
     sampling_rate : int
         The sampling frequency of `eda_raw` (in Hz, i.e., samples/second).
         Default to 10000.
+    downsampling_rate : int
+        The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
+        If None, the signals are not downsampled.
+        Default to 2500.    
     mr : bool
         True if MB-ME sequence was used. Otherwise, considered that the MB-SE
         sequence was used.
@@ -447,13 +529,27 @@ def eda_process(eda_raw, sampling_rate=10000, me=True):
 
     # Prepare signal for processing
     print("Cleaning EDA")
-    eda_cleaned = neuromod_eda_clean(eda_signal, sampling_rate=sampling_rate, me=me)
+    eda_signal, eda_cleaned = neuromod_eda_clean(
+        eda_signal, sampling_rate=sampling_rate, me=me, downsampling=downsampling_rate
+    )
     print("EDA Cleaned")
     # Process clean signal
-    signals, info = nk.eda_process(
-        eda_cleaned, sampling_rate=sampling_rate, method="neurokit"
-    )
-
+    try:
+        if downsampling_rate is None:
+            signals, info = nk.eda_process(
+               eda_cleaned, sampling_rate=sampling_rate, method="neurokit"
+            )
+        else:
+            signals, info = nk.eda_process(
+                eda_cleaned, sampling_rate=downsampling_rate, method="neurokit"
+            )
+        signals['EDA_Raw'] = eda_signal
+        info["Processed"] = True
+    except:
+        print("ERROR in EDA processing procedure")
+        signals = pd.DataFrame({"EDA_Raw": eda_signal, "EDA_Clean": eda_cleaned})
+        info = {"Processed": False}
+    
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
             info[k] = info[k].tolist()
@@ -461,7 +557,7 @@ def eda_process(eda_raw, sampling_rate=10000, me=True):
     return signals, info
 
 
-def rsp_process(rsp_raw, sampling_rate=10000, method="khodadad2018"):
+def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=2500, method="khodadad2018"):
     """
     Parameters
     ----------
@@ -470,6 +566,13 @@ def rsp_process(rsp_raw, sampling_rate=10000, method="khodadad2018"):
     sampling_rate : int
         The sampling frequency of `eda_raw` (in Hz, i.e., samples/second).
         Default to 10000.
+    downsampling_rate : int
+        The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
+        If None, the signals are not downsampled.
+        Default to 2500.
+    method : str
+        Method to use for processing.
+        Default to 'khodadad2018'.
 
     Returns
     -------
@@ -491,9 +594,28 @@ def rsp_process(rsp_raw, sampling_rate=10000, method="khodadad2018"):
     rsp_signal = as_vector(rsp_raw)
 
     # Clean and filter respiratory signal
-    print("Cleaning and processing RSP")
-    signals, info = nk.rsp_process(rsp_signal, sampling_rate=10000, method=method)
-    print("RSP Cleaned and processed")
+    print("Cleaning RSP")
+    rsp_signal, rsp_cleaned = neuromod_rsp_clean(
+        rsp_signal, sampling_rate=sampling_rate, downsampling=downsampling_rate
+    )
+    # Process clean signal
+    print("Processing RSP")
+    try:
+        if downsampling_rate is None:
+            signals, info = nk.rsp_process(
+                rsp_cleaned, sampling_rate=sampling_rate, method=method
+            )
+        else:
+            signals, info = nk.rsp_process(
+                rsp_cleaned, sampling_rate=downsampling_rate, method=method
+            ) 
+        signals['RSP_Raw'] = rsp_signal
+        info["Processed"] = True
+        print("RSP Cleaned and processed")
+    except:
+        print("ERROR in RSP processing procedure")
+        signals = pd.DataFrame({"RSP_Raw": rsp_signal, "RSP_Clean": rsp_cleaned})
+        info = {"Processed": False}
 
     for k in info.keys():
         if isinstance(info[k], np.ndarray):

@@ -13,7 +13,7 @@ from scipy import signal
 # =======================================================================
 
 
-def neuromod_ppg_clean(ppg_signal, sampling_rate=10000.0):
+def neuromod_ppg_clean(ppg_signal, sampling_rate=10000.0, downsampling=None):
     """
     Clean a PPG signal.
 
@@ -25,19 +25,26 @@ def neuromod_ppg_clean(ppg_signal, sampling_rate=10000.0):
         The raw PPG channel.
     sampling_rate : float
         The sampling frequency of `ppg_signal` (in Hz, i.e., samples/second).
-        Defaults to 10000.
+        Default to 10000.
+    downsampling : int
+        The desired sampling frequency (Hz). If None, the signal is not resample.
+        Default to None.
 
     Returns
     -------
-    ppg_cleaned : array
+    ppg_clean : array
         Vector containing the cleaned PPG signal.
     """
     # Apply band pass filter
-    ppg_cleaned = nk.signal_filter(
+    ppg_clean = nk.signal_filter(
         ppg_signal, sampling_rate=sampling_rate, lowcut=0.5, highcut=8, order=3
     )
+    # Downsample the signal if specified
+    if downsampling is not None:
+        ppg_clean = nk.signal_resample(ppg_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
+        ppg_signal = nk.signal_resample(ppg_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
 
-    return ppg_cleaned
+    return ppg_signal, ppg_clean
 
 
 # ======================================================================
@@ -45,7 +52,7 @@ def neuromod_ppg_clean(ppg_signal, sampling_rate=10000.0):
 # =======================================================================
 
 
-def neuromod_ecg_clean(ecg_signal, sampling_rate=10000.0, method="biopac", me=False):
+def neuromod_ecg_clean(ecg_signal, sampling_rate=10000.0, method="biopac", me=False, downsampling=None):
     """
     Clean an ECG signal.
 
@@ -65,10 +72,13 @@ def neuromod_ecg_clean(ecg_signal, sampling_rate=10000.0, method="biopac", me=Fa
         Specify if the MRI sequence used was the multi-echo (True)
         or the single-echo (False).
         Default to False.
+    downsampling : int
+        The desired sampling frequency (Hz). If None, the signal is not resample.
+        Default to None.
 
     Returns
     -------
-    clean : array
+    ecg_clean : array
         Vector containing the cleaned ECG signal.
     """
     if me:
@@ -81,21 +91,25 @@ def neuromod_ecg_clean(ecg_signal, sampling_rate=10000.0, method="biopac", me=Fa
         slices = 60
 
     if method in ["biopac"]:
-        clean = _ecg_clean_biopac(ecg_signal, sampling_rate)
+        ecg_clean = _ecg_clean_biopac(ecg_signal, sampling_rate, tr=tr, slices=slices)
     if method in ["bottenhorn", "bottenhorn2022"]:
         # Apply comb band pass filter with Bottenhorn correction
         print("... Applying the corrected comb band pass filter.")
-        clean = _ecg_clean_bottenhorn(
+        ecg_clean = _ecg_clean_bottenhorn(
             ecg_signal, sampling_rate=sampling_rate, tr=tr, mb=mb, slices=slices
         )
-
-    return clean
+    # Downsample the signal if specified
+    if downsampling is not None:
+        ecg_clean = nk.signal_resample(ecg_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
+        ecg_signal = nk.signal_resample(ecg_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
+        
+    return ecg_signal, ecg_clean
 
 
 # =============================================================================
 # ECG internal : biopac recommendations
 # =============================================================================
-def _ecg_clean_biopac(ecg_signal, sampling_rate=10000.0, tr=1.49, slices=60, Q=10):
+def _ecg_clean_biopac(ecg_signal, sampling_rate=10000.0, tr=1.49, slices=60, Q=100):
     """
     Single-band sequence gradient noise reduction.
 
@@ -111,10 +125,13 @@ def _ecg_clean_biopac(ecg_signal, sampling_rate=10000.0, tr=1.49, slices=60, Q=1
         Default to 10000.
     tr : int
         The time Repetition of the MRI scanner.
+        Default to 1.49.
     slices :
         The number of volumes acquired in the tr period.
+        Default to 60.
     Q : int
         The filter quality factor.
+        Default to 100.
 
     Returns
     -------
@@ -151,9 +168,7 @@ def _ecg_clean_biopac(ecg_signal, sampling_rate=10000.0, tr=1.49, slices=60, Q=1
     return ecg_clean
 
 
-def _ecg_clean_bottenhorn(
-    ecg_signal, sampling_rate=10000.0, tr=1.49, mb=4, slices=60, Q=10
-):
+def _ecg_clean_bottenhorn(ecg_signal, sampling_rate=10000.0, tr=1.49, mb=4, slices=60, Q=100):
     """
     Multiband sequence gradient noise reduction.
 
@@ -166,12 +181,16 @@ def _ecg_clean_bottenhorn(
         Default to 10000.
     tr : float
         The time Repetition of the MRI scanner.
+        Default to 1.49.
     mb : 4
         The multiband acceleration factor.
+        Default to 4.
     slices : int
         The number of volumes acquired in the tr period.
+        Default to 60.
     Q : int
         The filter quality factor.
+        Default to 100.
 
     Returns
     -------
@@ -220,7 +239,7 @@ def _ecg_clean_bottenhorn(
 # =============================================================================
 # EDA
 # =============================================================================
-def neuromod_eda_clean(eda_signal, sampling_rate=10000.0, me=True, Q=10):
+def neuromod_eda_clean(eda_signal, sampling_rate=10000.0, me=True, Q=100, downsampling=None):
     """
     Multiband sequence gradient noise reduction.
 
@@ -231,14 +250,16 @@ def neuromod_eda_clean(eda_signal, sampling_rate=10000.0, me=True, Q=10):
     sampling_rate : float
         The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
         Default to 10000.
-    tr : float
-        The time Repetition of the MRI scanner.
-    mb : int
-        The multiband acceleration factor.
-    slices : int
-        The number of volumes acquired in the tr period.
+    me : bool
+        Specify if the MRI sequence used was the multi-echo (True)
+        or the single-echo (False).
+        Default to False.
     Q : int
         The filter quality factor.
+        Default to 100.
+    downsampling : int
+        The desired sampling frequency (Hz). If None, the signal is not resample.
+        Default to None.
 
     Returns
     -------
@@ -274,10 +295,53 @@ def neuromod_eda_clean(eda_signal, sampling_rate=10000.0, me=True, Q=10):
     # Filtering at fundamental and specific harmonics
     print("... Applying notch filter.")
     eda_clean = _comb_band_stop(notches, nyquist, eda_clean, Q)
+    # Downsample the signal if specified
+    if downsampling is not None:
+        eda_clean = nk.signal_resample(eda_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
+        eda_signal = nk.signal_resample(eda_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
 
-    return eda_clean
+    return eda_signal, eda_clean
 
 
+# =============================================================================
+# RSP
+# =============================================================================
+def neuromod_rsp_clean(rsp_signal, sampling_rate=10000.0, downsampling=None):
+    """
+    Clean a PPG signal.
+
+    Parameters
+    ----------
+    rsp_signal : list, array or Series
+        The raw RSP channel.
+    sampling_rate : float
+        The sampling frequency of `rsp_signal` (in Hz, i.e., samples/second).
+        Default to 10000.
+    downsampling : int
+        The desired sampling frequency (Hz). If None, the signal is not resample.
+        Default to None.
+
+    Returns
+    -------
+    rsp_clean : array
+        Vector containing the cleaned PPG signal.
+
+    References
+    ----------
+    Khodadad, D., Nordebo, S., Müller, B., Waldmann, A., Yerworth, R., Becher, T., ... & Bayford, R. (2018). 
+        Optimized breath detection algorithm in electrical impedance tomography. Physiological measurement, 
+        39(9), 094001.
+    """
+    # Apply bandpass filter
+    rsp_clean = nk.rsp_clean(rsp_signal, sampling_rate=sampling_rate, method='khodadad2018')
+    # Downsample the signal if specified
+    if downsampling is not None:
+        rsp_clean = nk.signal_resample(rsp_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
+        rsp_signal = nk.signal_resample(rsp_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
+
+    return rsp_signal, rsp_clean
+
+    
 # =============================================================================
 # General functions
 # =============================================================================

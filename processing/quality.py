@@ -2,14 +2,13 @@
 # !/usr/bin/env python -W ignore::DeprecationWarning
 """Physiological data quality assessment"""
 
-# NOTE:
-
 import os
 import glob
 import json
 import click
 import numpy as np
 import pandas as pd
+from pathlib import Path
 from scipy.stats import kurtosis, skew
 
 
@@ -36,7 +35,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir):
     filenames = glob.glob(os.path.join(source, sub, ses, "*_physio*"))
     filenames_signal = [f for f in filenames if f.split(".")[1] == "tsv"]
 
-    for f in filenames_signal:
+    for idx, f in enumerate(filenames_signal):
         filename = f.split(".")[0]
         info = load_json(os.path.join(source, sub, ses, filename + ".json"))
         signal = pd.read_csv(os.path.join(source, sub, ses, f), sep="\t")
@@ -50,7 +49,8 @@ def neuromod_bio_sqi(source, sub, ses, outdir):
         print("***Computing quality metrics for RSP signal***")
         summary["RSP"] = sqi_rsp(signal, info["RSP"])
         print("***Generating report***")
-        generate_report(summary, os.path.join(outdir, sub, ses), filename)
+        savefile = Path(source)
+        generate_report(summary, os.path.join(outdir, sub, ses), f"{sub}_{ses}_task-{filename.parts[-2]}_run-{idx+1}_physio.html")
 
 
 # ==================================================================================
