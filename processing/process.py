@@ -118,23 +118,11 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         bio_df = pd.concat([bio_df, eda], axis=1)
         print(f"***Electrodermal activity workflow: done in {timeit.default_timer()-start_time} sec***")
 
-        # return a dataframe
-        bio_df["time"] = df["time"]
-
-        tmp = pd.read_csv(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.tsv.gz"), sep="\t")
-        tmp["EDA_Raw"] = bio_df["EDA_Raw"]
-        tmp["RSP_Raw"] = bio_df["RSP_Raw"]
-
+        # save outputs
         print("***Saving processed biosignals: begin***")
         start_time = timeit.default_timer()
         filename = Path(source)
-        tmp.to_csv(
-            os.path.join(
-                outdir, sub, ses, f"{sub}_{ses}_{run}_physio.tsv.gz"
-            ),
-            sep="\t",
-            index=False
-            )
+       
         bio_df.to_csv(
             os.path.join(
                 outdir, sub, ses, f"{sub}_{ses}_{run}_physio.tsv.gz"
