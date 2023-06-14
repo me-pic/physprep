@@ -118,23 +118,11 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         bio_df = pd.concat([bio_df, eda], axis=1)
         print(f"***Electrodermal activity workflow: done in {timeit.default_timer()-start_time} sec***")
 
-        # return a dataframe
-        bio_df["time"] = df["time"]
-
-        tmp = pd.read_csv(os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.tsv.gz"), sep="\t")
-        tmp["EDA_Raw"] = bio_df["EDA_Raw"]
-        tmp["RSP_Raw"] = bio_df["RSP_Raw"]
-
+        # save outputs
         print("***Saving processed biosignals: begin***")
         start_time = timeit.default_timer()
         filename = Path(source)
-        tmp.to_csv(
-            os.path.join(
-                outdir, sub, ses, f"{sub}_{ses}_{run}_physio.tsv.gz"
-            ),
-            sep="\t",
-            index=False
-            )
+       
         bio_df.to_csv(
             os.path.join(
                 outdir, sub, ses, f"{sub}_{ses}_{run}_physio.tsv.gz"
@@ -374,7 +362,7 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
     return signals, info
 
 
-def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=2500):
+def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
     """
     Process PPG signal.
 
@@ -430,7 +418,7 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=2500):
     return signals, info
 
 
-def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=2500, method="bottenhorn", me=True):
+def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bottenhorn", me=True):
     """
     Process ECG signal.
 
@@ -492,7 +480,7 @@ def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=2500, method="bo
     return signals, info
 
 
-def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=2500, me=True):
+def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000, me=True):
     """
     Process EDA signal.
 
@@ -557,7 +545,7 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=2500, me=True):
     return signals, info
 
 
-def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=2500, method="khodadad2018"):
+def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="khodadad2018"):
     """
     Parameters
     ----------
