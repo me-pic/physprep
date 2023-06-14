@@ -17,13 +17,15 @@ sys.path.append("../utils")
 
 
 @click.command()
-@click.argument("root", type=click.Path(exists=True))
+@click.argument("root", type=click.Path())
 @click.argument("save", type=click.Path())
 @click.argument("sub", type=str)
 @click.option("--ses", type=str, default=None, required=False)
 @click.option("--tr", type=float, default=None, required=False)
 @click.option("--ch_name", default=None, required=False)
-def call_convert(root, save, sub, ses=None, tr=None, ch_name=None):
+@click.option("--overwrite", type=bool, default=False, required=False)
+@click.option("--pad", type=int, default=0, required=False)
+def call_convert(root, save, sub, ses=None, tr=None, ch_name=None, overwrite=False, pad=0):
     """
     Call `convert` function only if `convert.py` is called as CLI
 
@@ -31,10 +33,10 @@ def call_convert(root, save, sub, ses=None, tr=None, ch_name=None):
     """
     if ch_name is not None:
         ch_name = json.loads(ch_name)
-    convert(root, save, sub, ses, tr, ch_name)
+    convert(root, save, sub, ses, tr, ch_name, overwrite, pad)
 
 
-def convert(root, save, sub, ses=None, tr=None, ch_name=None, overwrite=False):
+def convert(root, save, sub, ses=None, tr=None, ch_names=None, overwrite=False, pad=0):
     """
     Phys2Bids conversion for one subject data
 
@@ -73,53 +75,64 @@ def convert(root, save, sub, ses=None, tr=None, ch_name=None, overwrite=False):
     logger = logging.getLogger(__name__)
     # fetch info
     fetcher = f"{sub}_volumes_all-ses-runs.json"
-    logger.info(f"Reading fetcher:\n{os.path.join(root, sub, fetcher)}")
-    info = pd.read_json(os.path.join(root, sub, f"{sub}_volumes_all-ses-runs.json"))
+    logger.info(f"Reading fetcher:\n{os.path.join(save, sub, fetcher)}")
+    info = pd.read_json(os.path.join(save, sub, f"{sub}_volumes_all-ses-runs.json"))
     # define sessions
-    if sessions is None:
-        sessions = sorted(list(info.columns))
+    if ses is None:
+        ses = sorted(list(info.columns))
         # Remove the sessions that are already processed
         if overwrite is False:
-            existing = [str(d[-8:-1]) for d in glob.glob(f"{root}{sub}/*/")]
-            setA = set(sessions)
+            existing = [str(d[-8:-1]) for d in glob.glob(f"{save}{sub}/*/")]
+            setA = set(ses)
             # Get new set with elements that are only in sessions but not in existing
-            sessions = sorted(list(setA.difference(existing)))
+            ses = sorted(list(setA.difference(existing)))
 
     elif isinstance(ses, list) is False:
         ses = [ses]
-    # Define ch_name and trigger idx
-    if info[ses]["ch_name"] is None:
-        logger.info(
-            "Warning: you did not specify a value for ch_name, the values that will be use are the following: "
-        )
-        ch_name = ["EDA", "PPG", "ECG", "TTL", "RSP"]
-        info[ses]["ch_name"] = ch_name
-        logger.info("Please make sure, those values are the right ones :\n{ch_name}")
-        chtrig = 4
-    else:
-        # Define chtrig ; should find a way to find it from a list of possible values
-        info[col].update({"ch_names": ["EDA", "PPG", "ECG", "TTL", "RSP"]})
-        chtrig = info[ses]["ch_name"].index("TTL")
-
+    
     # iterate through info
-    for col in ses:
+    for col in sorted(ses):
+        if "harrypotter" in root:
+            ses_id = "001"
+            indir = os.path.join(root, sub)
+        else:
+            ses_id = col[-3:]
+            indir = os.path.join(root, sub, col)
         # skip empty sessions
         if info[col] is None:
+            logger.info(f"Empty session : {col}")
             continue
-        logger.info(col)
+            # Define ch_name and trigger idx
+        if info[col]["ch_names"] is None and ch_names is not None:
+            logger.info(
+                "Warning: your info file does not have channel names, the values that will be use are the following:\n"
+                f"Please make sure, those values are the right ones :\n{ch_names}"
+            )
+            info[col]["ch_names"] = ch_names
+            chtrig = 4
+        elif info[col]["ch_names"] is None and ch_names is None or isinstance(info[col]['recorded_triggers'], str):
+            logger.info("No channel names provided nor found; can't find the trigger to segment")
+            continue
+        else:
+            # Define chtrig ; should find a way to find it from a list of possible values
+            ch_list = ['EDA' if 'EDA' in ch else 'ECG' if 'ECG' in ch else 'PPG' if 'PPG' in ch else 'TTL' if 'A 5' in ch or 'TTL' in ch else 'RSP' for ch in info[col]['ch_names']]
+            chtrig = ch_list.index('TTL') + 1
+            info[col].update({"ch_names": ch_list})
 
         # Iterate through files in each session and run phys2bids
         filename = info[col]["in_file"]
-        if filename is list:
-            for i in range(len(filename) - 1):
+        logger.info(f"Converting : {col}")
+        if isinstance(filename, list):
+            filename.sort()
+            for i in range(len(filename)):
                 phys2bids(
                     filename[i],
                     info=False,
-                    indir=os.path.join(root, sub, col),
+                    indir=indir,
                     outdir=os.path.join(save, sub, col),
                     heur_file=None,
                     sub=sub[-2:],
-                    ses=col[-3:],
+                    ses=ses_id,
                     chtrig=chtrig,
                     chsel=None,
                     num_timepoints_expected=info[col]["recorded_triggers"][
@@ -127,10 +140,10 @@ def convert(root, save, sub, ses=None, tr=None, ch_name=None, overwrite=False):
                     ],
                     tr=info[col]["tr"],
                     thr=4,
-                    pad=9,
-                    ch_name=info[col]["ch_name"],
+                    pad=pad,
+                    ch_name=info[col]["ch_names"],
                     yml="",
-                    debug=False,
+                    debug=True,
                     quiet=False,
                 )
         else:
@@ -142,14 +155,14 @@ def convert(root, save, sub, ses=None, tr=None, ch_name=None, overwrite=False):
                     outdir=os.path.join(save, sub, col),
                     heur_file=None,
                     sub=sub[-2:],
-                    ses=col[-3:],
+                    ses=ses_id[-3:],
                     chtrig=chtrig,
                     chsel=None,
                     num_timepoints_expected=info[col]["recorded_triggers"]["run-01"],
                     tr=info[col]["tr"],
                     thr=4,
-                    pad=9,
-                    ch_name=info[col]["ch_name"],
+                    pad=pad,
+                    ch_name=info[col]["ch_names"],
                     yml="",
                     debug=False,
                     quiet=False,
@@ -165,7 +178,7 @@ def convert(root, save, sub, ses=None, tr=None, ch_name=None, overwrite=False):
                         outdir=os.path.join(save, sub, col),
                         heur_file=None,
                         sub=sub[-2:],
-                        ses=col[-3:],
+                        ses=ses_id[-3:],
                         chtrig=chtrig,
                         chsel=None,
                         num_timepoints_expected=info[col]["recorded_triggers"][
@@ -173,8 +186,8 @@ def convert(root, save, sub, ses=None, tr=None, ch_name=None, overwrite=False):
                         ],
                         tr=info[col]["tr"],
                         thr=4,
-                        pad=9,
-                        ch_name=info[col]["ch_name"],
+                        pad=pad,
+                        ch_name=info[col]["ch_names"],
                         yml="",
                         debug=False,
                         quiet=False,

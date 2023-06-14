@@ -13,7 +13,7 @@ import logging
 @click.command()
 @click.argument("indir", type=click.Path(exists=True), required=True)
 @click.argument("sub", type=str, required=True)
-@click.option("sessions", type=str, nargs="*")
+@click.option("--sessions", type=str,)
 def co_register_physio(indir, sub, sessions=None):
     """
     Comply to BIDS and co-register functional acquisitions.
@@ -66,6 +66,10 @@ def co_register_physio(indir, sub, sessions=None):
         triggers = list(info[ses]["recorded_triggers"].values())
         triggers = list(np.concatenate(triggers).flat)
 
+        # remove padding trigger for videogames tasks
+        if any(game in indir for game in ["mario", "shinobi"]):
+            triggers = [trigger-1 if trigger > 200 else trigger for trigger in triggers]
+
         # check sanity of info - expected runs is number of runs in BOLD sidecar
         # if info[ses]['expected_runs'] is not info[ses]['processed_runs']:
         #    print(f"Expected number of runs {info[ses]['expected_runs']} "
@@ -97,7 +101,7 @@ def co_register_physio(indir, sub, sessions=None):
             # remove files that don't contain enough volumes
             for idx, volumes in enumerate(triggers):
                 # NOTE: this should not be hardcoded
-                if volumes < 400:
+                if volumes < 350:
                     to_be_del.append(idx)
 
         # these can be safely removed
