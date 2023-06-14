@@ -405,10 +405,12 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
             signals, info = process_cardiac(
                 ppg_signal, ppg_cleaned, sampling_rate=sampling_rate, data_type="PPG"
             )
+            info = {"SamplingFrequency": sampling_rate}
         else:
             signals, info = process_cardiac(
                 ppg_signal, ppg_cleaned, sampling_rate=downsampling_rate, data_type="PPG"
             )
+            info = {"SamplingFrequency": downsampling_rate}
         info["Processed"] = True
     except:
         print("ERROR in PPG processing procedure")
@@ -467,10 +469,12 @@ def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bo
             signals, info = process_cardiac(
                 ecg_signal, ecg_cleaned, sampling_rate=sampling_rate, data_type="ECG"
             )
+            info = {"SamplingFrequency": sampling_rate}
         else:
             signals, info = process_cardiac(
                 ecg_signal, ecg_cleaned, sampling_rate=downsampling_rate, data_type="ECG"
             )
+            info = {"SamplingFrequency": downsampling_rate}
         info["Processed"] = True
     except:
         print("ERROR in ECG processing procedure")
@@ -527,10 +531,12 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000, me=True):
             signals, info = nk.eda_process(
                eda_cleaned, sampling_rate=sampling_rate, method="neurokit"
             )
+            info = {"SamplingFrequency": sampling_rate}
         else:
             signals, info = nk.eda_process(
                 eda_cleaned, sampling_rate=downsampling_rate, method="neurokit"
             )
+            info = {"SamplingFrequency": downsampling_rate}
         signals['EDA_Raw'] = eda_signal
         info["Processed"] = True
     except:
@@ -593,10 +599,12 @@ def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="kh
             signals, info = nk.rsp_process(
                 rsp_cleaned, sampling_rate=sampling_rate, method=method
             )
+            info = {"SamplingFrequency": sampling_rate}
         else:
             signals, info = nk.rsp_process(
                 rsp_cleaned, sampling_rate=downsampling_rate, method=method
             ) 
+            info = {"SamplingFrequency": downsampling_rate}
         signals['RSP_Raw'] = rsp_signal
         info["Processed"] = True
         print("RSP Cleaned and processed")
