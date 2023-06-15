@@ -31,8 +31,7 @@ from clean import neuromod_ecg_clean, neuromod_eda_clean, neuromod_ppg_clean, ne
 def process_session(args):
     # Unpack arguments for parallel processing
     source, sub, ses, outdir, multi_echo = args
-    multi_echo = bool(multi_echo)
-    neuromod_bio_process(source, sub, ses, outdir, False)
+    neuromod_bio_process(source, sub, ses, outdir, multi_echo)
 
 # ==================================================================================
 # Processing pipeline
@@ -346,8 +345,13 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
             f"{data_type.upper()}_long": nLong,
             f"{data_type.upper()}_extra": nExtra,
             f"{data_type.upper()}_missed": nMissed,
-            f"{data_type.upper()}_Clean_RR_Systole": corrected.tolist(),
-            f"{data_type.upper()}_NK_artefacts": artefacts,
+            f"{data_type.upper()}_clean_rr_systole": corrected.tolist(),
+            f"{data_type.upper()}_clean_rr_hp": [float(v) for v in wd["RR_list_cor"]],
+            f"{data_type.upper()}_rejected_segments": rejected_segments,
+            f"{data_type.upper()}_cumulseconds_rejected": int(cumsum),
+            f"{data_type.upper()}_%_rejected_segments": float(
+                cumsum / (len(signal_raw) / sampling_rate)
+            ),
         }
     )
     # Prepare output
@@ -627,9 +631,8 @@ def parallel_neuromod_bio_process(source, sub, outdir, multi_echo):
     num_cpus = multiprocessing.cpu_count()
     num_cpus = round(num_cpus/6)
     pool = multiprocessing.Pool(processes=num_cpus)
-    sessions =[os.path.basename(name) for name in glob.glob(os.path.join(source, sub, "ses-*"))]
-    print(sessions)
-    args = [(source, sub, ses, outdir, multi_echo) for ses in sorted(sessions)] 
+    sessions =[os.basename(name) for name in glob.glob(os.path.join(source, sub, "ses-*"))]
+    args = [(source, sub, ses, outdir, multi_echo) for ses in sessions]
     pool.map(process_session, args)
 
     pool.close()
