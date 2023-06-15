@@ -17,7 +17,8 @@ from scipy.stats import kurtosis, skew
 @click.argument("sub", type=str)
 @click.argument("ses", type=str)
 @click.argument("outdir", type=str)
-def neuromod_bio_sqi(source, sub, ses, outdir):
+@click.argument("sliding")
+def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 10}, sampling_rate=2500):
     """
     Run processing pipeline on specified biosignals.
 
@@ -31,27 +32,84 @@ def neuromod_bio_sqi(source, sub, ses, outdir):
         The id of the session.
     outdir : str
         The directory to save the outputs.
+    sliding : dict
     """
     filenames = glob.glob(os.path.join(source, sub, ses, "*_physio*"))
-    filenames_signal = [f for f in filenames if f.split(".")[1] == "tsv"]
-
+    filenames_signal = [f for f in filenames if f.split(".")[1] == "tsv" and "noseq" not in f]
+    #breakpoint()
     for idx, f in enumerate(filenames_signal):
         filename = f.split(".")[0]
         info = load_json(os.path.join(source, sub, ses, filename + ".json"))
+
         signal = pd.read_csv(os.path.join(source, sub, ses, f), sep="\t")
         summary = {}
+        # Compute metrics on the unsegmented signal
+        #if sliding is None:
         print("***Computing quality metrics for PPG signal***")
-        summary["PPG"] = sqi_cardiac(signal["PPG_Clean"], info["PPG"], data_type="PPG")
+        try:
+            summary["PPG"] = sqi_cardiac(signal["PPG_Clean"], info["PPG"], data_type="PPG")
+        except:
+            print("Not able to compute PPG")
         print("***Computing quality metrics for EEG signal***")
-        summary["ECG"] = sqi_cardiac(signal["ECG_Clean"], info["ECG"], data_type="ECG")
+        try:
+            summary["ECG"] = sqi_cardiac(signal["ECG_Clean"], info["ECG"], data_type="ECG")
+        except:
+            print("Not able to compute ECG")
         print("***Computing quality metrics for EDA signal***")
-        summary["EDA"] = sqi_eda(signal, info["EDA"])
+        try: 
+            summary["EDA"] = sqi_eda(signal, info["EDA"])
+        except:
+            print("Not able to compute EDA")
         print("***Computing quality metrics for RSP signal***")
-        summary["RSP"] = sqi_rsp(signal, info["RSP"])
+        try:
+            summary["RSP"] = sqi_rsp(signal, info["RSP"])
+        except:
+            print("Not able to compute RSP")
         print("***Generating report***")
-        savefile = Path(source)
-        generate_report(summary, os.path.join(outdir, sub, ses), f"{sub}_{ses}_task-{filename.parts[-2]}_run-{idx+1}_physio.html")
+        #savefile = Path(source)
+        generate_report(summary, os.path.join(outdir, sub, ses), f"{sub}_{ses}_{filename.split('/')[-1].split('_')[2]}")
+        # Compute metrics on signal segmented in fixed windows
+        """
+        elif sliding['step'] != 0:
+            window_samples = int(sliding['duration'] * sampling_rate)
+            num_windows = int(len(signal) / window_samples)
 
+            for i in range(num_windows):
+                start = i * window_samples
+                end = start + window_samples
+                window = signal.iloc([start:end])
+                print("***Computing quality metrics for PPG signal***")
+                summary["PPG"].append(sqi_cardiac(window["PPG_Clean"], info["PPG"], data_type="PPG"))
+                print("***Computing quality metrics for EEG signal***")
+                summary["ECG"].append(sqi_cardiac(window["ECG_Clean"], info["ECG"], data_type="ECG"))
+                print("***Computing quality metrics for EDA signal***")
+                summary["EDA"].append(sqi_eda(signal, info["EDA"]))
+                print("***Computing quality metrics for RSP signal***")
+                summary["RSP"].append(sqi_rsp(signal, info["RSP"]))
+            print("***Generating report***")
+            savefile = Path(source)
+            generate_report(summary, os.path.join(outdir, sub, ses), f"{sub}_{ses}_task-{filename.parts[-2]}_run-{idx+1}_physio.html")
+        # Compute metrics using a sliding window approach    
+        else:
+            window_samples = int(sliding['duration'] * sampling_rate)
+            step_samples = int(sliding['step'] * sampling_rate)
+            num_windows = int((len(signal) - window_samples) / step_samples) + 1
+            for i in range(num_windows):
+                start = i * step_samples
+                end = start + window_samples
+                window = signal.iloc([start:end])
+                print("***Computing quality metrics for PPG signal***")
+                summary["PPG"].append(sqi_cardiac(window["PPG_Clean"], info["PPG"], data_type="PPG"))
+                print("***Computing quality metrics for EEG signal***")
+                summary["ECG"].append(sqi_cardiac(window["ECG_Clean"], info["ECG"], data_type="ECG"))
+                print("***Computing quality metrics for EDA signal***")
+                summary["EDA"].append(sqi_eda(signal, info["EDA"]))
+                print("***Computing quality metrics for RSP signal***")
+                summary["RSP"].append(sqi_rsp(signal, info["RSP"]))
+            print("***Generating report***")
+            savefile = Path(source)
+            generate_report(summary, os.path.join(outdir, sub, ses), f"{sub}_{ses}_task-{filename.parts[-2]}_run-{idx+1}_physio.html")      
+        """
 
 # ==================================================================================
 # Utils
@@ -115,6 +173,7 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000):
         Frontiers in Physiology, 2248.
     """
     summary = {}
+
     # Quality indices on NN intervals
     summary["Mean_NN_intervals"] = np.round(
         np.mean(info[f"{data_type}_clean_rr_systole"]), 4
@@ -234,13 +293,15 @@ def sqi_rsp(signal_rsp, info, sampling_rate=10000):
     summary["Median_Amp"] = np.round(np.median(signal_rsp["RSP_Amplitude"]), 4)
     summary["SD_Amp"] = np.round(np.std(signal_rsp["RSP_Amplitude"]), 4)
     summary["Min_Amp"] = np.round(np.min(signal_rsp["RSP_Amplitude"]), 4)
-    summary["Max_Amp"] = np.round(np.max(signal_rsp["RSP_Amplitude"]), 4)
+    summary["CV_Amp"] = np.round(np.max(signal_rsp["RSP_Amplitude"]), 4)
+    summary["variability_Amp"] = np.round(np.std(signal_rsp["RSP_Amplitude"])/np.mean(signal_rsp["RSP_Amplitude"]), 4)
     # Quality indices on signal rate
     summary["Mean_Rate"] = np.round(np.mean(signal_rsp["RSP_Rate"]), 4)
     summary["Median_Rate"] = np.round(np.median(signal_rsp["RSP_Rate"]), 4)
     summary["SD_Rate"] = np.round(np.std(signal_rsp["RSP_Rate"]), 4)
     summary["Min_Rate"] = np.round(np.min(signal_rsp["RSP_Rate"]), 4)
     summary["Max_Rate"] = np.round(np.max(signal_rsp["RSP_Rate"]), 4)
+    summary["CV_Rate"] = np.round(np.std(signal_rsp["RSP_Rate"])/np.mean(signal_rsp["RSP_Rate"]), 4)
 
     return summary
 
@@ -429,7 +490,8 @@ def generate_report(summary, save, filename):
     """
 
     # Save the HTML report to a file
-    with open(os.path.join(save, f"{filename}.html"), "w") as file:
+    print("Saving html report")
+    with open(os.path.join(save, f"{filename}_quality.html"), "w") as file:
         file.write(html_report)
         file.close()
 
