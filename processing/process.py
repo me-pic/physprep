@@ -269,21 +269,6 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
     info : dict
         Dictionary containing list of intervals between peaks.
     """
-    # heartpy
-    print("HeartPy processing started")
-    wd, m = process(
-        signal_cleaned,
-        sampling_rate,
-        reject_segmentwise=True,
-        interp_clipping=True,
-        report_time=True,
-    )
-    cumsum = 0
-    rejected_segments = []
-    for i in wd["rejected_segments"]:
-        cumsum += int(np.diff(i) / sampling_rate)
-        rejected_segments.append((int(i[0]), int(i[1])))
-    print("Heartpy found peaks")
 
     # Find peaks
     print("Neurokit processing started")
@@ -305,6 +290,27 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
         info[f"{data_type.upper()}_Peaks"], desired_length=len(signal_cleaned)
     )
     print("Neurokit found peaks")
+
+    # heartpy
+    print("HeartPy processing started")
+    try:
+        wd, m = process(
+            signal_cleaned,
+            sampling_rate,
+            reject_segmentwise=True,
+            interp_clipping=True,
+            report_time=True,
+        )
+        cumsum = 0
+        rejected_segments = []
+        for i in wd["rejected_segments"]:
+            cumsum += int(np.diff(i) / sampling_rate)
+            rejected_segments.append((int(i[0]), int(i[1])))
+        info['Heartpy'] = True
+        print("Heartpy found peaks")
+    except:
+        print("Heartpy processing did not converged")
+        info['Heartpy'] = False
 
     # peak to intervals
     rr = input_conversion(
@@ -411,11 +417,9 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
                 ppg_signal, ppg_cleaned, sampling_rate=downsampling_rate, data_type="PPG"
             )
             info = {"SamplingFrequency": downsampling_rate}
-        info["Processed"] = True
     except:
         print("ERROR in PPG processing procedure")
         signals = pd.DataFrame({"PPG_Raw": ppg_signal, "PPG_Clean": ppg_cleaned})
-        info = {"Processed": False}
 
     return signals, info
 
@@ -475,11 +479,9 @@ def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bo
                 ecg_signal, ecg_cleaned, sampling_rate=downsampling_rate, data_type="ECG"
             )
             info = {"SamplingFrequency": downsampling_rate}
-        info["Processed"] = True
     except:
         print("ERROR in ECG processing procedure")
         signals = pd.DataFrame({"ECG_Raw": ecg_signal, "ECG_Clean": ecg_cleaned})
-        info = {"Processed": False}
 
     return signals, info
 
@@ -538,11 +540,9 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000, me=True):
             )
             info = {"SamplingFrequency": downsampling_rate}
         signals['EDA_Raw'] = eda_signal
-        info["Processed"] = True
     except:
         print("ERROR in EDA processing procedure")
         signals = pd.DataFrame({"EDA_Raw": eda_signal, "EDA_Clean": eda_cleaned})
-        info = {"Processed": False}
     
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
@@ -606,12 +606,10 @@ def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="kh
             ) 
             info = {"SamplingFrequency": downsampling_rate}
         signals['RSP_Raw'] = rsp_signal
-        info["Processed"] = True
         print("RSP Cleaned and processed")
     except:
         print("ERROR in RSP processing procedure")
         signals = pd.DataFrame({"RSP_Raw": rsp_signal, "RSP_Clean": rsp_cleaned})
-        info = {"Processed": False}
 
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
