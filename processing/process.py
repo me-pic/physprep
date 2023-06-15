@@ -6,40 +6,45 @@ Neuromod processing utilities
 # dependencies
 import os
 import json
+import glob
 import click
 import numpy as np
 import pandas as pd
-import traceback
+import multiprocessing
 from pathlib import Path
 
 # high-level processing utils
 from heartpy import process
 from systole.correction import correct_rr, correct_peaks
-from neurokit2 import ecg_peaks, ppg_findpeaks
+from neurokit2 import ecg_peaks, ppg_findpeaks, signal_fixpeaks
 
 # signal utils
 import timeit
 import neurokit2 as nk
 from neurokit2.misc import as_vector
 from systole.utils import input_conversion
-from neurokit2 import signal_rate
-from neurokit2.signal.signal_formatpeaks import _signal_from_indices
+from neurokit2 import signal_rate, signal_formatpeaks
 
 # home brewed cleaning utils
 from clean import neuromod_ecg_clean, neuromod_eda_clean, neuromod_ppg_clean, neuromod_rsp_clean
 
+def process_session(args):
+    # Unpack arguments for parallel processing
+    source, sub, ses, outdir, multi_echo = args
+    multi_echo = bool(multi_echo)
+    neuromod_bio_process(source, sub, ses, outdir, False)
 
 # ==================================================================================
 # Processing pipeline
 # ==================================================================================
 
 
-@click.command()
-@click.argument("source", type=str)
-@click.argument("sub", type=str)
-@click.argument("ses", type=str)
-@click.argument("outdir", type=str)
-@click.argument("multi_echo", type=bool)
+#@click.command()
+#@click.argument("source", type=str)
+#@click.argument("sub", type=str)
+#@click.argument("ses", type=str)
+#@click.argument("outdir", type=str)
+#@click.argument("multi_echo", type=bool)
 def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
     """
     Run processing pipeline on specified biosignals.
@@ -270,50 +275,50 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
     info : dict
         Dictionary containing list of intervals between peaks.
     """
-
     # Find peaks
     print("Neurokit processing started")
     if data_type in ["ecg", "ECG"]:
         _, info = ecg_peaks(
             ecg_cleaned=signal_cleaned,
             sampling_rate=sampling_rate,
-            method="nabian2018",
-            correct_artifacts=True,
+            method="promac",
+            correct_artifacts=False,
         )
-        info[f"{data_type.upper()}_Peaks"] = info[f"{data_type.upper()}_R_Peaks"]
+        info["ECG_Peaks"] = info[f"{data_type.upper()}_R_Peaks"]
+        artefacts, info["ECG_Clean_Peaks_NK"] = nk.signal_fixpeaks(peaks=info,
+        							     sampling_rate=sampling_rate,
+        				      			     interval_min=0.5,
+        				      			     interval_max=1.5,
+        				      			     method="neurokit")
     elif data_type in ["ppg", "PPG"]:
-        info = ppg_findpeaks(signal_cleaned, sampling_rate=sampling_rate)
-        info['sampling_rate'] = sampling_rate
+        info = ppg_findpeaks(signal_cleaned,
+        		      sampling_rate=sampling_rate,
+        		      method="elgendi")
+        info_bishop = ppg_findpeaks(signal_cleaned,
+        			     sampling_rate=sampling_rate,
+        			     method="bishop")
+        print("Neurokit found peaks")
+        artefacts, info["PPG_Clean_Peaks_NK"] = signal_fixpeaks(info,
+		                                sampling_rate=sampling_rate,
+        		                        interval_min=0.5,
+        				      	 interval_max=1.5,
+        				      	 method="neurokit")
+        artefacts_bishop, info["PPG_Clean_Peaks_Bishop_NK"] = signal_fixpeaks(info_bishop,
+		                                sampling_rate=sampling_rate,
+        		                        interval_min=0.5,
+        				      	 interval_max=1.5,
+        				      	 method="neurokit")
+        info["PPG_Bishop_artefacts_NK"] = artefacts_bishop
+        print("Neurokit fixed peaks")
+ 
     else:
         print("Please use a valid data type: 'ECG' or 'PPG'")
 
-    info[f"{data_type.upper()}_Peaks"] = info[f"{data_type.upper()}_Peaks"].tolist()
-    peak_list_nk = _signal_from_indices(
+    print('Formatting peaks into signal')
+    peaks_signal_nk = signal_formatpeaks(
         info[f"{data_type.upper()}_Peaks"], desired_length=len(signal_cleaned)
     )
-    print("Neurokit found peaks")
-
-    # heartpy
-    print("HeartPy processing started")
-    try:
-        wd, m = process(
-            signal_cleaned,
-            sampling_rate,
-            reject_segmentwise=True,
-            interp_clipping=True,
-            report_time=True,
-        )
-        cumsum = 0
-        rejected_segments = []
-        for i in wd["rejected_segments"]:
-            cumsum += int(np.diff(i) / sampling_rate)
-            rejected_segments.append((int(i[0]), int(i[1])))
-        info['Heartpy'] = True
-        print("Heartpy found peaks")
-    except:
-        print("Heartpy processing did not converged")
-        info['Heartpy'] = False
-
+    print('Formatting Peaks signal into RR timeseries')
     # peak to intervals
     rr = input_conversion(
         info[f"{data_type.upper()}_Peaks"],
@@ -324,13 +329,13 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
 
     # correct beat detection
     corrected, (nMissed, nExtra, nEctopic, nShort, nLong) = correct_rr(rr)
-    corrected_peaks = correct_peaks(peak_list_nk, n_iterations=4)
-    print("systole corrected RR series")
+    corrected_peaks = correct_peaks(peak_list_nk, n_iterations=8)
+    print("systole corrected RR and Peaks series")
     # Compute rate based on peaks
     rate = signal_rate(
-        info[f"{data_type.upper()}_Peaks"],
+        info[f"{data_type.upper()}_Clean_Peaks_NK"],
         sampling_rate=sampling_rate,
-        desired_length=len(signal_raw),
+        desired_length=len(signal_cleaned),
     )
 
     # sanitize info dict
@@ -341,29 +346,18 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
             f"{data_type.upper()}_long": nLong,
             f"{data_type.upper()}_extra": nExtra,
             f"{data_type.upper()}_missed": nMissed,
-            f"{data_type.upper()}_clean_rr_systole": corrected.tolist(),
-            f"{data_type.upper()}_clean_rr_hp": [float(v) for v in wd["RR_list_cor"]],
-            f"{data_type.upper()}_rejected_segments": rejected_segments,
-            f"{data_type.upper()}_cumulseconds_rejected": int(cumsum),
-            f"{data_type.upper()}_%_rejected_segments": float(
-                cumsum / (len(signal_raw) / sampling_rate)
-            ),
+            f"{data_type.upper()}_Clean_RR_Systole": corrected.tolist(),
+            f"{data_type.upper()}_NK_artefacts": artefacts,
         }
     )
-    if data_type in ["ecg", "ECG"]:
-        info[f"{data_type.upper()}_R_Peaks"] = info[
-            f"{data_type.upper()}_R_Peaks"
-        ].tolist()
-        del info[f"{data_type.upper()}_Peaks"]
-
     # Prepare output
     signals = pd.DataFrame(
         {
             f"{data_type.upper()}_Raw": signal_raw,
             f"{data_type.upper()}_Clean": signal_cleaned,
-            f"{data_type.upper()}_Peaks_NK": peak_list_nk,
+            f"{data_type.upper()}_Peaks_NK": peaks_signal_nk,
             f"{data_type.upper()}_Peaks_Systole": corrected_peaks["clean_peaks"],
-            f"{data_type.upper()}_Rate": rate,
+            f"{data_type.upper()}_Rate": rate
         }
     )
 
@@ -413,17 +407,17 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
             signals, info = process_cardiac(
                 ppg_signal, ppg_cleaned, sampling_rate=sampling_rate, data_type="PPG"
             )
-            info["SamplingFrequency"] = sampling_rate
+            info = {"SamplingFrequency": sampling_rate}
         else:
             signals, info = process_cardiac(
                 ppg_signal, ppg_cleaned, sampling_rate=downsampling_rate, data_type="PPG"
             )
-            info["SamplingFrequency"] = downsampling_rate
-    except Exception:
+            info = {"SamplingFrequency": downsampling_rate}
+        info["Processed"] = True
+    except:
         print("ERROR in PPG processing procedure")
-        traceback.print_exc()
         signals = pd.DataFrame({"PPG_Raw": ppg_signal, "PPG_Clean": ppg_cleaned})
-        info={}
+        info = {"Processed": False}
 
     return signals, info
 
@@ -477,17 +471,17 @@ def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bo
             signals, info = process_cardiac(
                 ecg_signal, ecg_cleaned, sampling_rate=sampling_rate, data_type="ECG"
             )
-            info["SamplingFrequency"] = sampling_rate
+            info = {"SamplingFrequency": sampling_rate}
         else:
             signals, info = process_cardiac(
                 ecg_signal, ecg_cleaned, sampling_rate=downsampling_rate, data_type="ECG"
             )
-            info["SamplingFrequency"] = downsampling_rate
-    except Exception:
+            info = {"SamplingFrequency": downsampling_rate}
+        info["Processed"] = True
+    except:
         print("ERROR in ECG processing procedure")
-        traceback.print_exc()
         signals = pd.DataFrame({"ECG_Raw": ecg_signal, "ECG_Clean": ecg_cleaned})
-        info = {}
+        info = {"Processed": False}
 
     return signals, info
 
@@ -535,16 +529,18 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
             signals, info = nk.eda_process(
                eda_cleaned, sampling_rate=sampling_rate, method="neurokit"
             )
+            info = {"SamplingFrequency": sampling_rate}
         else:
             signals, info = nk.eda_process(
                 eda_cleaned, sampling_rate=downsampling_rate, method="neurokit"
             )
+            info = {"SamplingFrequency": downsampling_rate}
         signals['EDA_Raw'] = eda_signal
-    except Exception:
+        info["Processed"] = True
+    except:
         print("ERROR in EDA processing procedure")
-        traceback.print_exc()
         signals = pd.DataFrame({"EDA_Raw": eda_signal, "EDA_Clean": eda_cleaned})
-        info={}
+        info = {"Processed": False}
     
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
@@ -601,17 +597,19 @@ def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="kh
             signals, info = nk.rsp_process(
                 rsp_cleaned, sampling_rate=sampling_rate, method=method
             )
+            info = {"SamplingFrequency": sampling_rate}
         else:
             signals, info = nk.rsp_process(
                 rsp_cleaned, sampling_rate=downsampling_rate, method=method
             ) 
+            info = {"SamplingFrequency": downsampling_rate}
         signals['RSP_Raw'] = rsp_signal
+        info["Processed"] = True
         print("RSP Cleaned and processed")
-    except Exception:
+    except:
         print("ERROR in RSP processing procedure")
-        traceback.print_exc()
         signals = pd.DataFrame({"RSP_Raw": rsp_signal, "RSP_Clean": rsp_cleaned})
-        info={}
+        info = {"Processed": False}
 
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
@@ -620,6 +618,23 @@ def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="kh
     return signals, info
 
 
+@click.command()
+@click.argument("source", type=str)
+@click.argument("outdir", type=str)
+@click.argument("sub", type=str)
+@click.argument("multi_echo", type=bool)
+def parallel_neuromod_bio_process(source, sub, outdir, multi_echo):
+    num_cpus = multiprocessing.cpu_count()
+    num_cpus = round(num_cpus/6)
+    pool = multiprocessing.Pool(processes=num_cpus)
+    sessions =[os.path.basename(name) for name in glob.glob(os.path.join(source, sub, "ses-*"))]
+    print(sessions)
+    args = [(source, sub, ses, outdir, multi_echo) for ses in sorted(sessions)] 
+    pool.map(process_session, args)
+
+    pool.close()
+    pool.join()
+
 if __name__ == "__main__":
-    # Physio processing pipeline
-    neuromod_bio_process()
+    #neuromod_bio_process()
+    parallel_neuromod_bio_process()
