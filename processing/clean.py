@@ -277,24 +277,8 @@ def neuromod_eda_clean(eda_signal, sampling_rate=10000.0, me=True, Q=100, downsa
     --------
     https://neuropsychology.github.io/NeuroKit/functions/eda.html#preprocessing
     """
-    if me:
-        tr = 2.65
-        mb = 2
-        slices = 70
-    else:
-        tr = 1.49
-        mb = 4
-        slices = 60
-
-    # Setting scanner sequence parameters
-    nyquist = np.float64(sampling_rate / 2)
-    notches = {"slices": slices / mb / tr, "tr": 1 / tr}
-
     # Low pass filtering at 3Hz, order=4
     eda_clean = nk.eda_clean(eda_signal, sampling_rate=sampling_rate)
-    # Filtering at fundamental and specific harmonics
-    print("... Applying notch filter.")
-    eda_clean = _comb_band_stop(notches, nyquist, eda_clean, Q)
     # Downsample the signal if specified
     if downsampling is not None:
         eda_clean = nk.signal_resample(eda_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
