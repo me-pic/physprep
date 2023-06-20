@@ -346,7 +346,7 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
             f"{data_type.upper()}_long": nLong,
             f"{data_type.upper()}_extra": nExtra,
             f"{data_type.upper()}_missed": nMissed,
-            f"{data_type.upper()}_clean_rr_systole": corrected.tolist(),
+            f"{data_type.upper()}_Clean_RR_Systole": corrected.tolist(),
         }
     )
     # Prepare output
