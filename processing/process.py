@@ -11,6 +11,7 @@ import click
 import numpy as np
 import pandas as pd
 import multiprocessing
+import traceback
 from pathlib import Path
 
 # high-level processing utils
@@ -421,7 +422,7 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
             signals, info = process_cardiac(
                 ppg_signal, ppg_cleaned, sampling_rate=sampling_rate, data_type="PPG"
             )
-            info = {"SamplingFrequency": sampling_rate}
+            info["SamplingFrequency"] = sampling_rate
         else:
             signals, info = process_cardiac(
                 ppg_signal,
@@ -429,10 +430,10 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
                 sampling_rate=downsampling_rate,
                 data_type="PPG",
             )
-            info = {"SamplingFrequency": downsampling_rate}
-        info["Processed"] = True
-    except:
+            info["SamplingFrequency"] = downsampling_rate
+    except Exception:
         print("ERROR in PPG processing procedure")
+        traceback.print_exc()
         signals = pd.DataFrame({"PPG_Raw": ppg_signal, "PPG_Clean": ppg_cleaned})
         info = {"Processed": False}
 
@@ -494,7 +495,7 @@ def ecg_process(
             signals, info = process_cardiac(
                 ecg_signal, ecg_cleaned, sampling_rate=sampling_rate, data_type="ECG"
             )
-            info = {"SamplingFrequency": sampling_rate}
+            info["SamplingFrequency"] = sampling_rate
         else:
             signals, info = process_cardiac(
                 ecg_signal,
@@ -502,10 +503,10 @@ def ecg_process(
                 sampling_rate=downsampling_rate,
                 data_type="ECG",
             )
-            info = {"SamplingFrequency": downsampling_rate}
-        info["Processed"] = True
-    except:
+            info["SamplingFrequency"] = downsampling_rate
+    except Exception:
         print("ERROR in ECG processing procedure")
+        traceback.print_exc()
         signals = pd.DataFrame({"ECG_Raw": ecg_signal, "ECG_Clean": ecg_cleaned})
         info = {"Processed": False}
 
@@ -555,16 +556,16 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
             signals, info = nk.eda_process(
                 eda_cleaned, sampling_rate=sampling_rate, method="neurokit"
             )
-            info = {"SamplingFrequency": sampling_rate}
+            info["SamplingFrequency"] = sampling_rate
         else:
             signals, info = nk.eda_process(
                 eda_cleaned, sampling_rate=downsampling_rate, method="neurokit"
             )
-            info = {"SamplingFrequency": downsampling_rate}
-        signals["EDA_Raw"] = eda_signal
-        info["Processed"] = True
-    except:
+            info["SamplingFrequency"] = downsampling_rate
+        signals['EDA_Raw'] = eda_signal
+    except Exception:
         print("ERROR in EDA processing procedure")
+        traceback.print_exc()
         signals = pd.DataFrame({"EDA_Raw": eda_signal, "EDA_Clean": eda_cleaned})
         info = {"Processed": False}
 
@@ -625,17 +626,17 @@ def rsp_process(
             signals, info = nk.rsp_process(
                 rsp_cleaned, sampling_rate=sampling_rate, method=method
             )
-            info = {"SamplingFrequency": sampling_rate}
+            info["SamplingFrequency"] = sampling_rate
         else:
             signals, info = nk.rsp_process(
                 rsp_cleaned, sampling_rate=downsampling_rate, method=method
-            )
-            info = {"SamplingFrequency": downsampling_rate}
-        signals["RSP_Raw"] = rsp_signal
-        info["Processed"] = True
+            ) 
+            info["SamplingFrequency"] = downsampling_rate
+        signals['RSP_Raw'] = rsp_signal
         print("RSP Cleaned and processed")
-    except:
+    except Exception:
         print("ERROR in RSP processing procedure")
+        traceback.print_exc()
         signals = pd.DataFrame({"RSP_Raw": rsp_signal, "RSP_Clean": rsp_cleaned})
         info = {"Processed": False}
 
