@@ -6,6 +6,7 @@ import os
 import glob
 import json
 import click
+import operator
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -140,7 +141,7 @@ def load_json(filename):
 # ==================================================================================
 
 
-def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000):
+def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000, mean_NN=[600,1200], std_NN=300):
     """
     Extract SQI for ECG/PPG processed signal
 
@@ -156,14 +157,17 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000):
     sampling_rate : int
         The sampling frequency of `signal` (in Hz, i.e., samples/second).
         Default to 10000.
+    mean_NN : list
+        Range to consider to evaluate the quality of the signal based on the 
+        mean NN interval.
+    std_NN : int or float
+        Value to consider to evaluate the quality if the signal based on the
+        std NN interval.
 
     Returns
     -------
     summary : DataFrame
         DataFrame containing sqi values.
-
-    Examples
-    --------
 
     Reference
     ---------
@@ -174,7 +178,7 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000):
     """
     summary = {}
 
-    # Quality indices on NN intervals
+    # Descriptive indices on NN intervals
     summary["Mean_NN_intervals"] = np.round(
         np.mean(info[f"{data_type}_clean_rr_systole"]), 4
     )
@@ -184,7 +188,15 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000):
     summary["SD_NN_intervals"] = np.round(
         np.std(info[f"{data_type}_clean_rr_systole"], ddof=1), 4
     )
-    # Quality indices on heart rate
+    # Quality assessment based on mean NN intervals and std
+    if (
+        threshold_sqi(np.mean(info[f"{data_type}_clean_rr_systole"]), mean_NN) == "Acceptable" and 
+        threshold_sqi(np.std(info[f"{data_type}_clean_rr_systole"], ddof=1), std_NN, operator.lt) == "Acceptable"
+    ):
+        summary["quality"] = "Acceptable"
+    else:
+        summary["quality"] = "Not acceptable"
+    # Descriptive indices on heart rate
     summary["Mean_HR"] = metrics_hr_sqi(
         info[f"{data_type}_clean_rr_systole"], metric="mean"
     )
@@ -200,7 +212,7 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000):
     summary["Max_HR"] = metrics_hr_sqi(
         info[f"{data_type}_clean_rr_systole"], metric="max"
     )
-    # Quality indices on overall signal
+    # Descriptive indices on overall signal
     summary["Skewness"] = np.round(kurtosis(signal_cardiac), 4)
     summary["Kurtosis"] = np.round(skew(signal_cardiac), 4)
     summary["Ectopic"] = info[f"{data_type}_ectopic"]
@@ -234,12 +246,9 @@ def sqi_eda(signal_eda, info, sampling_rate=10000):
     -------
     summary : DataFrame
         DataFrame containing sqi values.
-
-    Examples
-    --------
     """
     summary = {}
-    # Quality indices on overall signal
+    # Descriptive indices on overall signal
     summary["Minimal_range"] = minimal_range_sqi(
         signal_eda["EDA_Clean"], threshold=0.05
     )
@@ -249,13 +258,13 @@ def sqi_eda(signal_eda, info, sampling_rate=10000):
     summary["SD_EDA"] = np.round(np.std(signal_eda["EDA_Clean"]), 4)
     summary["Min_EDA"] = np.round(np.min(signal_eda["EDA_Clean"]), 4)
     summary["Max_EDA"] = np.round(np.max(signal_eda["EDA_Clean"]), 4)
-    # Quality indices on SCL
+    # Descriptive indices on SCL
     summary["Mean_SCL"] = np.round(np.mean(signal_eda["EDA_Tonic"]), 4)
     summary["SD_SCL"] = np.round(np.std(signal_eda["EDA_Tonic"]), 4)
     summary["Median_SCL"] = np.round(np.median(signal_eda["EDA_Tonic"]), 4)
     summary["Min_SCL"] = np.round(np.min(signal_eda["EDA_Tonic"]), 4)
-    summary["Max_SC:"] = np.round(np.max(signal_eda["EDA_Tonic"]), 4)
-    # Quality indices on SCR
+    summary["Max_SC"] = np.round(np.max(signal_eda["EDA_Tonic"]), 4)
+    # Descriptive indices on SCR
     summary["Mean_SCR"] = np.round(np.mean(signal_eda["EDA_Phasic"]), 4)
     summary["SD_SCR"] = np.round(np.std(signal_eda["EDA_Phasic"]), 4)
     summary["Median_SCR"] = np.round(np.median(signal_eda["EDA_Phasic"]), 4)
@@ -265,7 +274,7 @@ def sqi_eda(signal_eda, info, sampling_rate=10000):
     return summary
 
 
-def sqi_rsp(signal_rsp, info, sampling_rate=10000):
+def sqi_rsp(signal_rsp, info, sampling_rate=10000, mean_rate=0.5):
     """
     Extract SQI for respiratory processed signal
 
@@ -278,30 +287,35 @@ def sqi_rsp(signal_rsp, info, sampling_rate=10000):
     sampling_rate : int
         The sampling frequency of `signal_raw` (in Hz, i.e., samples/second).
         Default to 10000.
+    mean_rate : int or float
+        Value to consider to evaluate the quality if the signal based on the
+        respiratory rate mean (in Hz).
 
     Returns
     -------
     summary : DataFrame
         DataFrame containing sqi values.
-
-    Examples
-    --------
     """
     summary = {}
-    # Quality indices on signal amplitude
+    # Descriptive indices on signal amplitude
     summary["Mean_Amp"] = np.round(np.mean(signal_rsp["RSP_Amplitude"]), 4)
     summary["Median_Amp"] = np.round(np.median(signal_rsp["RSP_Amplitude"]), 4)
     summary["SD_Amp"] = np.round(np.std(signal_rsp["RSP_Amplitude"]), 4)
     summary["Min_Amp"] = np.round(np.min(signal_rsp["RSP_Amplitude"]), 4)
     summary["CV_Amp"] = np.round(np.max(signal_rsp["RSP_Amplitude"]), 4)
     summary["variability_Amp"] = np.round(np.std(signal_rsp["RSP_Amplitude"])/np.mean(signal_rsp["RSP_Amplitude"]), 4)
-    # Quality indices on signal rate
+    # Descriptive indices on signal rate
     summary["Mean_Rate"] = np.round(np.mean(signal_rsp["RSP_Rate"]), 4)
     summary["Median_Rate"] = np.round(np.median(signal_rsp["RSP_Rate"]), 4)
     summary["SD_Rate"] = np.round(np.std(signal_rsp["RSP_Rate"]), 4)
     summary["Min_Rate"] = np.round(np.min(signal_rsp["RSP_Rate"]), 4)
     summary["Max_Rate"] = np.round(np.max(signal_rsp["RSP_Rate"]), 4)
     summary["CV_Rate"] = np.round(np.std(signal_rsp["RSP_Rate"])/np.mean(signal_rsp["RSP_Rate"]), 4)
+    # Quality assessment based on the mean respiratory rate
+    if threshold_sqi(np.mean(signal_rsp["RSP_Rate"])/60, mean_rate, operator.lt) == "Acceptable": 
+        summary["quality"] = "Acceptable"
+    else:
+        summary["quality"] = "Not acceptable"
 
     return summary
 
@@ -424,6 +438,50 @@ def rac_sqi(signal, threshold, duration=2):
 
     return np.round(rac_ratio, 4)
 
+def threshold_sqi(metric, threshold, op=None):
+    """
+    Return quality assessment based on a threshold.
+
+    Parameters
+    ----------
+    metric : int or float
+        Metric to consider for the quality assessment.
+    threshold : int, float or list
+        Value to use to evaluate the quality of the `metric`.
+        If a list of two elements is passed, the `metric` needs
+        to be within that range to be consider as good.
+    op : operator function
+        Operator to use for the comparaison between the `metric` and the `threshold`.
+        Only considered if `threshold` is a int or a float.
+        See https://docs.python.org/2/library/operator.html#module-operator
+        for all the possible operators. 
+
+    Returns
+    -------
+    a : str
+        Quality Assessment given a metric and a threshold.
+
+    Examples
+    --------
+    >>> threshold_sqi(6, 4, operator.gt)
+    Acceptable
+    >>> threshold_sqi(6, 4, operator.lt)
+    Not acceptable
+    >>> threshold_sqi(6, [2, 8])
+    """
+    if type(threshold) == list:
+        if len(threshold) != 2:
+            print("Length of threshold should be 2 to set a range, otherwise pass an int or a float.")
+        # Check if `metric` is within the range of values defined in `threshold`
+        elif metric in range(threshold[0], threshold[1]):
+            return "Acceptable"
+        else :
+            return "Not acceptable"
+    else :
+        if op(metric, threshold):
+            return "Acceptable"
+        else:
+            return "Not acceptable"
 
 # ==================================================================================
 # Signals quality report
