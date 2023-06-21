@@ -126,14 +126,14 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
        
         bio_df.to_csv(
             os.path.join(
-                outdir, sub, ses, f"{filenames[idx]}.tsv.gz"
+                outdir, sub, ses, f"{filenames_tsv[idx]}.tsv.gz"
             ),
             sep="\t",
             index=False
         )
         with open(
             os.path.join(
-                outdir, sub, ses, f"{filenames[idx]}.json"
+                outdir, sub, ses, f"{filenames_tsv[idx]}.json"
             ),
             "w",
         ) as fp:
