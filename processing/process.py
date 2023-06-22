@@ -385,7 +385,7 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
     downsampling_rate : int
         The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
         If None, the signals are not downsampled.
-        Default to 2500.
+        Default to 1000.
 
     Returns
     -------
@@ -442,7 +442,7 @@ def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bo
     downsampling_rate : int
         The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
         If None, the signals are not downsampled.
-        Default to 2500.
+        Default to 1000.
     method : str
         The processing pipeline to apply.
         Default to 'bottenhorn'.
@@ -505,7 +505,7 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
     downsampling_rate : int
         The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
         If None, the signals are not downsampled.
-        Default to 2500.
+        Default to 1000.
 
     Returns
     -------
@@ -563,7 +563,7 @@ def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="kh
     downsampling_rate : int
         The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
         If None, the signals are not downsampled.
-        Default to 2500.
+        Default to 1000.
     method : str
         Method to use for processing.
         Default to 'khodadad2018'.
