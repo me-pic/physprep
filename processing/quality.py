@@ -7,6 +7,7 @@ import glob
 import json
 import click
 import operator
+import traceback
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -19,7 +20,7 @@ from scipy.stats import kurtosis, skew
 @click.argument("ses", type=str)
 @click.argument("outdir", type=str)
 @click.argument("sliding")
-def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 10}, sampling_rate=2500):
+def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 10}, sampling_rate=1000):
     """
     Run processing pipeline on specified biosignals.
 
@@ -49,23 +50,27 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
         print("***Computing quality metrics for PPG signal***")
         try:
             summary["PPG"] = sqi_cardiac(signal["PPG_Clean"], info["PPG"], data_type="PPG")
-        except:
+        except Exception:
             print("Not able to compute PPG")
+            traceback.print_exc()
         print("***Computing quality metrics for EEG signal***")
         try:
             summary["ECG"] = sqi_cardiac(signal["ECG_Clean"], info["ECG"], data_type="ECG")
-        except:
+        except Exception:
             print("Not able to compute ECG")
+            traceback.print_exc()
         print("***Computing quality metrics for EDA signal***")
         try: 
             summary["EDA"] = sqi_eda(signal, info["EDA"])
-        except:
+        except Exception:
             print("Not able to compute EDA")
+            traceback.print_exc()
         print("***Computing quality metrics for RSP signal***")
         try:
             summary["RSP"] = sqi_rsp(signal, info["RSP"])
-        except:
+        except Exception:
             print("Not able to compute RSP")
+            traceback.print_exc()
         print("***Generating report***")
         #savefile = Path(source)
         generate_report(summary, os.path.join(outdir, sub, ses), f"{sub}_{ses}_{filename.split('/')[-1].split('_')[2]}")
