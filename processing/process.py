@@ -283,6 +283,7 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
         info[f"{data_type.upper()}_Peaks"] = info[f"{data_type.upper()}_R_Peaks"]
     elif data_type in ["ppg", "PPG"]:
         info = ppg_findpeaks(signal_cleaned, sampling_rate=sampling_rate)
+        info['sampling_rate'] = sampling_rate
     else:
         print("Please use a valid data type: 'ECG' or 'PPG'")
 
@@ -422,6 +423,7 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
         print("ERROR in PPG processing procedure")
         traceback.print_exc()
         signals = pd.DataFrame({"PPG_Raw": ppg_signal, "PPG_Clean": ppg_cleaned})
+        info={}
 
     return signals, info
 
@@ -485,6 +487,7 @@ def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bo
         print("ERROR in ECG processing procedure")
         traceback.print_exc()
         signals = pd.DataFrame({"ECG_Raw": ecg_signal, "ECG_Clean": ecg_cleaned})
+        info = {}
 
     return signals, info
 
@@ -532,17 +535,16 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
             signals, info = nk.eda_process(
                eda_cleaned, sampling_rate=sampling_rate, method="neurokit"
             )
-            info["SamplingFrequency"] = sampling_rate
         else:
             signals, info = nk.eda_process(
                 eda_cleaned, sampling_rate=downsampling_rate, method="neurokit"
             )
-            info["SamplingFrequency"] = downsampling_rate
         signals['EDA_Raw'] = eda_signal
     except Exception:
         print("ERROR in EDA processing procedure")
         traceback.print_exc()
         signals = pd.DataFrame({"EDA_Raw": eda_signal, "EDA_Clean": eda_cleaned})
+        info={}
     
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
@@ -599,18 +601,17 @@ def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="kh
             signals, info = nk.rsp_process(
                 rsp_cleaned, sampling_rate=sampling_rate, method=method
             )
-            info["SamplingFrequency"] = sampling_rate
         else:
             signals, info = nk.rsp_process(
                 rsp_cleaned, sampling_rate=downsampling_rate, method=method
             ) 
-            info["SamplingFrequency"] = downsampling_rate
         signals['RSP_Raw'] = rsp_signal
         print("RSP Cleaned and processed")
     except Exception:
         print("ERROR in RSP processing procedure")
         traceback.print_exc()
         signals = pd.DataFrame({"RSP_Raw": rsp_signal, "RSP_Clean": rsp_cleaned})
+        info={}
 
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
