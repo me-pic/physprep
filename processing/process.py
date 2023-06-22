@@ -114,7 +114,7 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         #  eda
         print("***Electrodermal activity workflow: begin***")
         start_time = timeit.default_timer()
-        eda, eda_info = eda_process(eda_raw, sampling_rate, me=multi_echo)
+        eda, eda_info = eda_process(eda_raw, sampling_rate=sampling_rate)
         bio_info["EDA"] = eda_info
         bio_df = pd.concat([bio_df, eda], axis=1)
         print(f"***Electrodermal activity workflow: done in {timeit.default_timer()-start_time} sec***")
@@ -489,7 +489,7 @@ def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bo
     return signals, info
 
 
-def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000, me=True):
+def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
     """
     Process EDA signal.
 
@@ -505,11 +505,7 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000, me=True):
     downsampling_rate : int
         The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
         If None, the signals are not downsampled.
-        Default to 2500.    
-    mr : bool
-        True if MB-ME sequence was used. Otherwise, considered that the MB-SE
-        sequence was used.
-        Default to True.
+        Default to 2500.
 
     Returns
     -------
@@ -527,7 +523,7 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000, me=True):
     # Prepare signal for processing
     print("Cleaning EDA")
     eda_signal, eda_cleaned = neuromod_eda_clean(
-        eda_signal, sampling_rate=sampling_rate, me=me, downsampling=downsampling_rate
+        eda_signal, sampling_rate=sampling_rate, downsampling=downsampling_rate
     )
     print("EDA Cleaned")
     # Process clean signal

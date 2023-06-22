@@ -239,7 +239,7 @@ def _ecg_clean_bottenhorn(ecg_signal, sampling_rate=10000.0, tr=1.49, mb=4, slic
 # =============================================================================
 # EDA
 # =============================================================================
-def neuromod_eda_clean(eda_signal, sampling_rate=10000.0, me=True, Q=100, downsampling=None):
+def neuromod_eda_clean(eda_signal, sampling_rate=10000.0, downsampling=None):
     """
     Multiband sequence gradient noise reduction.
 
@@ -250,13 +250,6 @@ def neuromod_eda_clean(eda_signal, sampling_rate=10000.0, me=True, Q=100, downsa
     sampling_rate : float
         The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
         Default to 10000.
-    me : bool
-        Specify if the MRI sequence used was the multi-echo (True)
-        or the single-echo (False).
-        Default to False.
-    Q : int
-        The filter quality factor.
-        Default to 100.
     downsampling : int
         The desired sampling frequency (Hz). If None, the signal is not resample.
         Default to None.
