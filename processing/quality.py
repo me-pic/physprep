@@ -20,7 +20,7 @@ from scipy.stats import kurtosis, skew
 @click.argument("ses", type=str)
 @click.argument("outdir", type=str)
 @click.argument("sliding")
-def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 10}, sampling_rate=1000):
+def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 10}):
     """
     Run processing pipeline on specified biosignals.
 
@@ -37,7 +37,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
     sliding : dict
     """
     filenames = glob.glob(os.path.join(source, sub, ses, "*_physio*"))
-    filenames_signal = [f for f in filenames if f.split(".")[1] == "tsv" and "noseq" not in f]
+    filenames_signal = [f for f in filenames if ''.join(pathlib.Path(f).suffixes) == ".tsv.gz" and "noseq" not in f]
     #breakpoint()
     for idx, f in enumerate(filenames_signal):
         filename = f.split(".")[0]
@@ -45,29 +45,32 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
 
         signal = pd.read_csv(os.path.join(source, sub, ses, f), sep="\t")
         summary = {}
+        print(
+            f"---QCing on {f.split('/')[-1]}---"
+        )
         # Compute metrics on the unsegmented signal
         #if sliding is None:
         print("***Computing quality metrics for PPG signal***")
         try:
-            summary["PPG"] = sqi_cardiac(signal["PPG_Clean"], info["PPG"], data_type="PPG")
+            summary["PPG"] = sqi_cardiac(signal["PPG_Clean"], info["PPG"], data_type="PPG", sampling_rate=1000) #info["PPG"]["sampling_rate"])
         except Exception:
             print("Not able to compute PPG")
             traceback.print_exc()
         print("***Computing quality metrics for EEG signal***")
         try:
-            summary["ECG"] = sqi_cardiac(signal["ECG_Clean"], info["ECG"], data_type="ECG")
+            summary["ECG"] = sqi_cardiac(signal["ECG_Clean"], info["ECG"], data_type="ECG", sampling_rate=info["ECG"]["sampling_rate"])
         except Exception:
             print("Not able to compute ECG")
             traceback.print_exc()
         print("***Computing quality metrics for EDA signal***")
         try: 
-            summary["EDA"] = sqi_eda(signal, info["EDA"])
+            summary["EDA"] = sqi_eda(signal, info["EDA"], sampling_rate=info["EDA"]["sampling_rate"])
         except Exception:
             print("Not able to compute EDA")
             traceback.print_exc()
         print("***Computing quality metrics for RSP signal***")
         try:
-            summary["RSP"] = sqi_rsp(signal, info["RSP"])
+            summary["RSP"] = sqi_rsp(signal, info["RSP"], sampling_rate=info["RSP"]["sampling_rate"])
         except Exception:
             print("Not able to compute RSP")
             traceback.print_exc()
@@ -193,14 +196,6 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000, mean
     summary["SD_NN_intervals"] = np.round(
         np.std(info[f"{data_type}_clean_rr_systole"], ddof=1), 4
     )
-    # Quality assessment based on mean NN intervals and std
-    if (
-        threshold_sqi(np.mean(info[f"{data_type}_clean_rr_systole"]), mean_NN) == "Acceptable" and 
-        threshold_sqi(np.std(info[f"{data_type}_clean_rr_systole"], ddof=1), std_NN, operator.lt) == "Acceptable"
-    ):
-        summary["quality"] = "Acceptable"
-    else:
-        summary["quality"] = "Not acceptable"
     # Descriptive indices on heart rate
     summary["Mean_HR"] = metrics_hr_sqi(
         info[f"{data_type}_clean_rr_systole"], metric="mean"
@@ -229,6 +224,15 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000, mean
     summary["%_rejected_segments"] = np.round(
         info[f"{data_type}_%_rejected_segments"], 4
     )
+
+    # Quality assessment based on mean NN intervals and std
+    if (
+        threshold_sqi(np.mean(info[f"{data_type}_clean_rr_systole"]), mean_NN) == "Acceptable" and 
+        threshold_sqi(np.std(info[f"{data_type}_clean_rr_systole"], ddof=1), std_NN, operator.lt) == "Acceptable"
+    ):
+        summary["quality"] = "Acceptable"
+    else:
+        summary["quality"] = "Not acceptable"
 
     return summary
 
