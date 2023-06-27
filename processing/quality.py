@@ -282,6 +282,12 @@ def sqi_eda(signal_eda, info, sampling_rate=10000):
     summary["Max_SCR"] = np.round(np.max(signal_eda["EDA_Phasic"]), 4)
     summary["Number_of_detected_onsets"] = len(info['SCR_Onsets'])
     summary["Number_of_detected_peaks"] = len(info['SCR_Peaks'])
+    # Descriptive indices on sCR rise time
+    summary["Mean_rise_time"] = np.round(np.mean(rise_time_sqi(info['SCR_Onsets'], info['SCR_Peaks'], sampling_rate)), 4)
+    summary["SD_rise_time"] = np.round(np.std(rise_time_sqi(info['SCR_Onsets'], info['SCR_Peaks'], sampling_rate)), 4)
+    summary["Median_rise_time"] = np.round(np.median(rise_time_sqi(info['SCR_Onsets'], info['SCR_Peaks'], sampling_rate)), 4)
+    summary["Min_rise_time"] = np.round(np.min(rise_time_sqi(info['SCR_Onsets'], info['SCR_Peaks'], sampling_rate)), 4)
+    summary["Max_rise_time"] = np.round(np.max(rise_time_sqi(info['SCR_Onsets'], info['SCR_Peaks'], sampling_rate)), 4)
 
     return summary
 
@@ -449,6 +455,34 @@ def rac_sqi(signal, threshold, duration=2):
     rac_ratio = np.count_nonzero(np.array(rac_values) > threshold) / len(signal)
 
     return np.round(rac_ratio, 4)
+
+def rise_time_sqi(onsets, peaks, sampling_rate):
+    """
+    Return the delay between onset and peak of each SCR
+
+    Parameters
+    ----------
+    Onsets :
+        List of onsets indices
+    Peaks :
+        List of peaks indices
+    sampling_rate: 
+
+    Returns
+    -------
+    """
+    try:
+        if len(onsets) != len(peaks):
+            raise ValueError("ERROR: onsets and peaks have different length")
+        else:
+            rise_time = []
+            for onset, peak in zip(onsets, peaks):
+                rise_time.append((peak-onset)/sampling_rate)
+
+    except Exception as error:
+        print(repr(error))
+
+    return rise_time
 
 def threshold_sqi(metric, threshold, op=None):
     """
