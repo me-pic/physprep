@@ -37,7 +37,8 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
     sliding : dict
     """
     filenames = glob.glob(os.path.join(source, sub, ses, "*_physio*"))
-    filenames_signal = [f for f in filenames if ''.join(pathlib.Path(f).suffixes) == ".tsv.gz" and "noseq" not in f]
+    filenames_signal = [f for f in filenames if ''.join(Path(f).suffixes) == ".tsv.gz" and "noseq" not in f]
+    filenames_signal.sort()
     #breakpoint()
     for idx, f in enumerate(filenames_signal):
         filename = f.split(".")[0]
@@ -52,7 +53,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
         #if sliding is None:
         print("***Computing quality metrics for PPG signal***")
         try:
-            summary["PPG"] = sqi_cardiac(signal["PPG_Clean"], info["PPG"], data_type="PPG", sampling_rate=1000) #info["PPG"]["sampling_rate"])
+            summary["PPG"] = sqi_cardiac(signal["PPG_Clean"], info["PPG"], data_type="PPG", info["PPG"]["sampling_rate"])
         except Exception:
             print("Not able to compute PPG")
             traceback.print_exc()
@@ -76,7 +77,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
             traceback.print_exc()
         print("***Generating report***")
         #savefile = Path(source)
-        generate_report(summary, os.path.join(outdir, sub, ses), f"{sub}_{ses}_{filename.split('/')[-1].split('_')[2]}")
+        generate_report(summary, os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}") #.split('/')[-1].split('_')[2]}")
         # Compute metrics on signal segmented in fixed windows
         """
         elif sliding['step'] != 0:
@@ -230,9 +231,9 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000, mean
         threshold_sqi(np.mean(info[f"{data_type}_clean_rr_systole"]), mean_NN) == "Acceptable" and 
         threshold_sqi(np.std(info[f"{data_type}_clean_rr_systole"], ddof=1), std_NN, operator.lt) == "Acceptable"
     ):
-        summary["quality"] = "Acceptable"
+        summary["Quality"] = "Acceptable"
     else:
-        summary["quality"] = "Not acceptable"
+        summary["Quality"] = "Not acceptable"
 
     return summary
 
@@ -322,9 +323,9 @@ def sqi_rsp(signal_rsp, info, sampling_rate=10000, mean_rate=0.5):
     summary["CV_Rate"] = np.round(np.std(signal_rsp["RSP_Rate"])/np.mean(signal_rsp["RSP_Rate"]), 4)
     # Quality assessment based on the mean respiratory rate
     if threshold_sqi(np.mean(signal_rsp["RSP_Rate"])/60, mean_rate, operator.lt) == "Acceptable": 
-        summary["quality"] = "Acceptable"
+        summary["Quality"] = "Acceptable"
     else:
-        summary["quality"] = "Not acceptable"
+        summary["Quality"] = "Not acceptable"
 
     return summary
 
@@ -482,7 +483,7 @@ def threshold_sqi(metric, threshold, op=None):
         if len(threshold) != 2:
             print("Length of threshold should be 2 to set a range, otherwise pass an int or a float.")
         # Check if `metric` is within the range of values defined in `threshold`
-        elif metric in range(threshold[0], threshold[1]):
+        elif min(threshold) <= metric <= max(threshold):
             return "Acceptable"
         else :
             return "Not acceptable"
@@ -546,8 +547,13 @@ def generate_report(summary, save, filename):
         <h3>{k} Signal</h3>
         """
         for metric in summary[k].keys():
-            html_report += f"""
-                <br>{metric} : {summary[k][metric]}
+            if metric == "Quality":
+                html_report += f"""
+                <br><b>{metric}</b> : {summary[k][metric]}
+            """
+            else:
+                html_report += f"""
+                    <br>{metric} : {summary[k][metric]}
             """
 
     # Complete the HTML report
