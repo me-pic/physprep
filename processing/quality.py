@@ -280,6 +280,8 @@ def sqi_eda(signal_eda, info, sampling_rate=10000):
     summary["Median_SCR"] = np.round(np.median(signal_eda["EDA_Phasic"]), 4)
     summary["Min_SCR"] = np.round(np.min(signal_eda["EDA_Phasic"]), 4)
     summary["Max_SCR"] = np.round(np.max(signal_eda["EDA_Phasic"]), 4)
+    summary["Number_of_detected_onsets"] = len(info['SCR_Onsets'])
+    summary["Number_of_detected_peaks"] = len(info['SCR_Peaks'])
 
     return summary
 
