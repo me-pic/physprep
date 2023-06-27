@@ -53,7 +53,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
         #if sliding is None:
         print("***Computing quality metrics for PPG signal***")
         try:
-            summary["PPG"] = sqi_cardiac(signal["PPG_Clean"], info["PPG"], data_type="PPG", info["PPG"]["sampling_rate"])
+            summary["PPG"] = sqi_cardiac(signal["PPG_Clean"], info["PPG"], data_type="PPG", sampling_rate=info["PPG"]["sampling_rate"])
         except Exception:
             print("Not able to compute PPG")
             traceback.print_exc()
