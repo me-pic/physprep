@@ -9,6 +9,7 @@ import json
 import click
 import numpy as np
 import pandas as pd
+import traceback
 from pathlib import Path
 
 # high-level processing utils
@@ -113,7 +114,7 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         #  eda
         print("***Electrodermal activity workflow: begin***")
         start_time = timeit.default_timer()
-        eda, eda_info = eda_process(eda_raw, sampling_rate, me=multi_echo)
+        eda, eda_info = eda_process(eda_raw, sampling_rate=sampling_rate)
         bio_info["EDA"] = eda_info
         bio_df = pd.concat([bio_df, eda], axis=1)
         print(f"***Electrodermal activity workflow: done in {timeit.default_timer()-start_time} sec***")
@@ -125,14 +126,14 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
        
         bio_df.to_csv(
             os.path.join(
-                outdir, sub, ses, f"{sub}_{ses}_{run}_physio.tsv.gz"
+                outdir, sub, ses, f"{filenames_tsv[idx]}.tsv.gz"
             ),
             sep="\t",
             index=False
         )
         with open(
             os.path.join(
-                outdir, sub, ses, f"{sub}_{ses}_{run}_physio.json"
+                outdir, sub, ses, f"{filenames_tsv[idx]}.json"
             ),
             "w",
         ) as fp:
@@ -269,21 +270,6 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
     info : dict
         Dictionary containing list of intervals between peaks.
     """
-    # heartpy
-    print("HeartPy processing started")
-    wd, m = process(
-        signal_cleaned,
-        sampling_rate,
-        reject_segmentwise=True,
-        interp_clipping=True,
-        report_time=True,
-    )
-    cumsum = 0
-    rejected_segments = []
-    for i in wd["rejected_segments"]:
-        cumsum += int(np.diff(i) / sampling_rate)
-        rejected_segments.append((int(i[0]), int(i[1])))
-    print("Heartpy found peaks")
 
     # Find peaks
     print("Neurokit processing started")
@@ -297,6 +283,7 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
         info[f"{data_type.upper()}_Peaks"] = info[f"{data_type.upper()}_R_Peaks"]
     elif data_type in ["ppg", "PPG"]:
         info = ppg_findpeaks(signal_cleaned, sampling_rate=sampling_rate)
+        info['sampling_rate'] = sampling_rate
     else:
         print("Please use a valid data type: 'ECG' or 'PPG'")
 
@@ -305,6 +292,27 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
         info[f"{data_type.upper()}_Peaks"], desired_length=len(signal_cleaned)
     )
     print("Neurokit found peaks")
+
+    # heartpy
+    print("HeartPy processing started")
+    try:
+        wd, m = process(
+            signal_cleaned,
+            sampling_rate,
+            reject_segmentwise=True,
+            interp_clipping=True,
+            report_time=True,
+        )
+        cumsum = 0
+        rejected_segments = []
+        for i in wd["rejected_segments"]:
+            cumsum += int(np.diff(i) / sampling_rate)
+            rejected_segments.append((int(i[0]), int(i[1])))
+        info['Heartpy'] = True
+        print("Heartpy found peaks")
+    except:
+        print("Heartpy processing did not converged")
+        info['Heartpy'] = False
 
     # peak to intervals
     rr = input_conversion(
@@ -378,7 +386,7 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
     downsampling_rate : int
         The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
         If None, the signals are not downsampled.
-        Default to 2500.
+        Default to 1000.
 
     Returns
     -------
@@ -405,15 +413,17 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
             signals, info = process_cardiac(
                 ppg_signal, ppg_cleaned, sampling_rate=sampling_rate, data_type="PPG"
             )
+            info["SamplingFrequency"] = sampling_rate
         else:
             signals, info = process_cardiac(
                 ppg_signal, ppg_cleaned, sampling_rate=downsampling_rate, data_type="PPG"
             )
-        info["Processed"] = True
-    except:
+            info["SamplingFrequency"] = downsampling_rate
+    except Exception:
         print("ERROR in PPG processing procedure")
+        traceback.print_exc()
         signals = pd.DataFrame({"PPG_Raw": ppg_signal, "PPG_Clean": ppg_cleaned})
-        info = {"Processed": False}
+        info={}
 
     return signals, info
 
@@ -434,7 +444,7 @@ def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bo
     downsampling_rate : int
         The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
         If None, the signals are not downsampled.
-        Default to 2500.
+        Default to 1000.
     method : str
         The processing pipeline to apply.
         Default to 'bottenhorn'.
@@ -467,20 +477,22 @@ def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bo
             signals, info = process_cardiac(
                 ecg_signal, ecg_cleaned, sampling_rate=sampling_rate, data_type="ECG"
             )
+            info["SamplingFrequency"] = sampling_rate
         else:
             signals, info = process_cardiac(
                 ecg_signal, ecg_cleaned, sampling_rate=downsampling_rate, data_type="ECG"
             )
-        info["Processed"] = True
-    except:
+            info["SamplingFrequency"] = downsampling_rate
+    except Exception:
         print("ERROR in ECG processing procedure")
+        traceback.print_exc()
         signals = pd.DataFrame({"ECG_Raw": ecg_signal, "ECG_Clean": ecg_cleaned})
-        info = {"Processed": False}
+        info = {}
 
     return signals, info
 
 
-def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000, me=True):
+def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
     """
     Process EDA signal.
 
@@ -496,11 +508,7 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000, me=True):
     downsampling_rate : int
         The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
         If None, the signals are not downsampled.
-        Default to 2500.    
-    mr : bool
-        True if MB-ME sequence was used. Otherwise, considered that the MB-SE
-        sequence was used.
-        Default to True.
+        Default to 1000.
 
     Returns
     -------
@@ -518,7 +526,7 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000, me=True):
     # Prepare signal for processing
     print("Cleaning EDA")
     eda_signal, eda_cleaned = neuromod_eda_clean(
-        eda_signal, sampling_rate=sampling_rate, me=me, downsampling=downsampling_rate
+        eda_signal, sampling_rate=sampling_rate, downsampling=downsampling_rate
     )
     print("EDA Cleaned")
     # Process clean signal
@@ -532,11 +540,11 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000, me=True):
                 eda_cleaned, sampling_rate=downsampling_rate, method="neurokit"
             )
         signals['EDA_Raw'] = eda_signal
-        info["Processed"] = True
-    except:
+    except Exception:
         print("ERROR in EDA processing procedure")
+        traceback.print_exc()
         signals = pd.DataFrame({"EDA_Raw": eda_signal, "EDA_Clean": eda_cleaned})
-        info = {"Processed": False}
+        info={}
     
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
@@ -557,7 +565,7 @@ def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="kh
     downsampling_rate : int
         The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
         If None, the signals are not downsampled.
-        Default to 2500.
+        Default to 1000.
     method : str
         Method to use for processing.
         Default to 'khodadad2018'.
@@ -598,12 +606,12 @@ def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="kh
                 rsp_cleaned, sampling_rate=downsampling_rate, method=method
             ) 
         signals['RSP_Raw'] = rsp_signal
-        info["Processed"] = True
         print("RSP Cleaned and processed")
-    except:
+    except Exception:
         print("ERROR in RSP processing procedure")
+        traceback.print_exc()
         signals = pd.DataFrame({"RSP_Raw": rsp_signal, "RSP_Clean": rsp_cleaned})
-        info = {"Processed": False}
+        info={}
 
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
