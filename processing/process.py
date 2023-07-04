@@ -625,7 +625,7 @@ def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="kh
 @click.argument("multi_echo", type=bool)
 def parallel_neuromod_bio_process(source, sub, outdir, multi_echo):
     num_cpus = multiprocessing.cpu_count()
-    num_cpus = round(num_cpus/3)
+    num_cpus = round(num_cpus/6)
     pool = multiprocessing.Pool(processes=num_cpus)
     sessions =[os.path.basename(name) for name in glob.glob(os.path.join(source, sub, "ses-*"))]
     print(sessions)
