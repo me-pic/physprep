@@ -25,7 +25,9 @@ sys.path.append("../utils")
 @click.option("--ch_name", default=None, required=False)
 @click.option("--overwrite", type=bool, default=False, required=False)
 @click.option("--pad", type=int, default=0, required=False)
-def call_convert(root, save, sub, ses=None, tr=None, ch_name=None, overwrite=False, pad=0):
+def call_convert(
+    root, save, sub, ses=None, tr=None, ch_name=None, overwrite=False, pad=0
+):
     """
     Call `convert` function only if `convert.py` is called as CLI
 
@@ -89,7 +91,7 @@ def convert(root, save, sub, ses=None, tr=None, ch_names=None, overwrite=False, 
 
     elif isinstance(ses, list) is False:
         ses = [ses]
-    
+
     # iterate through info
     for col in sorted(ses):
         if "harrypotter" in root:
@@ -110,13 +112,30 @@ def convert(root, save, sub, ses=None, tr=None, ch_names=None, overwrite=False, 
             )
             info[col]["ch_names"] = ch_names
             chtrig = 4
-        elif info[col]["ch_names"] is None and ch_names is None or isinstance(info[col]['recorded_triggers'], str):
-            logger.info("No channel names provided nor found; can't find the trigger to segment")
+        elif (
+            info[col]["ch_names"] is None
+            and ch_names is None
+            or isinstance(info[col]["recorded_triggers"], str)
+        ):
+            logger.info(
+                "No channel names provided nor found; can't find the trigger to segment"
+            )
             continue
         else:
             # Define chtrig ; should find a way to find it from a list of possible values
-            ch_list = ['EDA' if 'EDA' in ch else 'ECG' if 'ECG' in ch else 'PPG' if 'PPG' in ch else 'TTL' if 'A 5' in ch or 'TTL' in ch else 'RSP' for ch in info[col]['ch_names']]
-            chtrig = ch_list.index('TTL') + 1
+            ch_list = [
+                "EDA"
+                if "EDA" in ch
+                else "ECG"
+                if "ECG" in ch
+                else "PPG"
+                if "PPG" in ch
+                else "TTL"
+                if "A 5" in ch or "TTL" in ch
+                else "RSP"
+                for ch in info[col]["ch_names"]
+            ]
+            chtrig = ch_list.index("TTL") + 1
             info[col].update({"ch_names": ch_list})
 
         # Iterate through files in each session and run phys2bids

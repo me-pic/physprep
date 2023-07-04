@@ -26,7 +26,13 @@ from systole.utils import input_conversion
 from neurokit2 import signal_rate, signal_formatpeaks
 
 # home brewed cleaning utils
-from clean import neuromod_ecg_clean, neuromod_eda_clean, neuromod_ppg_clean, neuromod_rsp_clean
+from clean import (
+    neuromod_ecg_clean,
+    neuromod_eda_clean,
+    neuromod_ppg_clean,
+    neuromod_rsp_clean,
+)
+
 
 def process_session(args):
     # Unpack arguments for parallel processing
@@ -34,17 +40,18 @@ def process_session(args):
     multi_echo = bool(multi_echo)
     neuromod_bio_process(source, sub, ses, outdir, False)
 
+
 # ==================================================================================
 # Processing pipeline
 # ==================================================================================
 
 
-#@click.command()
-#@click.argument("source", type=str)
-#@click.argument("sub", type=str)
-#@click.argument("ses", type=str)
-#@click.argument("outdir", type=str)
-#@click.argument("multi_echo", type=bool)
+# @click.command()
+# @click.argument("source", type=str)
+# @click.argument("sub", type=str)
+# @click.argument("ses", type=str)
+# @click.argument("outdir", type=str)
+# @click.argument("multi_echo", type=bool)
 def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
     """
     Run processing pipeline on specified biosignals.
@@ -73,15 +80,15 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         os.makedirs(os.path.join(outdir, sub, ses))
 
     # Load tsv files contained in source/sub/ses
-    data_tsv, data_json, filenames_tsv = load_segmented_runs(source, sub, ses, outdir, remove_padding=True)
+    data_tsv, data_json, filenames_tsv = load_segmented_runs(
+        source, sub, ses, outdir, remove_padding=True
+    )
     sampling_rate = data_json["SamplingFrequency"]
 
     # initialize returned objects
     for idx, df in enumerate(data_tsv):
         run = filenames_tsv[idx].split("_")[2]
-        print(
-            f"---Processing biosignals for {sub} {ses}: {run}---"
-        )
+        print(f"---Processing biosignals for {sub} {ses}: {run}---")
 
         bio_info = {}
         bio_df = pd.DataFrame()
@@ -111,10 +118,14 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         #  rsp
         print("***Respiration workflow: begin***")
         start_time = timeit.default_timer()
-        rsp, rsp_info = rsp_process(rsp_raw, sampling_rate=sampling_rate, method="khodadad2018")
+        rsp, rsp_info = rsp_process(
+            rsp_raw, sampling_rate=sampling_rate, method="khodadad2018"
+        )
         bio_info["RSP"] = rsp_info
         bio_df = pd.concat([bio_df, rsp], axis=1)
-        print(f"***Respiration workflow: done in {timeit.default_timer()-start_time} sec***")
+        print(
+            f"***Respiration workflow: done in {timeit.default_timer()-start_time} sec***"
+        )
 
         #  eda
         print("***Electrodermal activity workflow: begin***")
@@ -122,29 +133,29 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         eda, eda_info = eda_process(eda_raw, sampling_rate=sampling_rate)
         bio_info["EDA"] = eda_info
         bio_df = pd.concat([bio_df, eda], axis=1)
-        print(f"***Electrodermal activity workflow: done in {timeit.default_timer()-start_time} sec***")
+        print(
+            f"***Electrodermal activity workflow: done in {timeit.default_timer()-start_time} sec***"
+        )
 
         # save outputs
         print("***Saving processed biosignals: begin***")
         start_time = timeit.default_timer()
         filename = Path(source)
-       
+
         bio_df.to_csv(
-            os.path.join(
-                outdir, sub, ses, f"{filenames_tsv[idx]}.tsv.gz"
-            ),
+            os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.tsv.gz"),
             sep="\t",
-            index=False
+            index=False,
         )
         with open(
-            os.path.join(
-                outdir, sub, ses, f"{filenames_tsv[idx]}.json"
-            ),
+            os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.json"),
             "w",
         ) as fp:
             json.dump(bio_info, fp)
             fp.close()
-        print(f"***Saving processed biosignals: done in {timeit.default_timer()-start_time} sec***")
+        print(
+            f"***Saving processed biosignals: done in {timeit.default_timer()-start_time} sec***"
+        )
 
 
 # ==================================================================================
@@ -185,9 +196,9 @@ def load_segmented_runs(source, sub, ses, outdir, remove_padding=True):
         The directory to save the start padding, only if `remove_padding`
         is True.
     remove_padding : bool
-        Indicate if the padding should be removed or not from the data. 
+        Indicate if the padding should be removed or not from the data.
         If True, the signal included in the start padding is saved in outdir.
-        If no padding was used, `remove_padding`should be False. 
+        If no padding was used, `remove_padding`should be False.
         Default to True.
 
     Returns
@@ -219,20 +230,18 @@ def load_segmented_runs(source, sub, ses, outdir, remove_padding=True):
         )
         if remove_padding:
             # Get triggers
-            trigger = tmp_csv[tmp_csv['TTL'] > 4]
+            trigger = tmp_csv[tmp_csv["TTL"] > 4]
             # First trigger
             start = list(trigger.index)[0]
             # Last trigger
-            end = list(trigger.index)[-1] 
+            end = list(trigger.index)[-1]
 
             data_tsv.append(tmp_csv[start:end].reset_index(drop=True))
             tmp_csv[:start].to_csv(
-                os.path.join(
-                    outdir, sub, ses, f"{filename}_noseq.tsv.gz"
-                    ), 
-                sep='\t',
-                index=False
-                )
+                os.path.join(outdir, sub, ses, f"{filename}_noseq.tsv.gz"),
+                sep="\t",
+                index=False,
+            )
         else:
             data_tsv.append(tmp_csv)
 
@@ -285,40 +294,46 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
             correct_artifacts=False,
         )
         info["ECG_Peaks"] = info[f"{data_type.upper()}_R_Peaks"]
-        artefacts, info["ECG_Clean_Peaks_NK"] = nk.signal_fixpeaks(peaks=info,
-        							     sampling_rate=sampling_rate,
-        				      			     interval_min=0.5,
-        				      			     interval_max=1.5,
-        				      			     method="neurokit")
+        artefacts, info["ECG_Clean_Peaks_NK"] = nk.signal_fixpeaks(
+            peaks=info,
+            sampling_rate=sampling_rate,
+            interval_min=0.5,
+            interval_max=1.5,
+            method="neurokit",
+        )
     elif data_type in ["ppg", "PPG"]:
-        info = ppg_findpeaks(signal_cleaned,
-        		      sampling_rate=sampling_rate,
-        		      method="elgendi")
-        info_bishop = ppg_findpeaks(signal_cleaned,
-        			     sampling_rate=sampling_rate,
-        			     method="bishop")
+        info = ppg_findpeaks(
+            signal_cleaned, sampling_rate=sampling_rate, method="elgendi"
+        )
+        info_bishop = ppg_findpeaks(
+            signal_cleaned, sampling_rate=sampling_rate, method="bishop"
+        )
         print("Neurokit found peaks")
-        artefacts, info["PPG_Clean_Peaks_NK"] = signal_fixpeaks(info,
-		                                sampling_rate=sampling_rate,
-        		                        interval_min=0.5,
-        				      	 interval_max=1.5,
-        				      	 method="neurokit")
-        artefacts_bishop, info["PPG_Clean_Peaks_Bishop_NK"] = signal_fixpeaks(info_bishop,
-		                                sampling_rate=sampling_rate,
-        		                        interval_min=0.5,
-        				      	 interval_max=1.5,
-        				      	 method="neurokit")
+        artefacts, info["PPG_Clean_Peaks_NK"] = signal_fixpeaks(
+            info,
+            sampling_rate=sampling_rate,
+            interval_min=0.5,
+            interval_max=1.5,
+            method="neurokit",
+        )
+        artefacts_bishop, info["PPG_Clean_Peaks_Bishop_NK"] = signal_fixpeaks(
+            info_bishop,
+            sampling_rate=sampling_rate,
+            interval_min=0.5,
+            interval_max=1.5,
+            method="neurokit",
+        )
         info["PPG_Bishop_artefacts_NK"] = artefacts_bishop
         print("Neurokit fixed peaks")
- 
+
     else:
         print("Please use a valid data type: 'ECG' or 'PPG'")
 
-    print('Formatting peaks into signal')
+    print("Formatting peaks into signal")
     peaks_signal_nk = signal_formatpeaks(
         info[f"{data_type.upper()}_Peaks"], desired_length=len(signal_cleaned)
     )
-    print('Formatting Peaks signal into RR timeseries')
+    print("Formatting Peaks signal into RR timeseries")
     # peak to intervals
     rr = input_conversion(
         info[f"{data_type.upper()}_Peaks"],
@@ -357,7 +372,7 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
             f"{data_type.upper()}_Clean": signal_cleaned,
             f"{data_type.upper()}_Peaks_NK": peaks_signal_nk,
             f"{data_type.upper()}_Peaks_Systole": corrected_peaks["clean_peaks"],
-            f"{data_type.upper()}_Rate": rate
+            f"{data_type.upper()}_Rate": rate,
         }
     )
 
@@ -410,7 +425,10 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
             info = {"SamplingFrequency": sampling_rate}
         else:
             signals, info = process_cardiac(
-                ppg_signal, ppg_cleaned, sampling_rate=downsampling_rate, data_type="PPG"
+                ppg_signal,
+                ppg_cleaned,
+                sampling_rate=downsampling_rate,
+                data_type="PPG",
             )
             info = {"SamplingFrequency": downsampling_rate}
         info["Processed"] = True
@@ -422,7 +440,9 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
     return signals, info
 
 
-def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bottenhorn", me=True):
+def ecg_process(
+    ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bottenhorn", me=True
+):
     """
     Process ECG signal.
 
@@ -462,7 +482,11 @@ def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bo
     # Prepare signal for processing
     print("Cleaning ECG")
     ecg_signal, ecg_cleaned = neuromod_ecg_clean(
-        ecg_signal, sampling_rate=sampling_rate, method=method, me=me, downsampling=downsampling_rate
+        ecg_signal,
+        sampling_rate=sampling_rate,
+        method=method,
+        me=me,
+        downsampling=downsampling_rate,
     )
     print("ECG Cleaned")
     # Process clean signal
@@ -474,7 +498,10 @@ def ecg_process(ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bo
             info = {"SamplingFrequency": sampling_rate}
         else:
             signals, info = process_cardiac(
-                ecg_signal, ecg_cleaned, sampling_rate=downsampling_rate, data_type="ECG"
+                ecg_signal,
+                ecg_cleaned,
+                sampling_rate=downsampling_rate,
+                data_type="ECG",
             )
             info = {"SamplingFrequency": downsampling_rate}
         info["Processed"] = True
@@ -527,7 +554,7 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
     try:
         if downsampling_rate is None:
             signals, info = nk.eda_process(
-               eda_cleaned, sampling_rate=sampling_rate, method="neurokit"
+                eda_cleaned, sampling_rate=sampling_rate, method="neurokit"
             )
             info = {"SamplingFrequency": sampling_rate}
         else:
@@ -535,13 +562,13 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
                 eda_cleaned, sampling_rate=downsampling_rate, method="neurokit"
             )
             info = {"SamplingFrequency": downsampling_rate}
-        signals['EDA_Raw'] = eda_signal
+        signals["EDA_Raw"] = eda_signal
         info["Processed"] = True
     except:
         print("ERROR in EDA processing procedure")
         signals = pd.DataFrame({"EDA_Raw": eda_signal, "EDA_Clean": eda_cleaned})
         info = {"Processed": False}
-    
+
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
             info[k] = info[k].tolist()
@@ -549,7 +576,9 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
     return signals, info
 
 
-def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="khodadad2018"):
+def rsp_process(
+    rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="khodadad2018"
+):
     """
     Parameters
     ----------
@@ -601,9 +630,9 @@ def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="kh
         else:
             signals, info = nk.rsp_process(
                 rsp_cleaned, sampling_rate=downsampling_rate, method=method
-            ) 
+            )
             info = {"SamplingFrequency": downsampling_rate}
-        signals['RSP_Raw'] = rsp_signal
+        signals["RSP_Raw"] = rsp_signal
         info["Processed"] = True
         print("RSP Cleaned and processed")
     except:
@@ -625,16 +654,19 @@ def rsp_process(rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="kh
 @click.argument("multi_echo", type=bool)
 def parallel_neuromod_bio_process(source, sub, outdir, multi_echo):
     num_cpus = multiprocessing.cpu_count()
-    num_cpus = round(num_cpus/6)
+    num_cpus = round(num_cpus / 6)
     pool = multiprocessing.Pool(processes=num_cpus)
-    sessions =[os.path.basename(name) for name in glob.glob(os.path.join(source, sub, "ses-*"))]
+    sessions = [
+        os.path.basename(name) for name in glob.glob(os.path.join(source, sub, "ses-*"))
+    ]
     print(sessions)
-    args = [(source, sub, ses, outdir, multi_echo) for ses in sorted(sessions)] 
+    args = [(source, sub, ses, outdir, multi_echo) for ses in sorted(sessions)]
     pool.map(process_session, args)
 
     pool.close()
     pool.join()
 
+
 if __name__ == "__main__":
-    #neuromod_bio_process()
+    # neuromod_bio_process()
     parallel_neuromod_bio_process()
