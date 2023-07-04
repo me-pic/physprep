@@ -1,5 +1,6 @@
 from typing import Dict, List, Optional, Tuple
 
+import click
 import numpy as np
 from bokeh.models import BoxAnnotation, ColumnDataSource, RangeTool
 from pandas.core.indexes.datetimes import DatetimeIndex
@@ -32,13 +33,14 @@ def load_data(outdir, sub, ses):
     files = [f.split(".")[0] for f in os.listdir(path) if "tsv.gz" in f and "noseq" not in f]
     files.sort()
     
-    data, data_noseq = [], []
+    data, data_noseq, info = [], [], []
     for f in files:
         print(f)
         data.append(pd.read_csv(os.path.join(outdir, sub, ses, f+".tsv.gz"), sep="\t"))
         data_noseq.append(pd.read_csv(os.path.join(outdir, sub, ses, f+"_noseq.tsv.gz"), sep="\t"))
+        info.append(load_json(os.path.join(outdir, sub, ses, f+".json")))
 
-    return data, data_noseq, files
+    return data, data_noseq, files, info
 
 def plot_scr(
     signal: np.ndarray = None,
@@ -335,8 +337,8 @@ def plot_raw(
 @click.argument("outdir", type=str)
 @click.argument("sub", type=str)
 @click.argument("ses", type=str)
-#@click.argument("modality")
-def generate_plot(outdir, sub, ses): #, modality):
+@click.argument("modality")
+def generate_plot(outdir, sub, ses, modality):
     """
     Generate interactive plots for each modality
     
@@ -353,15 +355,25 @@ def generate_plot(outdir, sub, ses): #, modality):
     modality : list 
         A list containing the biosignal modalities to plot.
         The options include "ECG", "PPG", "EDA", and "RSP".
+    
+    Examples
+    --------
+    In script
+    >>> convert(outdir="/home/user/dataset/derivatives/", sub="sub-01", ses="ses-001", modality=["PPG", "ECG", "EDA", "RSP"])
+    In terminal
+    >>> python convert.py /home/user/dataset/derivatives/ sub-01 --ses ses-001 --modality '["PPG", "ECG", "EDA", "RSP"]'
+    NOTE: to specify the `modality` using the CLI, use the single quote ('') just like the example above.
     """
-    data, data_noseq, filenames = load_data(outdir, sub, ses)
+    modality = json.loads(modality)
+
+    data, data_noseq, filenames,info = load_data(outdir, sub, ses)
     outdir = os.path.join(outdir, sub, ses)
     
     for i, filename in enumerate(filenames):
         figures = [] 
         idx = 0
         print(f"Generate plots for {filename}")
-        for mod in ["PPG", "ECG", "RSP", "EDA"]:
+        for mod in modality:
             tmp=0
             try:
                 # Plot raw signal before MRI sequence
@@ -385,7 +397,7 @@ def generate_plot(outdir, sub, ses): #, modality):
                 figures.append(
                     plot_raw(
                         signal=data[i][f"{mod}_Raw"],
-                        sfreq=1000,
+                        sfreq=info[i][mod]['sampling_rate'],
                         modality=mod.lower(),
                         title = f"{mod} : Scanner on - Raw",
                         show_heart_rate = False,
@@ -403,7 +415,7 @@ def generate_plot(outdir, sub, ses): #, modality):
                         plot_raw(
                             signal=data[i][f"{mod}_Clean"],
                             peaks = data[i][f"{mod}_Peaks"].astype(bool),
-                            sfreq=1000,
+                            sfreq=info[i][mod]['sampling_rate'],
                             modality="resp",
                             title = f"{mod} : Scanner on - Clean",
                             show_heart_rate = False,
@@ -422,7 +434,7 @@ def generate_plot(outdir, sub, ses): #, modality):
                             eda_scl=data[i]["EDA_Tonic"],
                             peaks = data[i]["SCR_Peaks"],
                             onsets = data[i]["SCR_Onsets"],
-                            sfreq=1000,
+                            sfreq=info[i][mod]['sampling_rate'],
                             modality="eda",
                             title = f"{mod} : Scanner on - Clean",
                             show_heart_rate = False,
@@ -438,7 +450,7 @@ def generate_plot(outdir, sub, ses): #, modality):
                         plot_raw(
                             signal=data[i][f"{mod}_Clean"],
                             peaks =data[i][f"{mod}_Peaks_NK"].astype(bool),
-                            sfreq=1000,
+                            sfreq=info[i][mod]['sampling_rate'],
                             modality=mod.lower(),
                             title = f"{mod} : Scanner on - Clean",
                             show_heart_rate=True,
