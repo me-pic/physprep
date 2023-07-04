@@ -293,8 +293,8 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
             method="promac",
             correct_artifacts=False,
         )
-        info["ECG_Peaks"] = info[f"{data_type.upper()}_R_Peaks"]
-        artefacts, info["ECG_Clean_Peaks_NK"] = nk.signal_fixpeaks(
+        info["ECG_Peaks"] = info["ECG_R_Peaks"]
+        info["ECG_Clean_Peaks_NK"] = nk.signal_fixpeaks(
             peaks=info,
             sampling_rate=sampling_rate,
             interval_min=0.5,
@@ -309,21 +309,21 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
             signal_cleaned, sampling_rate=sampling_rate, method="bishop"
         )
         print("Neurokit found peaks")
-        artefacts, info["PPG_Clean_Peaks_NK"] = signal_fixpeaks(
+        info["PPG_Clean_Peaks_Elgendi_NK"] = signal_fixpeaks(
             info,
             sampling_rate=sampling_rate,
             interval_min=0.5,
             interval_max=1.5,
             method="neurokit",
         )
-        artefacts_bishop, info["PPG_Clean_Peaks_Bishop_NK"] = signal_fixpeaks(
+        info["PPG_Clean_Peaks_Bishop_NK"] = signal_fixpeaks(
             info_bishop,
             sampling_rate=sampling_rate,
             interval_min=0.5,
             interval_max=1.5,
             method="neurokit",
         )
-        info["PPG_Bishop_artefacts_NK"] = artefacts_bishop
+        info["PPG_Peaks_Bishop"] = info_bishop["PPG_Peaks"]
         print("Neurokit fixed peaks")
 
     else:
@@ -362,7 +362,6 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
             f"{data_type.upper()}_extra": nExtra,
             f"{data_type.upper()}_missed": nMissed,
             f"{data_type.upper()}_Clean_RR_Systole": corrected.tolist(),
-            f"{data_type.upper()}_NK_artefacts": artefacts,
         }
     )
     # Prepare output
