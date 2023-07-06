@@ -359,9 +359,9 @@ def generate_plot(outdir, sub, ses, modality):
     Examples
     --------
     In script
-    >>> convert(outdir="/home/user/dataset/derivatives/", sub="sub-01", ses="ses-001", modality=["PPG", "ECG", "EDA", "RSP"])
+    >>> generate_plot(outdir="/home/user/dataset/derivatives/", sub="sub-01", ses="ses-001", modality=["PPG", "ECG", "EDA", "RSP"])
     In terminal
-    >>> python convert.py /home/user/dataset/derivatives/ sub-01 --ses ses-001 --modality '["PPG", "ECG", "EDA", "RSP"]'
+    >>> python plot_signals.py /home/user/dataset/derivatives/ sub-01 --ses ses-001 --modality '["PPG", "ECG", "EDA", "RSP"]'
     NOTE: to specify the `modality` using the CLI, use the single quote ('') just like the example above.
     """
     modality = json.loads(modality)
