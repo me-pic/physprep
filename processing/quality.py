@@ -60,7 +60,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
     filenames_signal.sort()
 
     for idx, f in enumerate(filenames_signal):
-        filename = f.split(".")[0]
+        filename = os.path.basename(f).split(".")[0]
         info = load_json(os.path.join(source, sub, ses, filename + ".json"))
 
         signal = pd.read_csv(os.path.join(source, sub, ses, f), sep="\t")
@@ -596,6 +596,7 @@ def threshold_sqi(metric, threshold, op=None):
     >>> threshold_sqi(6, 4, operator.lt)
     Not acceptable
     >>> threshold_sqi(6, [2, 8])
+    Acceptable
     """
     if type(threshold) == list:
         if len(threshold) != 2:
@@ -711,17 +712,47 @@ def generate_report(summary, save, filename, window=False):
             table = "<table>{}</table>".format(header_row + row)
             html_report += f"<table>{table}</table>"
 
+        # Add interactive plot
+        html_report += "<h3>Plot</h3>"
+        html_report += "[Insert interactive plot]"
 
+        # Add Visual Qc option
+        html_report += "<h3>Visual Qc</h3>"
+        html_report += """
+        <form id="signalForm">
+            <select id="signalSelect" name="signalQuality">
+                <option value="none">Select signal quality</option>
+                <option value="Good">Good</option>
+                <option value="Acceptable">Acceptable</option>
+                <option value="Unacceptable">Unacceptable</option>
+            </select>
+            <br>
+            <textarea id="commentText name=visualQCNotes rows="4" cols="50">Qc notes...</textarea>
+            <br>
+            <button type="submit">Submit</button>
+        </form>
 
-            #for metric in summary[k].keys():
-            #    if metric == "Quality":
-            #        html_report += f"""
-            #        <br><b>{metric}</b> : {summary[k][metric]}
-            #    """
-            #    else:
-            #        html_report += f"""
-            #            <br>{metric} : {summary[k][metric]}
-            #    """
+        """
+        # Update json derivative file based on Visual QC outputs
+        html_report += """
+        <script>
+            document.getElementById("signalForm").addEventListener("submit", function(event) {
+                event.preventDefault();
+                var signalSelect = document.getElementById("signalSelect");
+                var commentText = document.getElementById("commentText");
+
+                var signalQuality = signalSelect.value;
+                var visualQCNotes = commentText.value;
+                if (signalQuality !== "none") {
+                    var data = {
+                        "visual_qc": SignalQuality,
+                        "visual_qc_notes": visualQCNotes
+                    };
+
+                }
+            });
+        </script>
+        """
 
     # Complete the HTML report
     html_report += """
@@ -734,7 +765,7 @@ def generate_report(summary, save, filename, window=False):
     if not os.path.exists(save):
         os.makedirs(save)
 
-    with open(os.path.join(save, f"{filename}_quality_fixed_windows.html"), "w") as file:
+    with open(os.path.join(save, f"{filename}_quality.html"), "w") as file:
         file.write(html_report)
         file.close()
 
