@@ -727,7 +727,7 @@ def generate_report(summary, save, filename, window=False):
                 <option value="Unacceptable">Unacceptable</option>
             </select>
             <br>
-            <textarea id="commentText name=visualQCNotes rows="4" cols="50">Qc notes...</textarea>
+            <textarea id="commentText" name="visualQCNotes" placeholder="QC Notes..." rows="4" cols="50"></textarea>
             <br>
             <button type="submit">Submit</button>
         </form>
@@ -743,12 +743,28 @@ def generate_report(summary, save, filename, window=False):
 
                 var signalQuality = signalSelect.value;
                 var visualQCNotes = commentText.value;
-                if (signalQuality !== "none") {
-                    var data = {
-                        "visual_qc": SignalQuality,
-                        "visual_qc_notes": visualQCNotes
-                    };
+                var data = {};
 
+                if (signalQuality != "none") {
+                    data["visual_qc"] = SignalQuality;
+                }
+                if (visualQCNotes != '') {
+                    data["visual_qc_notes"] = visualQCNotes;
+                }
+
+                // Update json file if data not empty
+                if (Object.keys(data).length !== 0) {
+                    for (var elem in data) { 
+                        // VERIFY THAT SECTION !!!
+                        fs.readFile('', function (err, data) {
+                            var json = JSON.parse(data);
+                            json.push(elem + ': ' + data[elem])
+                            fs.writeFile('', JSON.stringify(json), function(err){
+                                if (err) throw err;
+                                console.log('It worked!');
+                            });
+                        })
+                    }
                 }
             });
         </script>
