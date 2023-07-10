@@ -28,7 +28,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
     Parameters
     ----------
     source : str
-        The main directory contaning the segmented runs.
+        The main directory contaning the processed runs.
     sub : str
         The id of the subject.
     ses : str
@@ -86,7 +86,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
 
             # Generate report
             print("***Generating report***")
-            generate_report(summary, os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}")
+            generate_report(summary, source, os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}")
 
         # Compute metrics on signal segmented in fixed windows
         elif sliding.get('step') == 0 or not sliding.get('step') or sliding.get('step') is None:
@@ -128,7 +128,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
 
             # Generate report
             print("***Generating report***")
-            generate_report(summary, os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}", window=True)
+            generate_report(summary, source, os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}", window=True)
 
         # Compute metrics using a sliding window approach    
         else:
@@ -170,7 +170,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
 
             # Generate report
             print("***Generating report***")
-            generate_report(summary, os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}", window=True)      
+            generate_report(summary, source, os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}", window=True)      
 
 # ==================================================================================
 # Utils
@@ -617,7 +617,7 @@ def threshold_sqi(metric, threshold, op=None):
 # ==================================================================================
 
 
-def generate_report(summary, save, filename, window=False):
+def generate_report(summary, source, save, filename, window=False):
     """
     Generate quality assessment report in html format
 
@@ -627,6 +627,8 @@ def generate_report(summary, save, filename, window=False):
         Dictionnary contaning sqi values for a specified signal.
         List of dictationaries can be passed to include multiple
         signals to the report.
+    source : str
+        The main directory contaning the processed runs.
     save : str
         Directory to save the generated report.
     filename : str
@@ -716,7 +718,7 @@ def generate_report(summary, save, filename, window=False):
         html_report += "<h3>Plot</h3>"
         html_report += "[Insert interactive plot]"
 
-        # Add Visual Qc option
+        # Add Visual Qc interactive options
         html_report += "<h3>Visual Qc</h3>"
         html_report += """
         <form id="signalForm">
@@ -731,11 +733,12 @@ def generate_report(summary, save, filename, window=False):
             <br>
             <button type="submit">Submit</button>
         </form>
-
         """
+        # Define the path to the json file containing the outputs of the processed data
+        html_report += f"<script>var pathInfo = {os.path.join(source, filename+".json")};</script>"
         # Update json derivative file based on Visual QC outputs
         html_report += """
-        <script>
+        <script>    
             document.getElementById("signalForm").addEventListener("submit", function(event) {
                 event.preventDefault();
                 var signalSelect = document.getElementById("signalSelect");
@@ -756,10 +759,10 @@ def generate_report(summary, save, filename, window=False):
                 if (Object.keys(data).length !== 0) {
                     for (var elem in data) { 
                         // VERIFY THAT SECTION !!!
-                        fs.readFile('', function (err, data) {
+                        fs.readFile(pathInfo, function (err, data) {
                             var json = JSON.parse(data);
                             json.push(elem + ': ' + data[elem])
-                            fs.writeFile('', JSON.stringify(json), function(err){
+                            fs.writeFile(pathInfo, JSON.stringify(json), function(err){
                                 if (err) throw err;
                                 console.log('It worked!');
                             });
