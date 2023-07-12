@@ -24,7 +24,8 @@ import timeit
 import neurokit2 as nk
 from neurokit2.misc import as_vector
 from systole.utils import input_conversion
-from neurokit2 import signal_rate, signal_formatpeaks
+from neurokit2 import signal_rate
+from neurokit2.signal.signal_formatpeaks import _signal_from_indices
 
 # home brewed cleaning utils
 from clean import (
@@ -80,7 +81,7 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
     if not os.path.exists(os.path.join(outdir, sub, ses)):
         os.makedirs(os.path.join(outdir, sub, ses))
 
-    # Load tsv files contained in source/sub/ses
+    # Load tsv files contained in source/sub/ses 
     data_tsv, data_json, filenames_tsv = load_segmented_runs(
         source, sub, ses, outdir, remove_padding=True
     )
@@ -214,21 +215,45 @@ def load_segmented_runs(source, sub, ses, outdir, remove_padding=True):
     data_tsv, filenames = [], []
     files_tsv = [f for f in os.listdir(os.path.join(source, sub, ses)) if "tsv.gz" in f]
     files_tsv.sort()
+    # The sampling rate will be overwritten if there is a json file
+    # TODO: Change harded coded sampling rate to a variable from info file
+    data_json = {"SamplingFrequency": 10000, "Columns": []}
 
     for tsv in files_tsv:
+        # Signals
         filename = tsv.split(".")[0]
         filenames.append(filename)
         print(f"---Reading data for {sub} {ses}: {filename.split('_')[2]}---")
+        # Metadata
         json_file = filename + ".json"
         print("Reading json file")
         data_json = load_json(os.path.join(source, sub, ses, json_file))
+        
+        # look at the info file to get the channels if unboundlocalerror
+        if data_json["Columns"] == []:
+            info = pd.read_json(os.path.join(source, sub, f"{sub}_volumes_all-ses-runs.json"))
+            ch_list = [
+                "EDA"
+                if "EDA" in ch
+                else "ECG"
+                if "ECG" in ch
+                else "PPG"
+                if "PPG" in ch
+                else "TTL"
+                if "A 5" in ch or "TTL" in ch
+                else "RSP"
+                for ch in info[ses]["ch_names"]
+            ]
+            data_json["Columns"] = ch_list
         print("Reading tsv file")
+        # Read signals
         tmp_csv = pd.read_csv(
             os.path.join(source, sub, ses, tsv),
             sep="\t",
             compression="gzip",
             names=data_json["Columns"],
         )
+        # Remove padding and save it for later
         if remove_padding:
             # Get triggers
             trigger = tmp_csv[tmp_csv["TTL"] > 4]
@@ -243,6 +268,7 @@ def load_segmented_runs(source, sub, ses, outdir, remove_padding=True):
                 sep="\t",
                 index=False,
             )
+        # make a list of the runs
         else:
             data_tsv.append(tmp_csv)
 
@@ -296,7 +322,7 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
         )
         info["ECG_Peaks"] = info["ECG_R_Peaks"]
         info["ECG_Clean_Peaks_NK"] = nk.signal_fixpeaks(
-            peaks=info,
+            peaks=info['ECG_Peaks'],
             sampling_rate=sampling_rate,
             interval_min=0.5,
             interval_max=1.5,
@@ -306,32 +332,21 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
         info = ppg_findpeaks(
             signal_cleaned, sampling_rate=sampling_rate, method="elgendi"
         )
-        info_bishop = ppg_findpeaks(
-            signal_cleaned, sampling_rate=sampling_rate, method="bishop"
-        )
         print("Neurokit found peaks")
-        info["PPG_Clean_Peaks_Elgendi_NK"] = signal_fixpeaks(
-            info,
+        info["PPG_Clean_Peaks_NK"] = signal_fixpeaks(
+            info['PPG_Peaks'],
             sampling_rate=sampling_rate,
             interval_min=0.5,
             interval_max=1.5,
             method="neurokit",
         )
-        info["PPG_Clean_Peaks_Bishop_NK"] = signal_fixpeaks(
-            info_bishop,
-            sampling_rate=sampling_rate,
-            interval_min=0.5,
-            interval_max=1.5,
-            method="neurokit",
-        )
-        info["PPG_Peaks_Bishop"] = info_bishop["PPG_Peaks"]
         print("Neurokit fixed peaks")
 
     else:
         print("Please use a valid data type: 'ECG' or 'PPG'")
 
     print("Formatting peaks into signal")
-    peaks_signal_nk = signal_formatpeaks(
+    peak_list_nk = _signal_from_indices(
         info[f"{data_type.upper()}_Peaks"], desired_length=len(signal_cleaned)
     )
     print("Formatting Peaks signal into RR timeseries")
@@ -345,7 +360,7 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
 
     # correct beat detection
     corrected, (nMissed, nExtra, nEctopic, nShort, nLong) = correct_rr(rr)
-    corrected_peaks = correct_peaks(peak_list_nk, n_iterations=8)
+    corrected_peaks = correct_peaks(peak_list_nk, n_iterations=4)
     print("systole corrected RR and Peaks series")
     # Compute rate based on peaks
     rate = signal_rate(
@@ -370,7 +385,7 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
         {
             f"{data_type.upper()}_Raw": signal_raw,
             f"{data_type.upper()}_Clean": signal_cleaned,
-            f"{data_type.upper()}_Peaks_NK": peaks_signal_nk,
+            f"{data_type.upper()}_Peaks_NK": peak_list_nk,
             f"{data_type.upper()}_Peaks_Systole": corrected_peaks["clean_peaks"],
             f"{data_type.upper()}_Rate": rate,
         }
@@ -654,7 +669,7 @@ def rsp_process(
 @click.argument("multi_echo", type=bool)
 def parallel_neuromod_bio_process(source, sub, outdir, multi_echo):
     num_cpus = multiprocessing.cpu_count()
-    num_cpus = round(num_cpus / 6)
+    num_cpus = round(num_cpus / 3)
     pool = multiprocessing.Pool(processes=num_cpus)
     sessions = [
         os.path.basename(name) for name in glob.glob(os.path.join(source, sub, "ses-*"))
