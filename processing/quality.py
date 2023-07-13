@@ -86,7 +86,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
 
             # Generate report
             print("***Generating report***")
-            generate_report(summary, source, os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}")
+            generate_report(summary, os.path.join(source, sub, ses), os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}")
 
         # Compute metrics on signal segmented in fixed windows
         elif sliding.get('step') == 0 or not sliding.get('step') or sliding.get('step') is None:
@@ -128,7 +128,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
 
             # Generate report
             print("***Generating report***")
-            generate_report(summary, source, os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}", window=True)
+            generate_report(summary, os.path.join(source, sub, ses), os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}", window=True)
 
         # Compute metrics using a sliding window approach    
         else:
@@ -170,7 +170,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
 
             # Generate report
             print("***Generating report***")
-            generate_report(summary, source, os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}", window=True)      
+            generate_report(summary, os.path.join(source, sub, ses), os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}", window=True)      
 
 # ==================================================================================
 # Utils
@@ -616,29 +616,10 @@ def threshold_sqi(metric, threshold, op=None):
 # Signals quality report
 # ==================================================================================
 
-
 def generate_report(summary, source, save, filename, window=False):
-    """
-    Generate quality assessment report in html format
-
-    Parameters
-    ----------
-    summary : dict or list of dict
-        Dictionnary contaning sqi values for a specified signal.
-        List of dictationaries can be passed to include multiple
-        signals to the report.
-    source : str
-        The main directory contaning the processed runs.
-    save : str
-        Directory to save the generated report.
-    filename : str
-        Name of the output file.
-
-    Examples
-    --------
-    """
     # Generate the report in HTML format
     html_report = """
+    <!DOCTYPE html>
     <html>
     <head>
     <style>
@@ -647,25 +628,26 @@ def generate_report(summary, source, save, filename, window=False):
         border-collapse: collapse;
         width: 100%;
         }
-
         td, th {
         border: 1px solid #dddddd;
         text-align: left;
         padding: 8px;
         }
-
         th {
         background-color: #dddddd;
         }
     </style>
+    <!--<link rel="stylesheet" href="https://pyscript.net/alpha/pyscript.css" />-->
+    <script defer src="https://pyscript.net/alpha/pyscript.js"></script>
     </head>
     <body>
-    <h1>Signal Quality Report</h1>
+    <h1>Signal Quality Report</h1>    
     """
-
+    filename_json = os.path.join(source, filename+'.json')
     for k in summary.keys():
         html_report += f"""
         <h2>{k} Signal</h2>
+        <input type="hidden" id=filenameJson value={filename_json}>
         """
         if window:
             if "Overview" in list(summary[k].keys()):
@@ -679,11 +661,10 @@ def generate_report(summary, source, save, filename, window=False):
                 header_row = "<tr>{}</tr>".format("".join("<th>{}</th>".format(header) for header in headers))
                 # Create table row
                 row = "".join("<td>{}</td>".format(dict_overview.get(col)) for col in headers)
-                
+            
                 # Merge headers and rows table
                 table = "<table>{}</table>".format(header_row + row)
                 html_report += f"<table>{table}</table>"
-
             else:
                 dict_window = summary[k]
             # Table for window-by-window metrics
@@ -696,11 +677,10 @@ def generate_report(summary, source, save, filename, window=False):
             for w, values in dict_window.items():
                 row = "<tr><td>{}</td>{}</tr>".format(w, "".join("<td>{}</td>".format(values.get(col)) for col in headers[1:]))
                 rows.append(row)
-
-            # Merge headers and rows tables
+           # Merge headers and rows tables
             table = "<table>{}</table>".format(header_row + "".join(rows))
             html_report += f"<table>{table}</table>"
-            
+        
         else:
             # Table for overview metrics
             html_report += "<h3>Overview</h3>"
@@ -709,68 +689,63 @@ def generate_report(summary, source, save, filename, window=False):
             header_row = "<tr>{}</tr>".format("".join("<th>{}</th>".format(header) for header in headers))
             # Create table rows
             row = "".join("<td>{}</td>".format(summary[k].get(col)) for col in headers)
-                
+            
             # Merge headers and rows table
             table = "<table>{}</table>".format(header_row + row)
             html_report += f"<table>{table}</table>"
-
         # Add interactive plot
         html_report += "<h3>Plot</h3>"
         html_report += "[Insert interactive plot]"
-
         # Add Visual Qc interactive options
         html_report += "<h3>Visual Qc</h3>"
         html_report += """
-        <form id="signalForm">
-            <select id="signalSelect" name="signalQuality">
+        <py-script>
+        from js import console, document
+        import json
+
+        def updateJson(*args, **kwargs):
+            <!--Get the modality-->
+            mod = (args[0].target.id).split("_")[1]
+            <!--Get the values from dropdown menu and text area-->
+            signalSelect = document.getElementById(f"signalSelect_{mod}");
+            visualQc = signalSelect.value
+            commentText = document.getElementById(f"commentText_{mod}");
+            visualQcNotes = commentText.value
+            data = dict()
+            
+            if visualQc != "none" :
+                data["visual_qc"] = visualQc
+            if visualQcNotes != '' :
+                data["visual_qc_notes"] = visualQcNotes
+
+            if len(data.keys()) != 0 :
+                for elem in data :
+                    console.log(mod + "; " + elem + ": " + data[elem])
+                    <!--NEED TO FIX THAT: access local file system-->
+                    <!--Read Json file-->
+                    tmp = open(document.getElementById("filenameJson").value)
+                    data_json = json.load(tmp)
+                    tmp.close()
+                    console.log(data_json)
+                    <!--Write Json file-->
+                    data_json[mod][elem] = data[elem]
+        </py-script>
+        """
+        html_report += f"""
+        <div></div>
+        <form id="signalForm_{k}">
+            <select id="signalSelect_{k}" name="signalQuality">
                 <option value="none">Select signal quality</option>
                 <option value="Good">Good</option>
                 <option value="Acceptable">Acceptable</option>
                 <option value="Unacceptable">Unacceptable</option>
             </select>
             <br>
-            <textarea id="commentText" name="visualQCNotes" placeholder="QC Notes..." rows="4" cols="50"></textarea>
+            <textarea id="commentText_{k}" name="visualQCNotes" placeholder="QC Notes..." rows="4" cols="50"></textarea>
             <br>
-            <button type="submit">Submit</button>
+            <button id="submitQc_{k}" type="button" pys-onClick="updateJson" value="{k}">Submit</button>
         </form>
-        """
-        # Define the path to the json file containing the outputs of the processed data
-        html_report += f"<script>var pathInfo = {os.path.join(source, filename+".json")};</script>"
-        # Update json derivative file based on Visual QC outputs
-        html_report += """
-        <script>    
-            document.getElementById("signalForm").addEventListener("submit", function(event) {
-                event.preventDefault();
-                var signalSelect = document.getElementById("signalSelect");
-                var commentText = document.getElementById("commentText");
-
-                var signalQuality = signalSelect.value;
-                var visualQCNotes = commentText.value;
-                var data = {};
-
-                if (signalQuality != "none") {
-                    data["visual_qc"] = SignalQuality;
-                }
-                if (visualQCNotes != '') {
-                    data["visual_qc_notes"] = visualQCNotes;
-                }
-
-                // Update json file if data not empty
-                if (Object.keys(data).length !== 0) {
-                    for (var elem in data) { 
-                        // VERIFY THAT SECTION !!!
-                        fs.readFile(pathInfo, function (err, data) {
-                            var json = JSON.parse(data);
-                            json.push(elem + ': ' + data[elem])
-                            fs.writeFile(pathInfo, JSON.stringify(json), function(err){
-                                if (err) throw err;
-                                console.log('It worked!');
-                            });
-                        })
-                    }
-                }
-            });
-        </script>
+        <div></div>
         """
 
     # Complete the HTML report
@@ -781,13 +756,9 @@ def generate_report(summary, source, save, filename, window=False):
 
     # Save the HTML report to a file
     print("Saving html report")
-    if not os.path.exists(save):
-        os.makedirs(save)
-
     with open(os.path.join(save, f"{filename}_quality.html"), "w") as file:
         file.write(html_report)
         file.close()
-
 
 if __name__ == "__main__":
     neuromod_bio_sqi()
