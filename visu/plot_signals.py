@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional, Tuple
+import traceback
 
 import click
 import numpy as np
@@ -17,6 +18,7 @@ import neurokit2 as nk
 from scipy import signal
 
 from bokeh.io import output_notebook
+from bokeh.embed import components
 from bokeh.layouts import row, gridplot, column
 from bokeh.plotting import show, output_file, figure, save
 output_notebook()
@@ -331,14 +333,55 @@ def plot_raw(
     else:
         return cols[0]
 
+def generate_plot(source, sub, ses, filename, modality):
+    data = pd.read_csv(os.path.join(source, sub, ses, filename+".tsv.gz"), sep="\t")
+    info = load_json(os.path.join(source, sub, ses, filename+".json"))
+
+    print(f"Plotting Clean signal with scanner on: {modality} begin")
+    try:
+        # Plot cleaned signal during MRI sequence
+        if modality == "RSP":
+            figure = plot_raw(
+                signal=data[f"{modality}_Clean"],
+                peaks = data[f"{modality}_Peaks"].astype(bool),
+                sfreq=info[modality]['sampling_rate'],
+                modality="resp",
+                title = f"{modality} : Scanner on - Clean",
+                show_heart_rate = False,
+                show_artefacts=True
+                )
+        elif modality == "EDA":
+            figure = plot_raw(
+                signal=data["EDA_Clean"],
+                eda_scr=data["EDA_Phasic"],
+                eda_scl=data["EDA_Tonic"],
+                peaks = data["SCR_Peaks"],
+                onsets = data["SCR_Onsets"],
+                sfreq=info[modality]['sampling_rate'],
+                modality="eda",
+                title = f"{modality} : Scanner on - Clean",
+                show_heart_rate = False,
+                show_artefacts=True
+                )
+        elif modality in ["ECG", "PPG"]:
+            figure = plot_raw(
+                signal=data[f"{modality}_Clean"],
+                peaks =data[f"{modality}_Peaks_NK"].astype(bool),
+                sfreq=info[modality]['sampling_rate'],
+                modality=modality.lower(),
+                title = f"{modality} : Scanner on - Clean",
+                show_heart_rate=True,
+                show_artefacts=True
+                )
+        print(f"Plotting Clean signal with scanner on: {modality} done")
+    except Exception:
+        print(f"Could not plot {modality} signal")
+        traceback.print_exc()
+
+    return components(figure)
 
 
-@click.command()
-@click.argument("outdir", type=str)
-@click.argument("sub", type=str)
-@click.argument("ses", type=str)
-@click.argument("modality")
-def generate_plot(outdir, sub, ses, modality):
+def generate_raw_filtered_plots(outdir, sub, ses, modality):
     """
     Generate interactive plots for each modality
     
@@ -471,6 +514,7 @@ def generate_plot(outdir, sub, ses, modality):
         # Save generate figure in html
         output_file(outdir + f"/{filename}_plot.html")
         save(layout)
+
 
 
 if __name__ == "__main__":
