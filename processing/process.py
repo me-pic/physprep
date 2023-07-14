@@ -6,6 +6,7 @@ Neuromod processing utilities
 # dependencies
 import os
 import json
+import pickle
 import glob
 import click
 import numpy as np
@@ -151,9 +152,9 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         )
         with open(
             os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.json"),
-            "w",
+            "wb",
         ) as fp:
-            json.dump(bio_info, fp)
+            pickle.dump(bio_info, fp, protocol=4)
             fp.close()
         print(
             f"***Saving processed biosignals: done in {timeit.default_timer()-start_time} sec***"
