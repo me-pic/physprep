@@ -3,6 +3,7 @@
 """Physiological data quality assessment"""
 
 import os
+import sys
 import glob
 import json
 import click
@@ -11,16 +12,19 @@ import traceback
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from bokeh.plotting import figure, show
 from scipy.stats import kurtosis, skew
 
+sys.path.insert(1, os.path.join(os.getcwd(), 'visu'))
+from plot_signals import generate_plot
 
 @click.command()
 @click.argument("source", type=str)
+@click.argument("derivatives")
 @click.argument("sub", type=str)
 @click.argument("ses", type=str)
-@click.argument("outdir", type=str)
 @click.argument("sliding", type=str)
-def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 10}):
+def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={'duration': 60, 'step': 10}):
     """
     Run processing QC-ing pipeline on specified biosignals, and generate an html report
     containing the quality metrics.
@@ -28,13 +32,13 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
     Parameters
     ----------
     source : str
-        The main directory contaning the processed runs.
+        The directory contaning the runs unfiltered.
+    derivatives: str
+        The directory containing the processed runs.
     sub : str
         The id of the subject.
     ses : str
         The id of the session.
-    outdir : str
-        The directory to save the outputs.
     sliding : dict
         Dictionary containing the `duration` (in seconds) of the windows in which to
         calculate the SQI. If `step` is not specified, is equal to 0 or to None,
@@ -47,23 +51,23 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
     Examples
     --------
     In terminal - Whole run
-    >>> python quality.py /home/user/dataset/derivatives/ sub-01 ses-001 /home/user/dataset/derivatives/ None
+    >>> python quality.py /home/user/dataset/source/ /home/user/dataset/derivatives/ sub-01 ses-001 None
     In terminal - Fixed windows approach
-    >>> python quality.py /home/user/dataset/derivatives/ sub-01 ses-001 /home/user/dataset/derivatives/ '{"duration": 60}'
+    >>> python quality.py /home/user/dataset/source/ /home/user/dataset/derivatives/ sub-01 ses-001 '{"duration": 60}'
     In terminal - sliding windows approach
-    >>> python quality.py /home/user/dataset/derivatives/ sub-01 ses-001 /home/user/dataset/derivatives/ '{"duration": 60, "step": 10}'
+    >>> python quality.py /home/user/dataset/source/ /home/user/dataset/derivatives/ sub-01 ses-001 '{"duration": 60, "step": 10}'
     """
     sliding = json.loads(sliding)
 
-    filenames = glob.glob(os.path.join(source, sub, ses, "*_physio*"))
+    filenames = glob.glob(os.path.join(derivatives, sub, ses, "*_physio*"))
     filenames_signal = [f for f in filenames if ''.join(Path(f).suffixes) == ".tsv.gz" and "noseq" not in f]
     filenames_signal.sort()
 
     for idx, f in enumerate(filenames_signal):
         filename = os.path.basename(f).split(".")[0]
-        info = load_json(os.path.join(source, sub, ses, filename + ".json"))
+        info = load_json(os.path.join(derivatives, sub, ses, filename + ".json"))
 
-        signal = pd.read_csv(os.path.join(source, sub, ses, f), sep="\t")
+        signal = pd.read_csv(os.path.join(derivatives, sub, ses, f), sep="\t")
         summary, summary_ppg, summary_ecg, summary_eda, summary_rsp = {}, {}, {}, {}, {}
         print(
             f"---QCing on {f.split('/')[-1]}---"
@@ -86,7 +90,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
 
             # Generate report
             print("***Generating report***")
-            generate_report(summary, os.path.join(source, sub, ses), os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}")
+            generate_report(summary, source, derivatives, sub, ses, f"{filename.split('/')[-1]}")
 
         # Compute metrics on signal segmented in fixed windows
         elif sliding.get('step') == 0 or not sliding.get('step') or sliding.get('step') is None:
@@ -97,11 +101,11 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
                     num_windows = int(len(signal) / window_samples)
 
                     # Descriptive metrics on the windows
+                    print(f"***Computing quality metrics for {modality} signal***")
                     for i in range(num_windows):
                         start = int(i * window_samples)
                         end = int(start + window_samples)
                         window = signal.iloc[start:end]
-                        print(f"***Computing quality metrics for {modality} signal***")
                         if modality == "PPG":
                             summary_ppg[f'{int(start/info["PPG"]["sampling_rate"])}-{int(end/info["PPG"]["sampling_rate"])}'] = sqi_cardiac(window["PPG_Clean"], info["PPG"], data_type="PPG", sampling_rate=info["PPG"]["sampling_rate"], window=[start,end])
                         elif modality == "ECG":
@@ -128,7 +132,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
 
             # Generate report
             print("***Generating report***")
-            generate_report(summary, os.path.join(source, sub, ses), os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}", window=True)
+            generate_report(summary, source, derivatives, sub, ses, f"{filename.split('/')[-1]}", window=True)
 
         # Compute metrics using a sliding window approach    
         else:
@@ -138,12 +142,12 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
                     window_samples = int(sliding['duration'] * info[modality]["sampling_rate"])
                     step_samples = int(sliding['step'] * info[modality]["sampling_rate"])
                     num_windows = int((len(signal) - window_samples) / step_samples) + 1
-   
+
+                    print(f"***Computing quality metrics for {modality} signal***")
                     for i in range(num_windows):
                         start = int(i * step_samples)
                         end = int(start + window_samples)
                         window = signal.iloc[start:end]
-                        print(f"***Computing quality metrics for {modality} signal***")
                         if modality == "PPG":
                             summary_ppg[f'{int(start/info["PPG"]["sampling_rate"])}-{int(end/info["PPG"]["sampling_rate"])}'] = sqi_cardiac(window["PPG_Clean"], info["PPG"], data_type="PPG", sampling_rate=info["PPG"]["sampling_rate"], window=[start,end])
                         elif modality == "ECG":
@@ -170,7 +174,7 @@ def neuromod_bio_sqi(source, sub, ses, outdir, sliding={'duration': 60, 'step': 
 
             # Generate report
             print("***Generating report***")
-            generate_report(summary, os.path.join(source, sub, ses), os.path.join(outdir, sub, ses), f"{filename.split('/')[-1]}", window=True)      
+            generate_report(summary, source, derivatives, sub, ses, f"{filename.split('/')[-1]}", window=True)      
 
 # ==================================================================================
 # Utils
@@ -188,8 +192,8 @@ def load_json(filename):
     data : dict
         Dictionary with the content of the .json passed in argument.
     """
-    tmp = open(filename)
-    data = json.load(tmp)
+    with open(filename, 'r') as tmp:
+        data = json.loads(tmp.read())
     tmp.close()
 
     return data
@@ -291,35 +295,35 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000, mean
         max_index = len(info[peaks])
     
     # Descriptive indices on NN intervals
-    summary["Mean_NN_intervals"] = np.round(
+    summary["Mean_NN_intervals (ms)"] = np.round(
         np.mean(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), 4
     )
-    summary["Median_NN_intervals"] = np.round(
+    summary["Median_NN_intervals (ms)"] = np.round(
         np.median(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), 4
     )
-    summary["SD_NN_intervals"] = np.round(
+    summary["SD_NN_intervals (ms)"] = np.round(
         np.std(info[f"{data_type}_clean_rr_systole"][min_index:max_index], ddof=1), 4
     )
-    summary["Min_NN_intervals"] = np.round(
+    summary["Min_NN_intervals (ms)"] = np.round(
         np.min(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), 4
     )
-    summary["Max_NN_intervals"] = np.round(
+    summary["Max_NN_intervals (ms)"] = np.round(
         np.max(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), 4
     )
     # Descriptive indices on heart rate
-    summary["Mean_HR"] = metrics_hr_sqi(
+    summary["Mean_HR (bpm)"] = metrics_hr_sqi(
         info[f"{data_type}_clean_rr_systole"][min_index:max_index], metric="mean"
     )
-    summary["Median_HR"] = metrics_hr_sqi(
+    summary["Median_HR (bpm)"] = metrics_hr_sqi(
         info[f"{data_type}_clean_rr_systole"][min_index:max_index], metric="median"
     )
-    summary["SD_HR"] = metrics_hr_sqi(
+    summary["SD_HR (bpm)"] = metrics_hr_sqi(
         info[f"{data_type}_clean_rr_systole"][min_index:max_index], metric="std"
     )
-    summary["Min_HR"] = metrics_hr_sqi(
+    summary["Min_HR (bpm)"] = metrics_hr_sqi(
         info[f"{data_type}_clean_rr_systole"][min_index:max_index], metric="min"
     )
-    summary["Max_HR"] = metrics_hr_sqi(
+    summary["Max_HR (bpm)"] = metrics_hr_sqi(
         info[f"{data_type}_clean_rr_systole"][min_index:max_index], metric="max"
     )
     # Descriptive indices on overall signal
@@ -385,21 +389,26 @@ def sqi_eda(signal_eda, info, sampling_rate=10000, window=None):
     summary["SD_SCL"] = np.round(np.std(signal_eda["EDA_Tonic"]), 4)
     summary["Median_SCL"] = np.round(np.median(signal_eda["EDA_Tonic"]), 4)
     summary["Min_SCL"] = np.round(np.min(signal_eda["EDA_Tonic"]), 4)
-    summary["Max_SC"] = np.round(np.max(signal_eda["EDA_Tonic"]), 4)
+    summary["Max_SCL"] = np.round(np.max(signal_eda["EDA_Tonic"]), 4)
     # Descriptive indices on SCR
     summary["Mean_SCR"] = np.round(np.mean(signal_eda["EDA_Phasic"]), 4)
     summary["SD_SCR"] = np.round(np.std(signal_eda["EDA_Phasic"]), 4)
     summary["Median_SCR"] = np.round(np.median(signal_eda["EDA_Phasic"]), 4)
     summary["Min_SCR"] = np.round(np.min(signal_eda["EDA_Phasic"]), 4)
     summary["Max_SCR"] = np.round(np.max(signal_eda["EDA_Phasic"]), 4)
-    summary["Number_of_detected_onsets"] = len(info['SCR_Onsets'][min_index:max_index])
     summary["Number_of_detected_peaks"] = len(info['SCR_Peaks'][min_index:max_index])
-    # Descriptive indices on sCR rise time
+    # Descriptive indices on SCR rise time
     summary["Mean_rise_time"] = np.round(np.mean(info['SCR_RiseTime'][min_index:max_index]), 4)
     summary["SD_rise_time"] = np.round(np.std(info['SCR_RiseTime'][min_index:max_index]), 4)
     summary["Median_rise_time"] = np.round(np.median(info['SCR_RiseTime'][min_index:max_index]), 4)
     summary["Min_rise_time"] = np.round(np.min(info['SCR_RiseTime'][min_index:max_index]), 4)
     summary["Max_rise_time"] = np.round(np.max(info['SCR_RiseTime'][min_index:max_index]), 4)
+    # Descriptive indices on SCR Recovery
+    summary["Mean_recovery_time"] = np.round(np.mean(info['SCR_Recovery'][min_index:max_index]), 4)
+    summary["SD_recovery_time"] = np.round(np.std(info['SCR_Recovery'][min_index:max_index]), 4)
+    summary["Median_recovery_time"] = np.round(np.median(info['SCR_Recovery'][min_index:max_index]), 4)
+    summary["Min_recovery_time"] = np.round(np.min(info['SCR_Recovery'][min_index:max_index]), 4)
+    summary["Max_recovery_time"] = np.round(np.max(info['SCR_Recovery'][min_index:max_index]), 4)
 
     return summary
 
@@ -616,7 +625,47 @@ def threshold_sqi(metric, threshold, op=None):
 # Signals quality report
 # ==================================================================================
 
-def generate_report(summary, source, save, filename, window=False):
+def generate_summary(source, sub, ses, filename):
+    # Get task info
+    task_name = [task for task in filename.split("_") if "task" in task]
+    run_number = [run for run in filename.split("_") if "run" in run]
+    if len(run_number) == 0:
+        run_number = task_name
+    # Get session meta data
+    meta_info = [f for f in os.listdir(os.path.join(source, sub)) if ".json" in f]
+    if len(meta_info) == 1 :
+        meta_info = load_json(os.path.join(source, sub, meta_info[0]))
+    else :
+        meta_info = {}
+    source_info = load_json(os.path.join(source, sub, ses, filename+".json"))
+    # Add meta data
+    html_report = f"""
+    <h1>Summary</h1>
+    <ul>
+        <li>Subject ID : {sub.split("-")[1]}</li>
+        <li>Session ID : {ses.split("-")[1]}</li>
+        <li>Task : {task_name[0].split("-")[1]} (run {run_number[0].split("-")[1]})</li>
+    """
+    # Add info about recorded modalities
+    if bool(meta_info):
+        ch = source_info["Columns"]
+        ch.remove("time")
+        ch_names = meta_info[ses]["ch_names"]
+        del ch_names[ch.index("TTL")]
+        del ch[ch.index("TTL")]
+        for c, ch_name in zip(ch, ch_names) : 
+            html_report += f"""
+                <li>{c} (channel - {ch_name})
+                    <ul>
+                        <li style="color:rgb(80,80,80);">Sampling rate: {source_info["SamplingFrequency"]} Hz</li>
+                    </ul>
+                </li>
+            </ul>
+            """
+
+    return html_report
+
+def generate_report(summary, source, derivatives, sub, ses, filename, window=False):
     # Generate the report in HTML format
     html_report = """
     <!DOCTYPE html>
@@ -637,16 +686,16 @@ def generate_report(summary, source, save, filename, window=False):
         background-color: #dddddd;
         }
     </style>
-    <!--<link rel="stylesheet" href="https://pyscript.net/alpha/pyscript.css" />-->
-    <script defer src="https://pyscript.net/alpha/pyscript.js"></script>
+    <script src="https://cdn.bokeh.org/bokeh/release/bokeh-2.3.3.min.js"
+        crossorigin="anonymous"></script>
     </head>
     <body>
-    <h1>Signal Quality Report</h1>    
     """
-    filename_json = os.path.join(source, filename+'.json')
+    html_report += generate_summary(source, sub, ses, filename)
+    filename_json = os.path.join(derivatives, sub, ses, filename+'.json')
     for k in summary.keys():
         html_report += f"""
-        <h2>{k} Signal</h2>
+        <h1>{k} Signal</h1>
         <input type="hidden" id=filenameJson value={filename_json}>
         """
         if window:
@@ -655,7 +704,7 @@ def generate_report(summary, source, save, filename, window=False):
                 dict_window = summary[k]
                 del dict_window['Overview']
                 # Table for overview metrics
-                html_report += "<h3>Overview</h3>"
+                html_report += "<h2>Overview</h2>"
                 # Create table headers
                 headers = list(dict_overview.keys())
                 header_row = "<tr>{}</tr>".format("".join("<th>{}</th>".format(header) for header in headers))
@@ -668,7 +717,7 @@ def generate_report(summary, source, save, filename, window=False):
             else:
                 dict_window = summary[k]
             # Table for window-by-window metrics
-            html_report += "<h3>Windows</h3>"
+            html_report += "<h2>Windows</h2>"
             headers = ["Window"] + list(dict_window[list(dict_window.keys())[0]].keys())
             # Create table headers
             header_row = "<tr>{}</tr>".format("".join("<th>{}</th>".format(header) for header in headers))
@@ -683,7 +732,7 @@ def generate_report(summary, source, save, filename, window=False):
         
         else:
             # Table for overview metrics
-            html_report += "<h3>Overview</h3>"
+            html_report += "<h2>Overview</h2>"
             # Create table headers
             headers = list(summary[k].keys())
             header_row = "<tr>{}</tr>".format("".join("<th>{}</th>".format(header) for header in headers))
@@ -694,59 +743,11 @@ def generate_report(summary, source, save, filename, window=False):
             table = "<table>{}</table>".format(header_row + row)
             html_report += f"<table>{table}</table>"
         # Add interactive plot
-        html_report += "<h3>Plot</h3>"
-        html_report += "[Insert interactive plot]"
-        # Add Visual Qc interactive options
-        html_report += "<h3>Visual Qc</h3>"
-        html_report += """
-        <py-script>
-        from js import console, document
-        import json
-
-        def updateJson(*args, **kwargs):
-            <!--Get the modality-->
-            mod = (args[0].target.id).split("_")[1]
-            <!--Get the values from dropdown menu and text area-->
-            signalSelect = document.getElementById(f"signalSelect_{mod}");
-            visualQc = signalSelect.value
-            commentText = document.getElementById(f"commentText_{mod}");
-            visualQcNotes = commentText.value
-            data = dict()
-            
-            if visualQc != "none" :
-                data["visual_qc"] = visualQc
-            if visualQcNotes != '' :
-                data["visual_qc_notes"] = visualQcNotes
-
-            if len(data.keys()) != 0 :
-                for elem in data :
-                    console.log(mod + "; " + elem + ": " + data[elem])
-                    <!--NEED TO FIX THAT: access local file system-->
-                    <!--Read Json file-->
-                    tmp = open(document.getElementById("filenameJson").value)
-                    data_json = json.load(tmp)
-                    tmp.close()
-                    console.log(data_json)
-                    <!--Write Json file-->
-                    data_json[mod][elem] = data[elem]
-        </py-script>
-        """
-        html_report += f"""
-        <div></div>
-        <form id="signalForm_{k}">
-            <select id="signalSelect_{k}" name="signalQuality">
-                <option value="none">Select signal quality</option>
-                <option value="Good">Good</option>
-                <option value="Acceptable">Acceptable</option>
-                <option value="Unacceptable">Unacceptable</option>
-            </select>
-            <br>
-            <textarea id="commentText_{k}" name="visualQCNotes" placeholder="QC Notes..." rows="4" cols="50"></textarea>
-            <br>
-            <button id="submitQc_{k}" type="button" pys-onClick="updateJson" value="{k}">Submit</button>
-        </form>
-        <div></div>
-        """
+        html_report += "<h2>Plot</h2>"
+        # Generate interactive figure
+        script, div = generate_plot(derivatives, sub, ses, filename, k)
+        html_report += f"{script}"
+        html_report += f"<div>{div}</div>"
 
     # Complete the HTML report
     html_report += """
@@ -756,7 +757,7 @@ def generate_report(summary, source, save, filename, window=False):
 
     # Save the HTML report to a file
     print("Saving html report")
-    with open(os.path.join(save, f"{filename}_quality.html"), "w") as file:
+    with open(os.path.join(derivatives, sub, ses, f"{filename}_quality.html"), "w") as file:
         file.write(html_report)
         file.close()
 
