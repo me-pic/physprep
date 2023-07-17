@@ -401,8 +401,16 @@ def sqi_eda(signal_eda, info, sampling_rate=10000, window=None):
     summary["Mean_rise_time"] = np.round(np.mean(info['SCR_RiseTime'][min_index:max_index]), 4)
     summary["SD_rise_time"] = np.round(np.std(info['SCR_RiseTime'][min_index:max_index]), 4)
     summary["Median_rise_time"] = np.round(np.median(info['SCR_RiseTime'][min_index:max_index]), 4)
-    summary["Min_rise_time"] = np.round(np.min(info['SCR_RiseTime'][min_index:max_index]), 4)
-    summary["Max_rise_time"] = np.round(np.max(info['SCR_RiseTime'][min_index:max_index]), 4)
+    try: 
+        summary["Min_rise_time"] = np.round(np.min(info['SCR_RiseTime'][min_index:max_index]), 4)
+    except Exception : 
+        traceback.print_exc()
+        summary["Min_rise_time"] = np.nan
+    try : 
+        summary["Max_rise_time"] = np.round(np.max(info['SCR_RiseTime'][min_index:max_index]), 4)
+    except Exception :
+        traceback.print_exc()
+        summary["Min_rise_time"] = np.nan
     # Descriptive indices on SCR Recovery
     summary["Mean_recovery_time"] = np.round(np.mean(info['SCR_Recovery'][min_index:max_index]), 4)
     summary["SD_recovery_time"] = np.round(np.std(info['SCR_Recovery'][min_index:max_index]), 4)
