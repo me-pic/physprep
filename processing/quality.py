@@ -660,8 +660,8 @@ def generate_summary(source, sub, ses, filename):
                         <li style="color:rgb(80,80,80);">Sampling rate: {source_info["SamplingFrequency"]} Hz</li>
                     </ul>
                 </li>
-            </ul>
-            """
+                """
+        html_report += "</ul>"
 
     return html_report
 
