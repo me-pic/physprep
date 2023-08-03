@@ -234,7 +234,7 @@ def _ecg_clean_bottenhorn(
     ecg_clean = _comb_band_stop(notches, nyquist, ecg_clean, Q)
     # Low pass filtering at 40Hz per Biopac application note #242
     print("... Applying low pass filtering.")
-    ecg_clean = nk.signal_filter(ecg_signal, sampling_rate=sampling_rate, highcut=40)
+    ecg_clean = nk.signal_filter(ecg_clean, sampling_rate=sampling_rate, highcut=40)
     # bandpass filtering
     ecg_clean = nk.signal_filter(
         ecg_clean,
