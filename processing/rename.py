@@ -13,7 +13,10 @@ import logging
 @click.command()
 @click.argument("indir", type=click.Path(exists=True), required=True)
 @click.argument("sub", type=str, required=True)
-@click.option("--sessions", type=str,)
+@click.option(
+    "--sessions",
+    type=str,
+)
 def co_register_physio(indir, sub, sessions=None):
     """
     Comply to BIDS and co-register functional acquisitions.
@@ -68,7 +71,9 @@ def co_register_physio(indir, sub, sessions=None):
 
         # remove padding trigger for videogames tasks
         if any(game in indir for game in ["mario", "shinobi"]):
-            triggers = [trigger-1 if trigger > 200 else trigger for trigger in triggers]
+            triggers = [
+                trigger - 1 if trigger > 200 else trigger for trigger in triggers
+            ]
 
         # check sanity of info - expected runs is number of runs in BOLD sidecar
         # if info[ses]['expected_runs'] is not info[ses]['processed_runs']:

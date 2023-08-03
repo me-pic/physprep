@@ -13,7 +13,7 @@ import os
 import json
 import pandas as pd
 
-#from systole.plots import plot_raw
+# from systole.plots import plot_raw
 import neurokit2 as nk
 from scipy import signal
 
@@ -21,6 +21,7 @@ from bokeh.io import output_notebook
 from bokeh.embed import components
 from bokeh.layouts import row, gridplot, column
 from bokeh.plotting import show, output_file, figure, save
+
 output_notebook()
 
 
@@ -30,11 +31,14 @@ def load_json(filename):
     tmp.close()
     return data
 
+
 def load_data(outdir, sub, ses):
     path = os.path.join(outdir, sub, ses)
-    files = [f.split(".")[0] for f in os.listdir(path) if "tsv.gz" in f and "noseq" not in f]
+    files = [
+        f.split(".")[0] for f in os.listdir(path) if "tsv.gz" in f and "noseq" not in f
+    ]
     files.sort()
-    
+   
     data, data_noseq, info = [], [], []
     for f in files:
         print(f)
@@ -43,6 +47,7 @@ def load_data(outdir, sub, ses):
         info.append(load_json(os.path.join(outdir, sub, ses, f+".json")))
 
     return data, data_noseq, files, info
+
 
 def plot_scr(
     signal: np.ndarray = None,
@@ -54,12 +59,10 @@ def plot_scr(
     """
     Visualization of phasic component of the EDA signal.
     """
-    time = pd.to_datetime(np.arange(0, len(signal))/sfreq, unit='s')
-    
-    source = ColumnDataSource(
-        data={"time": time, "signal": signal}
-    )
-    
+    time = pd.to_datetime(np.arange(0, len(signal)) / sfreq, unit="s")
+
+    source = ColumnDataSource(data={"time": time, "signal": signal})
+
     p1 = figure(
         title="Skin conductance response",
         sizing_mode="stretch_width",
@@ -71,7 +74,7 @@ def plot_scr(
         tools="pan,wheel_zoom,box_zoom,box_select,reset,save",
         x_range=(time[0], time[-1]),
     )
-    
+
     p1.line(
         "time",
         "signal",
@@ -79,31 +82,32 @@ def plot_scr(
         legend_label="SCR",
         line_color="#3783a9",
     )
-    
+
     p1.circle(
         x=time[peaks],
         y=signal[peaks],
         size=5,
         legend_label="SCR - Peaks",
         fill_color="#c56c5e",
-        line_color="black"
+        line_color="black",
     )
-    
+
     p1.circle(
         x=time[onsets],
         y=signal[onsets],
         size=5,
         legend_label="SCR - Onsets",
         fill_color="#6c0073",
-        line_color="black"
+        line_color="black",
     )
-    
+
     cols = (p1,)
 
     if len(cols) > 1:
         return columns(*cols, sizing_mode="stretch_width")
     else:
         return cols[0]
+
 
 def plot_raw(
     signal: np.ndarray,
@@ -112,8 +116,8 @@ def plot_raw(
     time: DatetimeIndex = None,
     peaks: np.ndarray = None,
     onsets: np.ndarray = None,
-    detector : str = None,
-    sfreq : int = None,
+    detector: str = None,
+    sfreq: int = None,
     modality: str = "ppg",
     title: str = "Figure",
     show_heart_rate: bool = True,
@@ -123,7 +127,7 @@ def plot_raw(
     slider: bool = True,
     figsize: int = 300,
     events_params: Optional[Dict] = None,
-    **kwargs
+    **kwargs,
 ) -> figure:
     """Visualization of PPG or ECG signal with systolic peaks/R wave detection.
 
@@ -135,9 +139,9 @@ def plot_raw(
         The time index.
     signal :
         The physiological signal (1d numpy array).
-    eda_scr : 
+    eda_scr :
         The skin conductance response component associated with EDA signal (1d numpy array).
-    eda_scl : 
+    eda_scl :
         The skin conductance level component associate with the EDA signal (1d numpy array).
     peaks :
         The peaks or R wave detection (1d boolean array).
@@ -177,19 +181,22 @@ def plot_raw(
         The bokeh figure containing the plot.
 
     """
-    
+
     eda_strings = ["eda", "gsr", "electrodermal", "electrodermal activity"]
-    
+
     if figsize is None:
         figsize = 300
-    
-    #if time is None:
-    time = pd.to_datetime(np.arange(0, len(signal))/sfreq, unit='s')
 
-    
+    # if time is None:
+    time = pd.to_datetime(np.arange(0, len(signal)) / sfreq, unit="s")
+
     if peaks is not None:
         source = ColumnDataSource(
-            data={"time": time[::decim], "signal": signal[::decim], "peaks": peaks[::decim]}
+            data={
+                "time": time[::decim],
+                "signal": signal[::decim],
+                "peaks": peaks[::decim],
+            }
         )
     else:
         source = ColumnDataSource(
@@ -197,22 +204,22 @@ def plot_raw(
         )
 
     if modality in ppg_strings:
-        #title = "PPG recording"
+        # title = "PPG recording"
         ylabel = "PPG level (a.u.)"
         peaks_label = "Systolic peaks"
         signal_label = "PPG signal"
     elif modality in ecg_strings:
-        #title = "ECG recording"
+        # title = "ECG recording"
         ylabel = "ECG (mV)"
         peaks_label = "R wave"
         signal_label = "ECG signal"
     elif modality in resp_strings:
-        #title = "Respiration"
+        # title = "Respiration"
         ylabel = "Respiratory signal"
         peaks_label = "End of inspiration"
         signal_label = "Respiratory signal"
     elif modality in eda_strings:
-        #title = "EDA recording"
+        # title = "EDA recording"
         ylabel = "EDA (uSiemens)"
         peaks_label = "SCR Peaks"
         signal_label = "EDA signal"
@@ -239,7 +246,7 @@ def plot_raw(
         legend_label=signal_label,
         line_color="#a9373b",
     )
-    
+
     if eda_scl is not None:
         raw.line(
             "time",
@@ -250,7 +257,7 @@ def plot_raw(
             legend_label="Skin Conductance Level",
             line_color="#37a98b",
         )
-    
+
     if peaks is not None and modality not in eda_strings:
         raw.circle(
             x=time[peaks],
@@ -260,7 +267,7 @@ def plot_raw(
             fill_color="lightgrey",
             line_color="grey",
         )
-        
+
     raw.legend.title = "Signal"
 
     cols = (raw,)
@@ -294,18 +301,13 @@ def plot_raw(
         instantaneous_hr.x_range = raw.x_range
 
         cols += (instantaneous_hr,)  # type: ignore
-    
+
     if peaks is not None and modality in eda_strings:
-        scr = plot_scr(
-            eda_scr,
-            peaks.astype(bool),
-            onsets.astype(bool),
-            sfreq
-        )
+        scr = plot_scr(eda_scr, peaks.astype(bool), onsets.astype(bool), sfreq)
         scr.x_range = raw.x_range
-    
+
         cols += (scr,)
-        
+
     if slider is True:
         select = figure(
             title="Select the time window",
@@ -384,7 +386,7 @@ def generate_plot(source, sub, ses, filename, modality):
 def generate_raw_filtered_plots(outdir, sub, ses, modality):
     """
     Generate interactive plots for each modality
-    
+
     Parameters
     ----------
     outdir : str
@@ -395,7 +397,7 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
         The id of the subject.
     ses : str
         The id of the session.
-    modality : list 
+    modality : list
         A list containing the biosignal modalities to plot.
         The options include "ECG", "PPG", "EDA", and "RSP".
     
@@ -411,9 +413,9 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
 
     data, data_noseq, filenames,info = load_data(outdir, sub, ses)
     outdir = os.path.join(outdir, sub, ses)
-    
+
     for i, filename in enumerate(filenames):
-        figures = [] 
+        figures = []
         idx = 0
         print(f"Generate plots for {filename}")
         for mod in modality:
@@ -426,9 +428,9 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
                         signal=data_noseq[i][mod],
                         sfreq=10000,
                         modality=mod.lower(),
-                        title = f"{mod} : Scanner off - Raw",
-                        show_heart_rate = False,
-                        show_artefacts=True
+                        title=f"{mod} : Scanner off - Raw",
+                        show_heart_rate=False,
+                        show_artefacts=True,
                     )
                 )
                 idx += 1
@@ -442,9 +444,9 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
                         signal=data[i][f"{mod}_Raw"],
                         sfreq=info[i][mod]['sampling_rate'],
                         modality=mod.lower(),
-                        title = f"{mod} : Scanner on - Raw",
-                        show_heart_rate = False,
-                        show_artefacts=True
+                        title=f"{mod} : Scanner on - Raw",
+                        show_heart_rate=False,
+                        show_artefacts=True,
                     )
                 )
                 idx += 1
@@ -460,9 +462,9 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
                             peaks = data[i][f"{mod}_Peaks"].astype(bool),
                             sfreq=info[i][mod]['sampling_rate'],
                             modality="resp",
-                            title = f"{mod} : Scanner on - Clean",
-                            show_heart_rate = False,
-                            show_artefacts=True
+                            title=f"{mod} : Scanner on - Clean",
+                            show_heart_rate=False,
+                            show_artefacts=True,
                         )
                     )
                     idx += 1
@@ -479,9 +481,9 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
                             onsets = data[i]["SCR_Onsets"],
                             sfreq=info[i][mod]['sampling_rate'],
                             modality="eda",
-                            title = f"{mod} : Scanner on - Clean",
-                            show_heart_rate = False,
-                            show_artefacts=True
+                            title=f"{mod} : Scanner on - Clean",
+                            show_heart_rate=False,
+                            show_artefacts=True,
                         )
                     )
                     idx += 1
@@ -495,9 +497,9 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
                             peaks =data[i][f"{mod}_Peaks_NK"].astype(bool),
                             sfreq=info[i][mod]['sampling_rate'],
                             modality=mod.lower(),
-                            title = f"{mod} : Scanner on - Clean",
+                            title=f"{mod} : Scanner on - Clean",
                             show_heart_rate=True,
-                            show_artefacts=True
+                            show_artefacts=True,
                         )
                     )
                     idx += 1
@@ -509,7 +511,11 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
                 print(f"Could not plot {mod} signal")
 
         # Organize figures in grid containing 3 columns (Raw: scanner OFF; Raw: scanner ON; Clean: scanner ON)
-        layout = gridplot(children = [[figures[i] for i in range(j, j+3)] for j in range(0, idx-1, 3)])
+        layout = gridplot(
+            children=[
+                [figures[i] for i in range(j, j + 3)] for j in range(0, idx - 1, 3)
+            ]
+        )
 
         # Save generate figure in html
         output_file(outdir + f"/{filename}_plot.html")

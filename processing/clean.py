@@ -41,8 +41,12 @@ def neuromod_ppg_clean(ppg_signal, sampling_rate=10000.0, downsampling=None):
     )
     # Downsample the signal if specified
     if downsampling is not None:
-        ppg_clean = nk.signal_resample(ppg_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
-        ppg_signal = nk.signal_resample(ppg_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
+        ppg_clean = nk.signal_resample(
+            ppg_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+        )
+        ppg_signal = nk.signal_resample(
+            ppg_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+        )
 
     return ppg_signal, ppg_clean
 
@@ -52,7 +56,9 @@ def neuromod_ppg_clean(ppg_signal, sampling_rate=10000.0, downsampling=None):
 # =======================================================================
 
 
-def neuromod_ecg_clean(ecg_signal, sampling_rate=10000.0, method="biopac", me=False, downsampling=None):
+def neuromod_ecg_clean(
+    ecg_signal, sampling_rate=10000.0, method="biopac", me=False, downsampling=None
+):
     """
     Clean an ECG signal.
 
@@ -100,9 +106,13 @@ def neuromod_ecg_clean(ecg_signal, sampling_rate=10000.0, method="biopac", me=Fa
         )
     # Downsample the signal if specified
     if downsampling is not None:
-        ecg_clean = nk.signal_resample(ecg_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
-        ecg_signal = nk.signal_resample(ecg_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
-        
+        ecg_clean = nk.signal_resample(
+            ecg_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+        )
+        ecg_signal = nk.signal_resample(
+            ecg_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+        )
+
     return ecg_signal, ecg_clean
 
 
@@ -168,7 +178,9 @@ def _ecg_clean_biopac(ecg_signal, sampling_rate=10000.0, tr=1.49, slices=60, Q=1
     return ecg_clean
 
 
-def _ecg_clean_bottenhorn(ecg_signal, sampling_rate=10000.0, tr=1.49, mb=4, slices=60, Q=100):
+def _ecg_clean_bottenhorn(
+    ecg_signal, sampling_rate=10000.0, tr=1.49, mb=4, slices=60, Q=100
+):
     """
     Multiband sequence gradient noise reduction.
 
@@ -274,8 +286,12 @@ def neuromod_eda_clean(eda_signal, sampling_rate=10000.0, downsampling=None):
     eda_clean = nk.eda_clean(eda_signal, sampling_rate=sampling_rate)
     # Downsample the signal if specified
     if downsampling is not None:
-        eda_clean = nk.signal_resample(eda_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
-        eda_signal = nk.signal_resample(eda_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
+        eda_clean = nk.signal_resample(
+            eda_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+        )
+        eda_signal = nk.signal_resample(
+            eda_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+        )
 
     return eda_signal, eda_clean
 
@@ -305,20 +321,26 @@ def neuromod_rsp_clean(rsp_signal, sampling_rate=10000.0, downsampling=None):
 
     References
     ----------
-    Khodadad, D., Nordebo, S., Müller, B., Waldmann, A., Yerworth, R., Becher, T., ... & Bayford, R. (2018). 
-        Optimized breath detection algorithm in electrical impedance tomography. Physiological measurement, 
+    Khodadad, D., Nordebo, S., Müller, B., Waldmann, A., Yerworth, R., Becher, T., ... & Bayford, R. (2018).
+        Optimized breath detection algorithm in electrical impedance tomography. Physiological measurement,
         39(9), 094001.
     """
     # Apply bandpass filter
-    rsp_clean = nk.rsp_clean(rsp_signal, sampling_rate=sampling_rate, method='khodadad2018')
+    rsp_clean = nk.rsp_clean(
+        rsp_signal, sampling_rate=sampling_rate, method="khodadad2018"
+    )
     # Downsample the signal if specified
     if downsampling is not None:
-        rsp_clean = nk.signal_resample(rsp_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
-        rsp_signal = nk.signal_resample(rsp_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling)
+        rsp_clean = nk.signal_resample(
+            rsp_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+        )
+        rsp_signal = nk.signal_resample(
+            rsp_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+        )
 
     return rsp_signal, rsp_clean
 
-    
+
 # =============================================================================
 # General functions
 # =============================================================================

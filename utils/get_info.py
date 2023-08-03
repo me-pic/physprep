@@ -14,6 +14,7 @@ import fnmatch
 import pandas as pd
 from list_sub import list_sub
 from neurokit2 import read_acqknowledge
+
 LGR = logging.getLogger(__name__)
 
 
@@ -48,7 +49,7 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
         raise ValueError("Couldn't find the following directory: ", root)
 
     # List the files that have to be counted
-    if ses == 'files':
+    if ses == "files":
         ses = None
     dirs = list_sub(root, sub, ses)
     ses_runs = {}
@@ -58,7 +59,7 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
         LGR.info(f"counting volumes in physio file for: {exp}")
         for file in sorted(dirs[exp]):
             # reading acq
-            if exp == 'files':
+            if exp == "files":
                 path_to_file = os.path.join(root, sub, file)
             else:
                 path_to_file = os.path.join(root, sub, exp, file)
@@ -68,7 +69,7 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
                 trigger_index = list(bio_df.columns).index(trigger_ch)
                 # initialize a df with TTL values over 4 (switch either ~0 or ~5)
             else:
-                trigger_index = list(bio_df.columns).index('TTL')
+                trigger_index = list(bio_df.columns).index("TTL")
                 # initialize a df with TTL values over 4 (switch either ~0 or ~5)
             query_df = bio_df[bio_df[bio_df.columns[trigger_index]] > 4]
 
@@ -148,7 +149,15 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
 @click.option("--tr_channel", type=str, default=None, required=False)
 @click.option("--scanning_sheet", type=str)
 def call_get_info(
-    root, sub, ses=None, count_vol=False, show=True, save=None, tr=None, tr_channel=None, scanning_sheet=None,
+    root,
+    sub,
+    ses=None,
+    count_vol=False,
+    show=True,
+    save=None,
+    tr=None,
+    tr_channel=None,
+    scanning_sheet=None,
 ):
     """
     Call `get_info` function only if `get_info.py` is called as CLI
@@ -160,7 +169,15 @@ def call_get_info(
 
 
 def get_info(
-    root, sub, ses=None, count_vol=False, show=True, save=None, tr=None, tr_channel=None, scanning_sheet=None,
+    root,
+    sub,
+    ses=None,
+    count_vol=False,
+    show=True,
+    save=None,
+    tr=None,
+    tr_channel=None,
+    scanning_sheet=None,
 ):
     """
     Get all volumes taken for a sub.
@@ -242,7 +259,7 @@ def get_info(
         if ses_info[exp] == []:
             LGR.info("No acq file found for this session")
             continue
-        elif exp == 'files':
+        elif exp == "files":
             LGR.info("No SES IDs")
             path_to_nifti = os.path.join(root, sub, "func")
             path_to_source = os.path.join(root, "sourcedata/physio", sub)
@@ -260,8 +277,8 @@ def get_info(
         matches.sort()
         # iterate through _bold.json
         for idx, filename in enumerate(matches):
-            if exp == 'files':
-                task = filename.find(f"func/{sub}")+12
+            if exp == "files":
+                task = filename.find(f"func/{sub}") + 12
             else:
                 task = filename.rfind(f"{exp}_") + 8
             task_end = filename.rfind("_")
@@ -279,18 +296,24 @@ def get_info(
                 pprintpp.pprint(f"{exp} .json info non-existant")
                 if scanning_sheet is not None:
                     pprintpp.pprint(f"checking scanning sheet for {sub}/{exp}")
-                    df_sheet=pd.read_csv(scanning_sheet)
-                    vol_idx=df_sheet[df_sheet[sub]==f"p{sub[-2:]}_friends{exp[-3:]}"].index+idx
-                    vols=int(df_sheet["#volumes"].iloc[vol_idx])
-                    nb_expected_volumes_run[f'{idx+1:02d}']=vols
+                    df_sheet = pd.read_csv(scanning_sheet)
+                    vol_idx = (
+                        df_sheet[
+                            df_sheet[sub] == f"p{sub[-2:]}_friends{exp[-3:]}"
+                        ].index
+                        + idx
+                    )
+                    vols = int(df_sheet["#volumes"].iloc[vol_idx])
+                    nb_expected_volumes_run[f"{idx+1:02d}"] = vols
                 # log that we are unable to run the thing
                 else:
                     LGR.info(f"Cannot access Nifti BIDS metadata nor scanninf sheet")
                     continue
 
-
         # print the thing to show progress
-        LGR.info(f"Nifti BIDS metadata; number of volumes per run:\n{nb_expected_volumes_run}")
+        LGR.info(
+            f"Nifti BIDS metadata; number of volumes per run:\n{nb_expected_volumes_run}"
+        )
         # push all info in run in dict
         nb_expected_runs[exp] = {}
         # the nb of expected volumes in each run of the session (embedded dict)
@@ -312,14 +335,11 @@ def get_info(
             # count volumes
             try:
                 # do not count the triggers in phys file if no physfile
-                if (
-                    os.path.isfile(
-                        os.path.join(path_to_source, name[0])
+                if os.path.isfile(os.path.join(path_to_source, name[0])) is False:
+                    LGR.info(
+                        f"cannot find session directory for sourcedata :\n"
+                        f"{os.path.join(root, 'sourcedata/physio', sub, exp, name[0])}"
                     )
-                    is False
-                ):
-                    LGR.info(f"cannot find session directory for sourcedata :\n"
-                        f"{os.path.join(root, 'sourcedata/physio', sub, exp, name[0])}")
                 else:
                     # count the triggers in physfile otherwise
                     try:
@@ -360,7 +380,7 @@ def get_info(
         if os.path.exists(os.path.join(save, sub)) is False:
             os.mkdir(os.path.join(save, sub))
         filename = f"{sub}_volumes_all-ses-runs.json"
-        with open(os.path.join(save, sub, filename), 'w') as f:
+        with open(os.path.join(save, sub, filename), "w") as f:
             json.dump(nb_expected_runs, f, indent=4)
     return nb_expected_runs
 
