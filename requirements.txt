@@ -5,3 +5,5 @@ numpy
 pprintpp
 bids
 click
+systole
+bokeh==2.4.0

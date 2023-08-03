@@ -176,6 +176,7 @@ def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={'duration': 60, 'st
             print("***Generating report***")
             generate_report(summary, source, derivatives, sub, ses, f"{filename.split('/')[-1]}", window=True)      
 
+
 # ==================================================================================
 # Utils
 # ==================================================================================
@@ -260,7 +261,7 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000, mean
         The sampling frequency of `signal` (in Hz, i.e., samples/second).
         Default to 10000.
     mean_NN : list
-        Range to consider to evaluate the quality of the signal based on the 
+        Range to consider to evaluate the quality of the signal based on the
         mean NN interval.
     std_NN : int or float
         Value to consider to evaluate the quality if the signal based on the
@@ -448,16 +449,23 @@ def sqi_rsp(signal_rsp, sampling_rate=10000, mean_rate=0.5):
     summary["SD_Amp"] = np.round(np.std(signal_rsp["RSP_Amplitude"]), 4)
     summary["Min_Amp"] = np.round(np.min(signal_rsp["RSP_Amplitude"]), 4)
     summary["CV_Amp"] = np.round(np.max(signal_rsp["RSP_Amplitude"]), 4)
-    summary["variability_Amp"] = np.round(np.std(signal_rsp["RSP_Amplitude"])/np.mean(signal_rsp["RSP_Amplitude"]), 4)
+    summary["variability_Amp"] = np.round(
+        np.std(signal_rsp["RSP_Amplitude"]) / np.mean(signal_rsp["RSP_Amplitude"]), 4
+    )
     # Descriptive indices on signal rate
     summary["Mean_Rate"] = np.round(np.mean(signal_rsp["RSP_Rate"]), 4)
     summary["Median_Rate"] = np.round(np.median(signal_rsp["RSP_Rate"]), 4)
     summary["SD_Rate"] = np.round(np.std(signal_rsp["RSP_Rate"]), 4)
     summary["Min_Rate"] = np.round(np.min(signal_rsp["RSP_Rate"]), 4)
     summary["Max_Rate"] = np.round(np.max(signal_rsp["RSP_Rate"]), 4)
-    summary["CV_Rate"] = np.round(np.std(signal_rsp["RSP_Rate"])/np.mean(signal_rsp["RSP_Rate"]), 4)
+    summary["CV_Rate"] = np.round(
+        np.std(signal_rsp["RSP_Rate"]) / np.mean(signal_rsp["RSP_Rate"]), 4
+    )
     # Quality assessment based on the mean respiratory rate
-    if threshold_sqi(np.mean(signal_rsp["RSP_Rate"])/60, mean_rate, operator.lt) == "Acceptable": 
+    if (
+        threshold_sqi(np.mean(signal_rsp["RSP_Rate"]) / 60, mean_rate, operator.lt)
+        == "Acceptable"
+    ):
         summary["Quality"] = "Acceptable"
     else:
         summary["Quality"] = "Not acceptable"
@@ -581,7 +589,7 @@ def rac_sqi(signal, threshold, duration=2):
     rac_ratio = np.count_nonzero(np.array(rac_values) > threshold) / len(signal)
 
     return np.round(rac_ratio, 4)
-
+  
 
 def threshold_sqi(metric, threshold, op=None):
     """
@@ -599,7 +607,7 @@ def threshold_sqi(metric, threshold, op=None):
         Operator to use for the comparaison between the `metric` and the `threshold`.
         Only considered if `threshold` is a int or a float.
         See https://docs.python.org/2/library/operator.html#module-operator
-        for all the possible operators. 
+        for all the possible operators.
 
     Returns
     -------
@@ -617,17 +625,20 @@ def threshold_sqi(metric, threshold, op=None):
     """
     if type(threshold) == list:
         if len(threshold) != 2:
-            print("Length of threshold should be 2 to set a range, otherwise pass an int or a float.")
+            print(
+                "Length of threshold should be 2 to set a range, otherwise pass an int or a float."
+            )
         # Check if `metric` is within the range of values defined in `threshold`
         elif min(threshold) <= metric <= max(threshold):
             return "Acceptable"
-        else :
+        else:
             return "Not acceptable"
-    else :
+    else:
         if op(metric, threshold):
             return "Acceptable"
         else:
             return "Not acceptable"
+
 
 # ==================================================================================
 # Signals quality report
