@@ -1,5 +1,7 @@
 from typing import Dict, List, Optional, Tuple
+import traceback
 
+import click
 import numpy as np
 from bokeh.models import BoxAnnotation, ColumnDataSource, RangeTool
 from pandas.core.indexes.datetimes import DatetimeIndex
@@ -16,6 +18,7 @@ import neurokit2 as nk
 from scipy import signal
 
 from bokeh.io import output_notebook
+from bokeh.embed import components
 from bokeh.layouts import row, gridplot, column
 from bokeh.plotting import show, output_file, figure, save
 output_notebook()
@@ -32,13 +35,14 @@ def load_data(outdir, sub, ses):
     files = [f.split(".")[0] for f in os.listdir(path) if "tsv.gz" in f and "noseq" not in f]
     files.sort()
     
-    data, data_noseq = [], []
+    data, data_noseq, info = [], [], []
     for f in files:
         print(f)
         data.append(pd.read_csv(os.path.join(outdir, sub, ses, f+".tsv.gz"), sep="\t"))
         data_noseq.append(pd.read_csv(os.path.join(outdir, sub, ses, f+"_noseq.tsv.gz"), sep="\t"))
+        info.append(load_json(os.path.join(outdir, sub, ses, f+".json")))
 
-    return data, data_noseq, files
+    return data, data_noseq, files, info
 
 def plot_scr(
     signal: np.ndarray = None,
@@ -329,14 +333,55 @@ def plot_raw(
     else:
         return cols[0]
 
+def generate_plot(source, sub, ses, filename, modality):
+    data = pd.read_csv(os.path.join(source, sub, ses, filename+".tsv.gz"), sep="\t")
+    info = load_json(os.path.join(source, sub, ses, filename+".json"))
+
+    print(f"Plotting Clean signal with scanner on: {modality} begin")
+    try:
+        # Plot cleaned signal during MRI sequence
+        if modality == "RSP":
+            figure = plot_raw(
+                signal=data[f"{modality}_Clean"],
+                peaks = data[f"{modality}_Peaks"].astype(bool),
+                sfreq=info[modality]['sampling_rate'],
+                modality="resp",
+                title = f"{modality} : Scanner on - Clean",
+                show_heart_rate = False,
+                show_artefacts=True
+                )
+        elif modality == "EDA":
+            figure = plot_raw(
+                signal=data["EDA_Clean"],
+                eda_scr=data["EDA_Phasic"],
+                eda_scl=data["EDA_Tonic"],
+                peaks = data["SCR_Peaks"],
+                onsets = data["SCR_Onsets"],
+                sfreq=info[modality]['sampling_rate'],
+                modality="eda",
+                title = f"{modality} : Scanner on - Clean",
+                show_heart_rate = False,
+                show_artefacts=True
+                )
+        elif modality in ["ECG", "PPG"]:
+            figure = plot_raw(
+                signal=data[f"{modality}_Clean"],
+                peaks =data[f"{modality}_Peaks_NK"].astype(bool),
+                sfreq=info[modality]['sampling_rate'],
+                modality=modality.lower(),
+                title = f"{modality} : Scanner on - Clean",
+                show_heart_rate=True,
+                show_artefacts=True
+                )
+        print(f"Plotting Clean signal with scanner on: {modality} done")
+    except Exception:
+        print(f"Could not plot {modality} signal")
+        traceback.print_exc()
+
+    return components(figure)
 
 
-@click.command()
-@click.argument("outdir", type=str)
-@click.argument("sub", type=str)
-@click.argument("ses", type=str)
-#@click.argument("modality")
-def generate_plot(outdir, sub, ses): #, modality):
+def generate_raw_filtered_plots(outdir, sub, ses, modality):
     """
     Generate interactive plots for each modality
     
@@ -353,15 +398,25 @@ def generate_plot(outdir, sub, ses): #, modality):
     modality : list 
         A list containing the biosignal modalities to plot.
         The options include "ECG", "PPG", "EDA", and "RSP".
+    
+    Examples
+    --------
+    In script
+    >>> generate_plot(outdir="/home/user/dataset/derivatives/", sub="sub-01", ses="ses-001", modality=["PPG", "ECG", "EDA", "RSP"])
+    In terminal
+    >>> python plot_signals.py /home/user/dataset/derivatives/ sub-01 --ses ses-001 --modality '["PPG", "ECG", "EDA", "RSP"]'
+    NOTE: to specify the `modality` using the CLI, use the single quote ('') just like the example above.
     """
-    data, data_noseq, filenames = load_data(outdir, sub, ses)
+    modality = json.loads(modality)
+
+    data, data_noseq, filenames,info = load_data(outdir, sub, ses)
     outdir = os.path.join(outdir, sub, ses)
     
     for i, filename in enumerate(filenames):
         figures = [] 
         idx = 0
         print(f"Generate plots for {filename}")
-        for mod in ["PPG", "ECG", "RSP", "EDA"]:
+        for mod in modality:
             tmp=0
             try:
                 # Plot raw signal before MRI sequence
@@ -385,7 +440,7 @@ def generate_plot(outdir, sub, ses): #, modality):
                 figures.append(
                     plot_raw(
                         signal=data[i][f"{mod}_Raw"],
-                        sfreq=1000,
+                        sfreq=info[i][mod]['sampling_rate'],
                         modality=mod.lower(),
                         title = f"{mod} : Scanner on - Raw",
                         show_heart_rate = False,
@@ -403,7 +458,7 @@ def generate_plot(outdir, sub, ses): #, modality):
                         plot_raw(
                             signal=data[i][f"{mod}_Clean"],
                             peaks = data[i][f"{mod}_Peaks"].astype(bool),
-                            sfreq=1000,
+                            sfreq=info[i][mod]['sampling_rate'],
                             modality="resp",
                             title = f"{mod} : Scanner on - Clean",
                             show_heart_rate = False,
@@ -422,7 +477,7 @@ def generate_plot(outdir, sub, ses): #, modality):
                             eda_scl=data[i]["EDA_Tonic"],
                             peaks = data[i]["SCR_Peaks"],
                             onsets = data[i]["SCR_Onsets"],
-                            sfreq=1000,
+                            sfreq=info[i][mod]['sampling_rate'],
                             modality="eda",
                             title = f"{mod} : Scanner on - Clean",
                             show_heart_rate = False,
@@ -438,7 +493,7 @@ def generate_plot(outdir, sub, ses): #, modality):
                         plot_raw(
                             signal=data[i][f"{mod}_Clean"],
                             peaks =data[i][f"{mod}_Peaks_NK"].astype(bool),
-                            sfreq=1000,
+                            sfreq=info[i][mod]['sampling_rate'],
                             modality=mod.lower(),
                             title = f"{mod} : Scanner on - Clean",
                             show_heart_rate=True,
@@ -459,6 +514,7 @@ def generate_plot(outdir, sub, ses): #, modality):
         # Save generate figure in html
         output_file(outdir + f"/{filename}_plot.html")
         save(layout)
+
 
 
 if __name__ == "__main__":
