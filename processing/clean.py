@@ -179,7 +179,7 @@ def _ecg_clean_biopac(ecg_signal, sampling_rate=10000.0, tr=1.49, slices=60, Q=1
 
 
 def _ecg_clean_bottenhorn(
-    ecg_signal, sampling_rate=10000.0, tr=1.49, mb=4, slices=60, Q=100
+    ecg_signal, sampling_rate=10000.0, tr=1.49, mb=4, slices=60, Q=100, comb=False
 ):
     """
     Multiband sequence gradient noise reduction.
@@ -230,20 +230,12 @@ def _ecg_clean_bottenhorn(
         ecg_signal, sampling_rate=sampling_rate, lowcut=2, method="butter"
     )
     # Filtering at fundamental and specific harmonics per Biopac application note #265
-    print("... Applying notch filter.")
-    ecg_clean = _comb_band_stop(notches, nyquist, ecg_clean, Q)
+    if comb:
+        print("... Applying notch filter.")
+        ecg_clean = _comb_band_stop(notches, nyquist, ecg_clean, Q)
     # Low pass filtering at 40Hz per Biopac application note #242
     print("... Applying low pass filtering.")
     ecg_clean = nk.signal_filter(ecg_clean, sampling_rate=sampling_rate, highcut=40)
-    # bandpass filtering
-    ecg_clean = nk.signal_filter(
-        ecg_clean,
-        sampling_rate=sampling_rate,
-        lowcut=2,
-        highcut=20,
-        method="butter",
-        order=5,
-    )
 
     return ecg_clean
 
