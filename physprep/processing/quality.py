@@ -15,8 +15,8 @@ from pathlib import Path
 from bokeh.plotting import figure, show
 from scipy.stats import kurtosis, skew
 
-sys.path.insert(1, os.path.join(os.getcwd(), 'visu'))
-from plot_signals import generate_plot
+#sys.path.insert(1, os.path.join(os.getcwd(), 'visu'))
+from visu.plot_signals import generate_plot
 
 @click.command()
 @click.argument("source", type=str)
