@@ -159,9 +159,7 @@ def _ecg_clean_biopac(ecg_signal, sampling_rate=10000.0, tr=1.49, slices=60, Q=1
     notches = {"slices": slices / tr, "tr": 1 / tr}
     # remove baseline wandering
     ecg_clean = nk.signal_filter(
-        ecg_signal,
-        sampling_rate=int(sampling_rate),
-        lowcut=2,
+        ecg_signal, sampling_rate=int(sampling_rate), lowcut=2,
     )
     # Filtering at specific harmonics
     ecg_clean = _comb_band_stop(notches, nyquist, ecg_clean, Q)

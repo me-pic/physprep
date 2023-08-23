@@ -15,8 +15,9 @@ from pathlib import Path
 from bokeh.plotting import figure, show
 from scipy.stats import kurtosis, skew
 
-#sys.path.insert(1, os.path.join(os.getcwd(), 'visu'))
-from visu.plot_signals import generate_plot
+sys.path.insert(1, os.path.join(os.getcwd(), 'visu'))
+from plot_signals import generate_plot
+
 
 @click.command()
 @click.argument("source", type=str)
@@ -24,7 +25,9 @@ from visu.plot_signals import generate_plot
 @click.argument("sub", type=str)
 @click.argument("ses", type=str)
 @click.argument("sliding", type=str)
-def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={'duration': 60, 'step': 10}):
+def neuromod_bio_sqi(
+    source, derivatives, sub, ses, sliding={"duration": 60, "step": 10}
+):
     """
     Run processing QC-ing pipeline on specified biosignals, and generate an html report
     containing the quality metrics.
@@ -60,7 +63,11 @@ def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={'duration': 60, 'st
     sliding = json.loads(sliding)
 
     filenames = glob.glob(os.path.join(derivatives, sub, ses, "*_physio*"))
-    filenames_signal = [f for f in filenames if ''.join(Path(f).suffixes) == ".tsv.gz" and "noseq" not in f]
+    filenames_signal = [
+        f
+        for f in filenames
+        if "".join(Path(f).suffixes) == ".tsv.gz" and "noseq" not in f
+    ]
     filenames_signal.sort()
 
     for idx, f in enumerate(filenames_signal):
@@ -69,35 +76,56 @@ def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={'duration': 60, 'st
 
         signal = pd.read_csv(os.path.join(derivatives, sub, ses, f), sep="\t")
         summary, summary_ppg, summary_ecg, summary_eda, summary_rsp = {}, {}, {}, {}, {}
-        print(
-            f"---QCing on {f.split('/')[-1]}---"
-        )
+        print(f"---QCing on {f.split('/')[-1]}---")
         # Compute metrics on the unsegmented signal
         if not sliding:
             for modality in list(info.keys()):
                 print(f"***Computing quality metrics for {modality} signal***")
-                try: 
+                try:
                     if modality in ["PPG", "ECG"]:
-                        summary[modality] = sqi_cardiac_overview(info[modality], data_type=modality)
-                        summary[modality].update(sqi_cardiac(signal[f"{modality}_Clean"], info[modality], data_type=modality, sampling_rate=info[modality]["sampling_rate"]))
+                        summary[modality] = sqi_cardiac_overview(
+                            info[modality], data_type=modality
+                        )
+                        summary[modality].update(
+                            sqi_cardiac(
+                                signal[f"{modality}_Clean"],
+                                info[modality],
+                                data_type=modality,
+                                sampling_rate=info[modality]["sampling_rate"],
+                            )
+                        )
                     if modality == "EDA":
-                        summary["EDA"] = sqi_eda(signal, info["EDA"], sampling_rate=info["EDA"]["sampling_rate"])
+                        summary["EDA"] = sqi_eda(
+                            signal,
+                            info["EDA"],
+                            sampling_rate=info["EDA"]["sampling_rate"],
+                        )
                     if modality == "RSP":
-                        summary["RSP"] = sqi_rsp(signal, sampling_rate=info["RSP"]["sampling_rate"])
+                        summary["RSP"] = sqi_rsp(
+                            signal, sampling_rate=info["RSP"]["sampling_rate"]
+                        )
                 except Exception:
                     print(f"Not able to compute {modality}")
                     traceback.print_exc()
 
             # Generate report
             print("***Generating report***")
-            generate_report(summary, source, derivatives, sub, ses, f"{filename.split('/')[-1]}")
+            generate_report(
+                summary, source, derivatives, sub, ses, f"{filename.split('/')[-1]}"
+            )
 
         # Compute metrics on signal segmented in fixed windows
-        elif sliding.get('step') == 0 or not sliding.get('step') or sliding.get('step') is None:
+        elif (
+            sliding.get("step") == 0
+            or not sliding.get("step")
+            or sliding.get("step") is None
+        ):
             print("Fixed window")
             for modality in list(info.keys()):
                 try:
-                    window_samples = int(sliding['duration'] * info[modality]["sampling_rate"])
+                    window_samples = int(
+                        sliding["duration"] * info[modality]["sampling_rate"]
+                    )
                     num_windows = int(len(signal) / window_samples)
 
                     # Descriptive metrics on the windows
@@ -107,24 +135,59 @@ def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={'duration': 60, 'st
                         end = int(start + window_samples)
                         window = signal.iloc[start:end]
                         if modality == "PPG":
-                            summary_ppg[f'{int(start/info["PPG"]["sampling_rate"])}-{int(end/info["PPG"]["sampling_rate"])}'] = sqi_cardiac(window["PPG_Clean"], info["PPG"], data_type="PPG", sampling_rate=info["PPG"]["sampling_rate"], window=[start,end])
+                            summary_ppg[
+                                f'{int(start/info["PPG"]["sampling_rate"])}-{int(end/info["PPG"]["sampling_rate"])}'
+                            ] = sqi_cardiac(
+                                window["PPG_Clean"],
+                                info["PPG"],
+                                data_type="PPG",
+                                sampling_rate=info["PPG"]["sampling_rate"],
+                                window=[start, end],
+                            )
                         elif modality == "ECG":
-                            summary_ecg[f'{int(start/info["ECG"]["sampling_rate"])}-{int(end/info["ECG"]["sampling_rate"])}'] = sqi_cardiac(window["ECG_Clean"], info["ECG"], data_type="ECG", sampling_rate=info["ECG"]["sampling_rate"], window=[start,end])
+                            summary_ecg[
+                                f'{int(start/info["ECG"]["sampling_rate"])}-{int(end/info["ECG"]["sampling_rate"])}'
+                            ] = sqi_cardiac(
+                                window["ECG_Clean"],
+                                info["ECG"],
+                                data_type="ECG",
+                                sampling_rate=info["ECG"]["sampling_rate"],
+                                window=[start, end],
+                            )
                         elif modality == "EDA":
-                            summary_eda[f'{int(start/info["EDA"]["sampling_rate"])}-{int(end/info["EDA"]["sampling_rate"])}'] = sqi_eda(window, info["EDA"], sampling_rate=info["EDA"]["sampling_rate"], window=[start,end])
+                            summary_eda[
+                                f'{int(start/info["EDA"]["sampling_rate"])}-{int(end/info["EDA"]["sampling_rate"])}'
+                            ] = sqi_eda(
+                                window,
+                                info["EDA"],
+                                sampling_rate=info["EDA"]["sampling_rate"],
+                                window=[start, end],
+                            )
                         elif modality == "RSP":
-                            summary_rsp[f'{int(start/info["RSP"]["sampling_rate"])}-{int(end/info["RSP"]["sampling_rate"])}'] = sqi_rsp(window, sampling_rate=info["RSP"]["sampling_rate"])
+                            summary_rsp[
+                                f'{int(start/info["RSP"]["sampling_rate"])}-{int(end/info["RSP"]["sampling_rate"])}'
+                            ] = sqi_rsp(
+                                window, sampling_rate=info["RSP"]["sampling_rate"]
+                            )
                     # Descriptive metrics on the overall run
                     if modality == "PPG":
-                        summary['PPG'] = {"Overview": sqi_cardiac_overview(info["PPG"], data_type="PPG")}
-                        summary['PPG'].update(summary_ppg)
+                        summary["PPG"] = {
+                            "Overview": sqi_cardiac_overview(
+                                info["PPG"], data_type="PPG"
+                            )
+                        }
+                        summary["PPG"].update(summary_ppg)
                     elif modality == "ECG":
-                        summary['ECG'] = {"Overview": sqi_cardiac_overview(info["ECG"], data_type="ECG")}
-                        summary['ECG'].update(summary_ecg)
+                        summary["ECG"] = {
+                            "Overview": sqi_cardiac_overview(
+                                info["ECG"], data_type="ECG"
+                            )
+                        }
+                        summary["ECG"].update(summary_ecg)
                     elif modality == "EDA":
-                        summary['EDA'] = summary_eda
+                        summary["EDA"] = summary_eda
                     elif modality == "RSP":
-                        summary['RSP'] = summary_rsp
+                        summary["RSP"] = summary_rsp
 
                 except Exception:
                     print(f"Not able to compute {modality}")
@@ -132,15 +195,27 @@ def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={'duration': 60, 'st
 
             # Generate report
             print("***Generating report***")
-            generate_report(summary, source, derivatives, sub, ses, f"{filename.split('/')[-1]}", window=True)
+            generate_report(
+                summary,
+                source,
+                derivatives,
+                sub,
+                ses,
+                f"{filename.split('/')[-1]}",
+                window=True,
+            )
 
-        # Compute metrics using a sliding window approach    
+        # Compute metrics using a sliding window approach
         else:
             print("Sliding window")
             for modality in list(info.keys()):
                 try:
-                    window_samples = int(sliding['duration'] * info[modality]["sampling_rate"])
-                    step_samples = int(sliding['step'] * info[modality]["sampling_rate"])
+                    window_samples = int(
+                        sliding["duration"] * info[modality]["sampling_rate"]
+                    )
+                    step_samples = int(
+                        sliding["step"] * info[modality]["sampling_rate"]
+                    )
                     num_windows = int((len(signal) - window_samples) / step_samples) + 1
 
                     print(f"***Computing quality metrics for {modality} signal***")
@@ -149,37 +224,81 @@ def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={'duration': 60, 'st
                         end = int(start + window_samples)
                         window = signal.iloc[start:end]
                         if modality == "PPG":
-                            summary_ppg[f'{int(start/info["PPG"]["sampling_rate"])}-{int(end/info["PPG"]["sampling_rate"])}'] = sqi_cardiac(window["PPG_Clean"], info["PPG"], data_type="PPG", sampling_rate=info["PPG"]["sampling_rate"], window=[start,end])
+                            summary_ppg[
+                                f'{int(start/info["PPG"]["sampling_rate"])}-{int(end/info["PPG"]["sampling_rate"])}'
+                            ] = sqi_cardiac(
+                                window["PPG_Clean"],
+                                info["PPG"],
+                                data_type="PPG",
+                                sampling_rate=info["PPG"]["sampling_rate"],
+                                window=[start, end],
+                            )
                         elif modality == "ECG":
-                            summary_ecg[f'{int(start/info["ECG"]["sampling_rate"])}-{int(end/info["ECG"]["sampling_rate"])}'] = sqi_cardiac(window["ECG_Clean"], info["ECG"], data_type="ECG", sampling_rate=info["ECG"]["sampling_rate"], window=[start,end])
+                            summary_ecg[
+                                f'{int(start/info["ECG"]["sampling_rate"])}-{int(end/info["ECG"]["sampling_rate"])}'
+                            ] = sqi_cardiac(
+                                window["ECG_Clean"],
+                                info["ECG"],
+                                data_type="ECG",
+                                sampling_rate=info["ECG"]["sampling_rate"],
+                                window=[start, end],
+                            )
                         elif modality == "EDA":
-                            summary_eda[f'{int(start/info["EDA"]["sampling_rate"])}-{int(end/info["EDA"]["sampling_rate"])}'] = sqi_eda(window, info["EDA"], sampling_rate=info["EDA"]["sampling_rate"], window=[start,end])
+                            summary_eda[
+                                f'{int(start/info["EDA"]["sampling_rate"])}-{int(end/info["EDA"]["sampling_rate"])}'
+                            ] = sqi_eda(
+                                window,
+                                info["EDA"],
+                                sampling_rate=info["EDA"]["sampling_rate"],
+                                window=[start, end],
+                            )
                         elif modality == "RSP":
-                            summary_rsp[f'{int(start/info["RSP"]["sampling_rate"])}-{int(end/info["RSP"]["sampling_rate"])}'] = sqi_rsp(window, sampling_rate=info["RSP"]["sampling_rate"])
+                            summary_rsp[
+                                f'{int(start/info["RSP"]["sampling_rate"])}-{int(end/info["RSP"]["sampling_rate"])}'
+                            ] = sqi_rsp(
+                                window, sampling_rate=info["RSP"]["sampling_rate"]
+                            )
 
                     # Descriptive metrics on the overall run
                     if modality == "PPG":
-                        summary['PPG'] = {"Overview": sqi_cardiac_overview(info["PPG"], data_type="PPG")}
-                        summary['PPG'].update(summary_ppg)
+                        summary["PPG"] = {
+                            "Overview": sqi_cardiac_overview(
+                                info["PPG"], data_type="PPG"
+                            )
+                        }
+                        summary["PPG"].update(summary_ppg)
                     elif modality == "ECG":
-                        summary['ECG'] = {"Overview": sqi_cardiac_overview(info["ECG"], data_type="ECG")}
-                        summary['ECG'].update(summary_ecg)
+                        summary["ECG"] = {
+                            "Overview": sqi_cardiac_overview(
+                                info["ECG"], data_type="ECG"
+                            )
+                        }
+                        summary["ECG"].update(summary_ecg)
                     elif modality == "EDA":
-                        summary['EDA'] = summary_eda
+                        summary["EDA"] = summary_eda
                     elif modality == "RSP":
-                        summary['RSP'] = summary_rsp
+                        summary["RSP"] = summary_rsp
                 except Exception:
                     print(f"Not able to compute {modality}")
                     traceback.print_exc()
 
             # Generate report
             print("***Generating report***")
-            generate_report(summary, source, derivatives, sub, ses, f"{filename.split('/')[-1]}", window=True)      
+            generate_report(
+                summary,
+                source,
+                derivatives,
+                sub,
+                ses,
+                f"{filename.split('/')[-1]}",
+                window=True,
+            )
 
 
 # ==================================================================================
 # Utils
 # ==================================================================================
+
 
 def load_json(filename):
     """
@@ -193,15 +312,17 @@ def load_json(filename):
     data : dict
         Dictionary with the content of the .json passed in argument.
     """
-    with open(filename, 'r') as tmp:
+    with open(filename, "r") as tmp:
         data = json.loads(tmp.read())
     tmp.close()
 
     return data
 
+
 # ==================================================================================
 # Signal Quality Indices
 # ==================================================================================
+
 
 def sqi_cardiac_overview(info, data_type="ECG"):
     """
@@ -244,7 +365,16 @@ def sqi_cardiac_overview(info, data_type="ECG"):
 
     return summary
 
-def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000, mean_NN=[600,1200], std_NN=300, window=None):
+
+def sqi_cardiac(
+    signal_cardiac,
+    info,
+    data_type="ECG",
+    sampling_rate=10000,
+    mean_NN=[600, 1200],
+    std_NN=300,
+    window=None,
+):
     """
     Extract SQI for ECG/PPG processed signal
 
@@ -283,7 +413,7 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000, mean
     # Make sure the data_type string is in capital letters
     data_type = data_type.upper()
     if data_type == "PPG":
-        peaks = "PPG_Peaks" 
+        peaks = "PPG_Peaks"
     elif data_type == "ECG":
         peaks = "ECG_R_Peaks"
     # Segment info according to the specify window
@@ -294,7 +424,7 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000, mean
     else:
         min_index = 0
         max_index = len(info[peaks])
-    
+
     # Descriptive indices on NN intervals
     summary["Mean_NN_intervals (ms)"] = np.round(
         np.mean(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), 4
@@ -333,8 +463,16 @@ def sqi_cardiac(signal_cardiac, info, data_type="ECG", sampling_rate=10000, mean
 
     # Quality assessment based on mean NN intervals and std
     if (
-        threshold_sqi(np.mean(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), mean_NN) == "Acceptable" and 
-        threshold_sqi(np.std(info[f"{data_type}_clean_rr_systole"][min_index:max_index], ddof=1), std_NN, operator.lt) == "Acceptable"
+        threshold_sqi(
+            np.mean(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), mean_NN
+        )
+        == "Acceptable"
+        and threshold_sqi(
+            np.std(info[f"{data_type}_clean_rr_systole"][min_index:max_index], ddof=1),
+            std_NN,
+            operator.lt,
+        )
+        == "Acceptable"
     ):
         summary["Quality"] = "Acceptable"
     else:
@@ -368,18 +506,18 @@ def sqi_eda(signal_eda, info, sampling_rate=10000, window=None):
     summary = {}
     # Segment info according to the specify window
     if window is not None:
-        sub_list = [x for x in info['SCR_Peaks'] if min(window) <= x <= max(window)]
-        min_index = info['SCR_Peaks'].index(min(sub_list))
-        max_index = info['SCR_Peaks'].index(max(sub_list))
+        sub_list = [x for x in info["SCR_Peaks"] if min(window) <= x <= max(window)]
+        min_index = info["SCR_Peaks"].index(min(sub_list))
+        max_index = info["SCR_Peaks"].index(max(sub_list))
     else:
         min_index = 0
-        max_index = len(info['SCR_Peaks'])
+        max_index = len(info["SCR_Peaks"])
 
     # Descriptive indices on overall signal
-    #summary["Minimal_range"] = minimal_range_sqi(
+    # summary["Minimal_range"] = minimal_range_sqi(
     #    signal_eda["EDA_Clean"], threshold=0.05
-    #)
-    #summary["RAC"] = rac_sqi(signal_eda["EDA_Clean"], threshold=0.2, duration=2)
+    # )
+    # summary["RAC"] = rac_sqi(signal_eda["EDA_Clean"], threshold=0.2, duration=2)
     summary["Mean_EDA"] = np.round(np.mean(signal_eda["EDA_Clean"]), 4)
     summary["Median_EDA"] = np.round(np.median(signal_eda["EDA_Clean"]), 4)
     summary["SD_EDA"] = np.round(np.std(signal_eda["EDA_Clean"]), 4)
@@ -397,27 +535,47 @@ def sqi_eda(signal_eda, info, sampling_rate=10000, window=None):
     summary["Median_SCR"] = np.round(np.median(signal_eda["EDA_Phasic"]), 4)
     summary["Min_SCR"] = np.round(np.min(signal_eda["EDA_Phasic"]), 4)
     summary["Max_SCR"] = np.round(np.max(signal_eda["EDA_Phasic"]), 4)
-    summary["Number_of_detected_peaks"] = len(info['SCR_Peaks'][min_index:max_index])
+    summary["Number_of_detected_peaks"] = len(info["SCR_Peaks"][min_index:max_index])
     # Descriptive indices on SCR rise time
-    summary["Mean_rise_time"] = np.round(np.mean(info['SCR_RiseTime'][min_index:max_index]), 4)
-    summary["SD_rise_time"] = np.round(np.std(info['SCR_RiseTime'][min_index:max_index]), 4)
-    summary["Median_rise_time"] = np.round(np.median(info['SCR_RiseTime'][min_index:max_index]), 4)
-    try: 
-        summary["Min_rise_time"] = np.round(np.min(info['SCR_RiseTime'][min_index:max_index]), 4)
-    except Exception : 
+    summary["Mean_rise_time"] = np.round(
+        np.mean(info["SCR_RiseTime"][min_index:max_index]), 4
+    )
+    summary["SD_rise_time"] = np.round(
+        np.std(info["SCR_RiseTime"][min_index:max_index]), 4
+    )
+    summary["Median_rise_time"] = np.round(
+        np.median(info["SCR_RiseTime"][min_index:max_index]), 4
+    )
+    try:
+        summary["Min_rise_time"] = np.round(
+            np.min(info["SCR_RiseTime"][min_index:max_index]), 4
+        )
+    except Exception:
         traceback.print_exc()
         summary["Min_rise_time"] = np.nan
-    try : 
-        summary["Max_rise_time"] = np.round(np.max(info['SCR_RiseTime'][min_index:max_index]), 4)
-    except Exception :
+    try:
+        summary["Max_rise_time"] = np.round(
+            np.max(info["SCR_RiseTime"][min_index:max_index]), 4
+        )
+    except Exception:
         traceback.print_exc()
         summary["Max_rise_time"] = np.nan
     # Descriptive indices on SCR Recovery
-    summary["Mean_recovery_time"] = np.round(np.mean(info['SCR_Recovery'][min_index:max_index]), 4)
-    summary["SD_recovery_time"] = np.round(np.std(info['SCR_Recovery'][min_index:max_index]), 4)
-    summary["Median_recovery_time"] = np.round(np.median(info['SCR_Recovery'][min_index:max_index]), 4)
-    summary["Min_recovery_time"] = np.round(np.min(info['SCR_Recovery'][min_index:max_index]), 4)
-    summary["Max_recovery_time"] = np.round(np.max(info['SCR_Recovery'][min_index:max_index]), 4)
+    summary["Mean_recovery_time"] = np.round(
+        np.mean(info["SCR_Recovery"][min_index:max_index]), 4
+    )
+    summary["SD_recovery_time"] = np.round(
+        np.std(info["SCR_Recovery"][min_index:max_index]), 4
+    )
+    summary["Median_recovery_time"] = np.round(
+        np.median(info["SCR_Recovery"][min_index:max_index]), 4
+    )
+    summary["Min_recovery_time"] = np.round(
+        np.min(info["SCR_Recovery"][min_index:max_index]), 4
+    )
+    summary["Max_recovery_time"] = np.round(
+        np.max(info["SCR_Recovery"][min_index:max_index]), 4
+    )
 
     return summary
 
@@ -471,6 +629,7 @@ def sqi_rsp(signal_rsp, sampling_rate=10000, mean_rate=0.5):
         summary["Quality"] = "Not acceptable"
 
     return summary
+
 
 # ==================================================================================
 # Quality indices : Internal metrics
@@ -589,7 +748,7 @@ def rac_sqi(signal, threshold, duration=2):
     rac_ratio = np.count_nonzero(np.array(rac_values) > threshold) / len(signal)
 
     return np.round(rac_ratio, 4)
-  
+
 
 def threshold_sqi(metric, threshold, op=None):
     """
@@ -644,6 +803,7 @@ def threshold_sqi(metric, threshold, op=None):
 # Signals quality report
 # ==================================================================================
 
+
 def generate_summary(source, sub, ses, filename):
     # Get task info
     task_name = [task for task in filename.split("_") if "task" in task]
@@ -652,11 +812,11 @@ def generate_summary(source, sub, ses, filename):
         run_number = task_name
     # Get session meta data
     meta_info = [f for f in os.listdir(os.path.join(source, sub)) if ".json" in f]
-    if len(meta_info) == 1 :
+    if len(meta_info) == 1:
         meta_info = load_json(os.path.join(source, sub, meta_info[0]))
-    else :
+    else:
         meta_info = {}
-    source_info = load_json(os.path.join(source, sub, ses, filename+".json"))
+    source_info = load_json(os.path.join(source, sub, ses, filename + ".json"))
     # Add meta data
     html_report = f"""
     <h1>Summary</h1>
@@ -672,7 +832,7 @@ def generate_summary(source, sub, ses, filename):
         ch_names = meta_info[ses]["ch_names"]
         del ch_names[ch.index("TTL")]
         del ch[ch.index("TTL")]
-        for c, ch_name in zip(ch, ch_names) : 
+        for c, ch_name in zip(ch, ch_names):
             html_report += f"""
                 <li>{c} (channel - {ch_name})
                     <ul>
@@ -683,6 +843,7 @@ def generate_summary(source, sub, ses, filename):
         html_report += "</ul>"
 
     return html_report
+
 
 def generate_report(summary, source, derivatives, sub, ses, filename, window=False):
     # Generate the report in HTML format
@@ -711,7 +872,7 @@ def generate_report(summary, source, derivatives, sub, ses, filename, window=Fal
     <body>
     """
     html_report += generate_summary(source, sub, ses, filename)
-    filename_json = os.path.join(derivatives, sub, ses, filename+'.json')
+    filename_json = os.path.join(derivatives, sub, ses, filename + ".json")
     for k in summary.keys():
         html_report += f"""
         <h1>{k} Signal</h1>
@@ -719,17 +880,21 @@ def generate_report(summary, source, derivatives, sub, ses, filename, window=Fal
         """
         if window:
             if "Overview" in list(summary[k].keys()):
-                dict_overview = summary[k]['Overview']
+                dict_overview = summary[k]["Overview"]
                 dict_window = summary[k]
-                del dict_window['Overview']
+                del dict_window["Overview"]
                 # Table for overview metrics
                 html_report += "<h2>Overview</h2>"
                 # Create table headers
                 headers = list(dict_overview.keys())
-                header_row = "<tr>{}</tr>".format("".join("<th>{}</th>".format(header) for header in headers))
+                header_row = "<tr>{}</tr>".format(
+                    "".join("<th>{}</th>".format(header) for header in headers)
+                )
                 # Create table row
-                row = "".join("<td>{}</td>".format(dict_overview.get(col)) for col in headers)
-            
+                row = "".join(
+                    "<td>{}</td>".format(dict_overview.get(col)) for col in headers
+                )
+
                 # Merge headers and rows table
                 table = "<table>{}</table>".format(header_row + row)
                 html_report += f"<table>{table}</table>"
@@ -739,25 +904,34 @@ def generate_report(summary, source, derivatives, sub, ses, filename, window=Fal
             html_report += "<h2>Windows</h2>"
             headers = ["Window"] + list(dict_window[list(dict_window.keys())[0]].keys())
             # Create table headers
-            header_row = "<tr>{}</tr>".format("".join("<th>{}</th>".format(header) for header in headers))
+            header_row = "<tr>{}</tr>".format(
+                "".join("<th>{}</th>".format(header) for header in headers)
+            )
             # Create table rows
             rows = []
             for w, values in dict_window.items():
-                row = "<tr><td>{}</td>{}</tr>".format(w, "".join("<td>{}</td>".format(values.get(col)) for col in headers[1:]))
+                row = "<tr><td>{}</td>{}</tr>".format(
+                    w,
+                    "".join(
+                        "<td>{}</td>".format(values.get(col)) for col in headers[1:]
+                    ),
+                )
                 rows.append(row)
-           # Merge headers and rows tables
+            # Merge headers and rows tables
             table = "<table>{}</table>".format(header_row + "".join(rows))
             html_report += f"<table>{table}</table>"
-        
+
         else:
             # Table for overview metrics
             html_report += "<h2>Overview</h2>"
             # Create table headers
             headers = list(summary[k].keys())
-            header_row = "<tr>{}</tr>".format("".join("<th>{}</th>".format(header) for header in headers))
+            header_row = "<tr>{}</tr>".format(
+                "".join("<th>{}</th>".format(header) for header in headers)
+            )
             # Create table rows
             row = "".join("<td>{}</td>".format(summary[k].get(col)) for col in headers)
-            
+
             # Merge headers and rows table
             table = "<table>{}</table>".format(header_row + row)
             html_report += f"<table>{table}</table>"
@@ -776,9 +950,12 @@ def generate_report(summary, source, derivatives, sub, ses, filename, window=Fal
 
     # Save the HTML report to a file
     print("Saving html report")
-    with open(os.path.join(derivatives, sub, ses, f"{filename}_quality.html"), "w") as file:
+    with open(
+        os.path.join(derivatives, sub, ses, f"{filename}_quality.html"), "w"
+    ) as file:
         file.write(html_report)
         file.close()
+
 
 if __name__ == "__main__":
     neuromod_bio_sqi()

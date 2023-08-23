@@ -82,7 +82,7 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
     if not os.path.exists(os.path.join(outdir, sub, ses)):
         os.makedirs(os.path.join(outdir, sub, ses))
 
-    # Load tsv files contained in source/sub/ses 
+    # Load tsv files contained in source/sub/ses
     data_tsv, data_json, filenames_tsv = load_segmented_runs(
         source, sub, ses, outdir, remove_padding=True
     )
@@ -151,8 +151,7 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
             index=False,
         )
         with open(
-            os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.json"),
-            "wb",
+            os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.json"), "wb",
         ) as fp:
             pickle.dump(bio_info, fp, protocol=4)
             fp.close()
@@ -229,10 +228,12 @@ def load_segmented_runs(source, sub, ses, outdir, remove_padding=True):
         json_file = filename + ".json"
         print("Reading json file")
         data_json = load_json(os.path.join(source, sub, ses, json_file))
-        
+
         # look at the info file to get the channels if unboundlocalerror
         if data_json["Columns"] == []:
-            info = pd.read_json(os.path.join(source, sub, f"{sub}_volumes_all-ses-runs.json"))
+            info = pd.read_json(
+                os.path.join(source, sub, f"{sub}_volumes_all-ses-runs.json")
+            )
             ch_list = [
                 "EDA"
                 if "EDA" in ch
@@ -323,7 +324,7 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
         )
         info["ECG_Peaks"] = info["ECG_R_Peaks"]
         info["ECG_Clean_Peaks_NK"] = nk.signal_fixpeaks(
-            peaks=info['ECG_Peaks'],
+            peaks=info["ECG_Peaks"],
             sampling_rate=sampling_rate,
             interval_min=0.5,
             interval_max=1.5,
@@ -335,7 +336,7 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
         )
         print("Neurokit found peaks")
         info["PPG_Clean_Peaks_NK"] = signal_fixpeaks(
-            info['PPG_Peaks'],
+            info["PPG_Peaks"],
             sampling_rate=sampling_rate,
             interval_min=0.5,
             interval_max=1.5,
@@ -578,7 +579,7 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
                 eda_cleaned, sampling_rate=downsampling_rate, method="neurokit"
             )
             info["SamplingFrequency"] = downsampling_rate
-        signals['EDA_Raw'] = eda_signal
+        signals["EDA_Raw"] = eda_signal
     except Exception:
         print("ERROR in EDA processing procedure")
         traceback.print_exc()
@@ -646,9 +647,9 @@ def rsp_process(
         else:
             signals, info = nk.rsp_process(
                 rsp_cleaned, sampling_rate=downsampling_rate, method=method
-            ) 
+            )
             info["SamplingFrequency"] = downsampling_rate
-        signals['RSP_Raw'] = rsp_signal
+        signals["RSP_Raw"] = rsp_signal
         print("RSP Cleaned and processed")
     except Exception:
         print("ERROR in RSP processing procedure")

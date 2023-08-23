@@ -11,9 +11,7 @@ from pytz import timezone
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawTextHelpFormatter,
-    )
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,)
     parser.add_argument(
         "--debug",
         dest="debug_level",

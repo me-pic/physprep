@@ -14,8 +14,7 @@ import logging
 @click.argument("indir", type=click.Path(exists=True), required=True)
 @click.argument("sub", type=str, required=True)
 @click.option(
-    "--sessions",
-    type=str,
+    "--sessions", type=str,
 )
 def co_register_physio(indir, sub, sessions=None):
     """
