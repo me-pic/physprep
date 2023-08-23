@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "physprep"
+version = "0.1.0"
+description = "Physiological data preparation workflow adapted for MR settings"
+authors = ["Marie-Eve Picard <marie-eve.picard.2@umontreal.ca>", "Francois Lespinasse <francois.lespinasse96@gmail.com>"]
+license = "Apache"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+numpy = "1.22"
+pandas = "^1.2.3"
+phys2bids = "^2.10.0"
+click = "^8.1.3"
+systole = "^0.2.4"
+scipy = "^1.9.0"
+bokeh = "^2.3.3"
+matplotlib = "^3.5.2"
+seaborn = "^0.12.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
