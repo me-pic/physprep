@@ -1,6 +1,0 @@
-phys2bids
-neurokit2
-pandas
-numpy
-pprintpp
-bids
