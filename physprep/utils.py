@@ -29,3 +29,46 @@ def load_json(filename):
             pass
 
     return data
+
+
+def create_config():
+    filename = input("Enter the name of your config file \n")
+    tmp = None
+    order = "0"
+    valid_filter_type = ["butterworth", "fir", "bessel", "savgol", "", " "]
+    while tmp not in ["", " "]:
+        while True:
+            tmp = input(
+                "Enter the filter type among the following: butterworth, fir, bessel, "
+                "savgol"
+            )
+            if tmp not in valid_filter_type:
+                print(
+                    "Please enter a valid filter type (i.e., butterworth, fir, bessel, "
+                    "savgol)"
+                )
+                continue
+            else:
+                method = tmp
+                break
+
+        if tmp in ["", " "]:
+            break
+        else:
+            lowcut = input(
+                "Enter the lower cutoff frequency (Hz). If you do not want to apply "
+                "a high pass or band pass filter, just press enter"
+            )
+            highcut = input(
+                "Enter the higher cutoff frequency (Hz). If you do not want to apply "
+                "a low pass filter or band pass filter, just press enter"
+            )
+            while True:
+                order = input("Enter the filter order. Must be a positive integer.")
+                if order.isdigit() is False:
+                    print("Please enter a positive integer")
+                    continue
+                else:
+                    break
+
+    return filename, method, lowcut, highcut, order
