@@ -4,7 +4,6 @@
 Neuromod processing utilities.
 """
 import glob
-import json
 import multiprocessing
 
 # dependencies
@@ -34,6 +33,7 @@ from neurokit2.misc import as_vector
 from neurokit2.signal.signal_formatpeaks import _signal_from_indices
 from systole.correction import correct_peaks, correct_rr
 from systole.utils import input_conversion
+from utils import load_json
 
 
 def process_session(args):
@@ -156,25 +156,6 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
 # ==================================================================================
 # Loading functions
 # ==================================================================================
-
-
-def load_json(filename):
-    """
-    Parameters
-    ----------
-    filename : str
-        File path of the .json to load.
-
-    Returns
-    -------
-    data : dict
-        Dictionary with the content of the .json passed in argument.
-    """
-    tmp = open(filename)
-    data = json.load(tmp)
-    tmp.close()
-
-    return data
 
 
 def load_segmented_runs(source, sub, ses, outdir, remove_padding=True):

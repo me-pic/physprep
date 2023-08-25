@@ -10,8 +10,9 @@ from pathlib import Path
 
 import click
 import pandas as pd
-from plot_signals import generate_plot
 from time_sqi import sqi_cardiac, sqi_cardiac_overview, sqi_eda, sqi_rsp
+from utils import load_json
+from visu.plot_signals import generate_plot
 
 
 @click.command()
@@ -268,30 +269,6 @@ def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={"duration": 60, "st
                 f"{filename.split('/')[-1]}",
                 window=True,
             )
-
-
-# ==================================================================================
-# Utils
-# ==================================================================================
-
-
-def load_json(filename):
-    """
-    Parameters
-    ----------
-    filename : str
-        File path of the .json to load.
-
-    Returns
-    -------
-    data : dict
-        Dictionary with the content of the .json passed in argument.
-    """
-    with open(filename, "r") as tmp:
-        data = json.loads(tmp.read())
-    tmp.close()
-
-    return data
 
 
 # ==================================================================================
