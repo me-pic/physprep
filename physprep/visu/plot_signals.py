@@ -19,15 +19,9 @@ from bokeh.plotting import figure, output_file, save
 from pandas.core.indexes.datetimes import DatetimeIndex
 from systole.plots import plot_rr
 from systole.utils import ecg_strings, ppg_strings, resp_strings
+from utils import load_json
 
 output_notebook()
-
-
-def load_json(filename):
-    tmp = open(filename)
-    data = json.load(tmp)
-    tmp.close()
-    return data
 
 
 def load_data(outdir, sub, ses):
