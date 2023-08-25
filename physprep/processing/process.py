@@ -1,32 +1,24 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env python
 """
-Neuromod processing utilities
+Neuromod processing utilities.
 """
+import glob
+import json
+import multiprocessing
+
 # dependencies
 import os
-import json
 import pickle
-import glob
-import click
-import numpy as np
-import pandas as pd
-import multiprocessing
-import traceback
-from pathlib import Path
-
-# high-level processing utils
-from heartpy import process
-from systole.correction import correct_rr, correct_peaks
-from neurokit2 import ecg_peaks, ppg_findpeaks, signal_fixpeaks
 
 # signal utils
 import timeit
+import traceback
+
+import click
 import neurokit2 as nk
-from neurokit2.misc import as_vector
-from systole.utils import input_conversion
-from neurokit2 import signal_rate
-from neurokit2.signal.signal_formatpeaks import _signal_from_indices
+import numpy as np
+import pandas as pd
 
 # home brewed cleaning utils
 from clean import (
@@ -35,6 +27,13 @@ from clean import (
     neuromod_ppg_clean,
     neuromod_rsp_clean,
 )
+
+# high-level processing utils
+from neurokit2 import ecg_peaks, ppg_findpeaks, signal_fixpeaks, signal_rate
+from neurokit2.misc import as_vector
+from neurokit2.signal.signal_formatpeaks import _signal_from_indices
+from systole.correction import correct_peaks, correct_rr
+from systole.utils import input_conversion
 
 
 def process_session(args):
@@ -62,7 +61,7 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
     Parameters
     ----------
     source : str
-        The main directory contaning the segmented runs.
+        The main directory containing the segmented runs.
     sub : str
         The id of the subject.
     ses : str
@@ -71,11 +70,6 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         The directory to save the outputs.
     multi_echo : bool
         Indicate if the multi-echo sequence was used or not.
-
-    Examples
-    --------
-    In terminal
-    >>> python process.py /home/user/dataset/converted/ sub-01 ses-001 /home/user/dataset/derivatives/ True
     """
     # Check if `outdir` exists, otherwise create it
 
@@ -108,7 +102,8 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         ppg, ppg_info = ppg_process(ppg_raw, sampling_rate=sampling_rate)
         bio_info["PPG"] = ppg_info
         bio_df = pd.concat([bio_df, ppg], axis=1)
-        print(f"***PPG workflow: done in {timeit.default_timer()-start_time} sec***")
+        end_time = timeit.default_timer() - start_time
+        print(f"***PPG workflow: done in {end_time} sec***")
 
         #  ecg
         print("***ECG workflow: begin***")
@@ -116,7 +111,8 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         ecg, ecg_info = ecg_process(ecg_raw, sampling_rate=sampling_rate, me=multi_echo)
         bio_info["ECG"] = ecg_info
         bio_df = pd.concat([bio_df, ecg], axis=1)
-        print(f"***ECG workflow: done in {timeit.default_timer()-start_time} sec***")
+        end_time = timeit.default_timer() - start_time
+        print(f"***ECG workflow: done in {end_time} sec***")
 
         #  rsp
         print("***Respiration workflow: begin***")
@@ -126,9 +122,8 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         )
         bio_info["RSP"] = rsp_info
         bio_df = pd.concat([bio_df, rsp], axis=1)
-        print(
-            f"***Respiration workflow: done in {timeit.default_timer()-start_time} sec***"
-        )
+        end_time = timeit.default_timer() - start_time
+        print(f"***Respiration workflow: done in {end_time} sec***")
 
         #  eda
         print("***Electrodermal activity workflow: begin***")
@@ -136,14 +131,12 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
         eda, eda_info = eda_process(eda_raw, sampling_rate=sampling_rate)
         bio_info["EDA"] = eda_info
         bio_df = pd.concat([bio_df, eda], axis=1)
-        print(
-            f"***Electrodermal activity workflow: done in {timeit.default_timer()-start_time} sec***"
-        )
+        end_time = timeit.default_timer() - start_time
+        print(f"***Electrodermal activity workflow: done in {end_time} sec***")
 
         # save outputs
         print("***Saving processed biosignals: begin***")
         start_time = timeit.default_timer()
-        filename = Path(source)
 
         bio_df.to_csv(
             os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.tsv.gz"),
@@ -151,13 +144,13 @@ def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
             index=False,
         )
         with open(
-            os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.json"), "wb",
+            os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.json"),
+            "wb",
         ) as fp:
             pickle.dump(bio_info, fp, protocol=4)
             fp.close()
-        print(
-            f"***Saving processed biosignals: done in {timeit.default_timer()-start_time} sec***"
-        )
+        end_time = timeit.default_timer() - start_time
+        print(f"***Saving processed biosignals: done in {end_time} sec***")
 
 
 # ==================================================================================
@@ -189,7 +182,7 @@ def load_segmented_runs(source, sub, ses, outdir, remove_padding=True):
     Parameters
     ----------
     source : str
-        The main directory contaning the segmented runs.
+        The main directory containing the segmented runs.
     sub : str
         The id of the subject.
     ses : str
@@ -210,7 +203,7 @@ def load_segmented_runs(source, sub, ses, outdir, remove_padding=True):
     data_json : dict
         Dictionary containing metadata.
     filenames : list
-        List contaning the filename for each segmented run without the extension.
+        List containing the filename for each segmented run without the extension.
     """
     data_tsv, filenames = [], []
     files_tsv = [f for f in os.listdir(os.path.join(source, sub, ses)) if "tsv.gz" in f]
@@ -410,8 +403,8 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
         The sampling frequency of `ppg_raw` (in Hz, i.e., samples/second).
         Default to 10000.
     downsampling_rate : int
-        The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
-        If None, the signals are not downsampled.
+        The sampling frequency to use to downsample the signals
+        (in Hz, i.e., samples/second). If None, the signals are not downsampled.
         Default to 1000.
 
     Returns
@@ -437,7 +430,10 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
     try:
         if downsampling_rate is None:
             signals, info = process_cardiac(
-                ppg_signal, ppg_cleaned, sampling_rate=sampling_rate, data_type="PPG"
+                ppg_signal,
+                ppg_cleaned,
+                sampling_rate=sampling_rate,
+                data_type="PPG",
             )
             info["SamplingFrequency"] = sampling_rate
         else:
@@ -458,7 +454,11 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
 
 
 def ecg_process(
-    ecg_raw, sampling_rate=10000, downsampling_rate=1000, method="bottenhorn", me=True
+    ecg_raw,
+    sampling_rate=10000,
+    downsampling_rate=1000,
+    method="bottenhorn",
+    me=True,
 ):
     """
     Process ECG signal.
@@ -473,8 +473,8 @@ def ecg_process(
         The sampling frequency of `ecg_raw` (in Hz, i.e., samples/second).
         Default to 10000.
     downsampling_rate : int
-        The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
-        If None, the signals are not downsampled.
+        The sampling frequency to use to downsample the signals
+        (in Hz, i.e., samples/second). If None, the signals are not downsampled.
         Default to 1000.
     method : str
         The processing pipeline to apply.
@@ -510,7 +510,10 @@ def ecg_process(
     try:
         if downsampling_rate is None:
             signals, info = process_cardiac(
-                ecg_signal, ecg_cleaned, sampling_rate=sampling_rate, data_type="ECG"
+                ecg_signal,
+                ecg_cleaned,
+                sampling_rate=sampling_rate,
+                data_type="ECG",
             )
             info["SamplingFrequency"] = sampling_rate
         else:
@@ -544,8 +547,8 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
         The sampling frequency of `eda_raw` (in Hz, i.e., samples/second).
         Default to 10000.
     downsampling_rate : int
-        The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
-        If None, the signals are not downsampled.
+        The sampling frequency to use to downsample the signals
+        (in Hz, i.e., samples/second). If None, the signals are not downsampled.
         Default to 1000.
 
     Returns
@@ -605,8 +608,8 @@ def rsp_process(
         The sampling frequency of `eda_raw` (in Hz, i.e., samples/second).
         Default to 10000.
     downsampling_rate : int
-        The sampling frequency to use to downsample the signals (in Hz, i.e., samples/second).
-        If None, the signals are not downsampled.
+        The sampling frequency to use to downsample the signals
+        (in Hz, i.e., samples/second). If None, the signals are not downsampled.
         Default to 1000.
     method : str
         Method to use for processing.

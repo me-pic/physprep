@@ -3,15 +3,16 @@
 
 """another util for neuromod phys data conversion."""
 
-import os
+import fnmatch
 import glob
 import json
-import math
-import click
 import logging
-import pprintpp
-import fnmatch
+import math
+import os
+
+import click
 import pandas as pd
+import pprintpp
 from list_sub import list_sub
 from neurokit2 import read_acqknowledge
 
@@ -25,7 +26,8 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
     Parameters
     ----------
     root : str
-        Directory containing the biopac data. Example: "/home/user/dataset/sourcedata/physio".
+        Directory containing the biopac data.
+        Example: "/home/user/dataset/sourcedata/physio".
     subject : str
         Name of path for a specific subject. Example: "sub-01".
     ses : str
@@ -41,7 +43,8 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
     Returns
     -------
     ses_runs: dict
-        Each key lists the number of volumes/triggers in each run, including invalid volumes.
+        Each key lists the number of volumes/triggers in each run,
+        including invalid volumes.
     """
     LGR = logging.getLogger(__name__)
     # Check directory
@@ -53,8 +56,9 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
         ses = None
     dirs = list_sub(root, sub, ses)
     ses_runs = {}
-    # loop iterating through files in each dict key representing session returned by list_sub
-    # for this loop, exp refers to session's name, avoiding confusion with ses argument
+    # loop iterating through files in each dict key representing session
+    # returned by list_sub for this loop, exp refers to session's name,
+    # avoiding confusion with ses argument
     for exp in dirs:
         LGR.info(f"counting volumes in physio file for: {exp}")
         for file in sorted(dirs[exp]):
@@ -77,7 +81,9 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
             # memory expensive to play with than dataframe
             session = list(query_df.index)
 
-            # maximal TR - the time distance between two adjacent TTL, now given by the ceiling value of the tr (but might be tweaked if needed)
+            # maximal TR - the time distance between two adjacent TTL, now
+            # given by the ceiling value of the tr (but might be tweaked if
+            # needed)
             tr_period = fs * math.ceil(tr)
 
             # Define session length and adjust with padding
@@ -162,9 +168,9 @@ def call_get_info(
     """
     Call `get_info` function only if `get_info.py` is called as CLI
 
-    For parameters description, please refer to the documentation of the `get_info` function
+    For parameters description, please refer to the documentation of the
+    `get_info` function
     """
-    LGR = logging.getLogger(__name__)
     get_info(root, sub, ses, count_vol, show, save, tr, tr_channel, scanning_sheet)
 
 
@@ -184,7 +190,8 @@ def get_info(
     `get_info` pushes the info necessary to execute the phys2bids multi-run
     workflow to a dictionary. It can save it to `_volumes_all-ses-runs.json`
     in a specified path, or be printed in your terminal.
-    The examples given in the Arguments section assume that the data followed this structure :
+    The examples given in the Arguments section assume that the data followed
+    this structure :
     home/
     └── users/
         └── dataset/
@@ -230,20 +237,17 @@ def get_info(
     Returns
     -------
     ses_runs_vols : dict
-        Number of processed runs, number of expected runs, number of triggers/volumes per run,
-        sourcedata file location.
-
-    Examples
-    --------
-    In script
-    >>> ses_runs_vols = get_info(root="/home/user/dataset/", sub="sub-01", ses="ses-001", count_vol=True, save="/home/user/dataset/info/", tr=2.0)
-    In terminal
-    >>> python get_info.py /home/user/dataset/ sub-01 --ses ses-001 --count_vol True --save /home/user/dataset/info/ --tr 2.0 --tr_channel 'Custom, HLT100C - A 5'
+        Number of processed runs, number of expected runs, number of
+        triggers/volumes per run, sourcedata file location.
     """
     LGR = logging.getLogger(__name__)
     # list matches for a whole subject's dir
     ses_runs_matches = list_sub(
-        os.path.join(root, "sourcedata/physio/"), sub, ses=ses, ext=".tsv", show=show
+        os.path.join(root, "sourcedata/physio/"),
+        sub,
+        ses=ses,
+        ext=".tsv",
+        show=show,
     )
 
     # go to fmri matches and get entries for each run of a session
@@ -287,27 +291,26 @@ def get_info(
             # read metadata
             with open(filename) as f:
                 bold = json.load(f)
-            # we want to have the TR in a _bold.json to later use it in the volume_counter function
+            # we want to have the TR in a _bold.json to later use it in the
+            # volume_counter function
             tr = bold["RepetitionTime"]
             # we want to GET THE NB OF VOLUMES in the _bold.json of a given run
             try:
                 nb_expected_volumes_run[f"{idx+1:02d}"] = bold["dcmmeta_shape"][-1]
             except KeyError:
-                pprintpp.pprint(f"{exp} .json info non-existant")
+                pprintpp.pprint(f"{exp} .json info non-existent")
                 if scanning_sheet is not None:
                     pprintpp.pprint(f"checking scanning sheet for {sub}/{exp}")
                     df_sheet = pd.read_csv(scanning_sheet)
                     vol_idx = (
-                        df_sheet[
-                            df_sheet[sub] == f"p{sub[-2:]}_friends{exp[-3:]}"
-                        ].index
+                        df_sheet[df_sheet[sub] == f"p{sub[-2:]}_friends{exp[-3:]}"].index
                         + idx
                     )
                     vols = int(df_sheet["#volumes"].iloc[vol_idx])
                     nb_expected_volumes_run[f"{idx+1:02d}"] = vols
                 # log that we are unable to run the thing
                 else:
-                    LGR.info(f"Cannot access Nifti BIDS metadata nor scanninf sheet")
+                    LGR.info("Cannot access Nifti BIDS metadata nor scanning sheet")
                     continue
 
         # print the thing to show progress

@@ -2,12 +2,12 @@
 # !/usr/bin/env python
 """CLI for physio utils."""
 
-import os
-import sys
-import click
-import logging
-import pprintpp
 import json
+import logging
+import os
+
+import click
+import pprintpp
 
 LGR = logging.getLogger(__name__)
 
@@ -23,7 +23,8 @@ def call_list_sub(root, sub, ses=None, ext=".acq", save=None, show=False):
     """
     Call `list_sub` function only if `list_sub.py` is called as CLI
 
-    For parameters description, please refer to the documentation of the `list_sub` function
+    For parameters description, please refer to the documentation of the
+    `list_sub` function
     """
     list_sub(root, sub, ses, ext, save, show)
 
@@ -86,7 +87,6 @@ def list_sub(root, sub, ses=None, ext=".acq", save=None, show=False):
         # if the path exists, list .acq files
         if os.path.exists(dir):
             for filename in os.listdir(dir):
-
                 if filename.endswith(ext):
                     file_list += [filename]
             if show:
@@ -98,7 +98,8 @@ def list_sub(root, sub, ses=None, ext=".acq", save=None, show=False):
 
             if save is not None:
                 with open(
-                    os.path.join(save, sub, ses, "list_sub_acq_files.json"), "w"
+                    os.path.join(save, sub, ses, "list_sub_acq_files.json"),
+                    "w",
                 ) as fp:
                     json.dump(files, fp)
 
@@ -116,7 +117,6 @@ def list_sub(root, sub, ses=None, ext=".acq", save=None, show=False):
             file_list = []
             # iterate through directory's content
             for filename in os.listdir(os.path.join(path_sub, exp)):
-
                 if filename.endswith(ext):
                     file_list += [filename]
 

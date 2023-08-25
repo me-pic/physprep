@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env python -W ignore::DeprecationWarning
 
-from scipy.stats import kurtosis, skew
-import numpy as np
 import operator
 import traceback
 
+import numpy as np
+from scipy.stats import kurtosis, skew
 
 # ==================================================================================
 # Signal Quality Indices
@@ -32,7 +32,7 @@ def sqi_cardiac_overview(info, data_type="ECG"):
 
     Reference
     ---------
-    Legrand et al., (2022). Systole: A python package for cardiac signal 
+    Legrand et al., (2022). Systole: A python package for cardiac signal
         synchrony and analysis. Journal of Open Source Software, 7(69), 3832,
         https://doi.org/10.21105/joss.03832
     """
@@ -47,9 +47,7 @@ def sqi_cardiac_overview(info, data_type="ECG"):
     summary["Long"] = info[f"{data_type}_long"]
     summary["Short"] = info[f"{data_type}_short"]
     summary["Cumulseconds_rejected"] = info[f"{data_type}_cumulseconds_rejected"]
-    summary["%_rejected_segments"] = np.round(
-        info[f"{data_type}_%_rejected_segments"], 4
-    )
+    summary["%_rejected_segments"] = np.round(info[f"{data_type}_%_rejected_segments"], 4)
 
     return summary
 
@@ -64,7 +62,7 @@ def sqi_cardiac(
     window=None,
 ):
     """
-    Extract SQI for ECG/PPG processed signal
+    Extract SQI for ECG/PPG processed signal.
 
     Parameters
     ----------
@@ -118,10 +116,12 @@ def sqi_cardiac(
         np.mean(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), 4
     )
     summary["Median_NN_intervals (ms)"] = np.round(
-        np.median(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), 4
+        np.median(info[f"{data_type}_clean_rr_systole"][min_index:max_index]),
+        4,
     )
     summary["SD_NN_intervals (ms)"] = np.round(
-        np.std(info[f"{data_type}_clean_rr_systole"][min_index:max_index], ddof=1), 4
+        np.std(info[f"{data_type}_clean_rr_systole"][min_index:max_index], ddof=1),
+        4,
     )
     summary["Min_NN_intervals (ms)"] = np.round(
         np.min(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), 4
@@ -131,19 +131,24 @@ def sqi_cardiac(
     )
     # Descriptive indices on heart rate
     summary["Mean_HR (bpm)"] = metrics_hr_sqi(
-        info[f"{data_type}_clean_rr_systole"][min_index:max_index], metric="mean"
+        info[f"{data_type}_clean_rr_systole"][min_index:max_index],
+        metric="mean",
     )
     summary["Median_HR (bpm)"] = metrics_hr_sqi(
-        info[f"{data_type}_clean_rr_systole"][min_index:max_index], metric="median"
+        info[f"{data_type}_clean_rr_systole"][min_index:max_index],
+        metric="median",
     )
     summary["SD_HR (bpm)"] = metrics_hr_sqi(
-        info[f"{data_type}_clean_rr_systole"][min_index:max_index], metric="std"
+        info[f"{data_type}_clean_rr_systole"][min_index:max_index],
+        metric="std",
     )
     summary["Min_HR (bpm)"] = metrics_hr_sqi(
-        info[f"{data_type}_clean_rr_systole"][min_index:max_index], metric="min"
+        info[f"{data_type}_clean_rr_systole"][min_index:max_index],
+        metric="min",
     )
     summary["Max_HR (bpm)"] = metrics_hr_sqi(
-        info[f"{data_type}_clean_rr_systole"][min_index:max_index], metric="max"
+        info[f"{data_type}_clean_rr_systole"][min_index:max_index],
+        metric="max",
     )
     # Descriptive indices on overall signal
     summary["Skewness"] = np.round(kurtosis(signal_cardiac), 4)
@@ -152,11 +157,15 @@ def sqi_cardiac(
     # Quality assessment based on mean NN intervals and std
     if (
         threshold_sqi(
-            np.mean(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), mean_NN
+            np.mean(info[f"{data_type}_clean_rr_systole"][min_index:max_index]),
+            mean_NN,
         )
         == "Acceptable"
         and threshold_sqi(
-            np.std(info[f"{data_type}_clean_rr_systole"][min_index:max_index], ddof=1),
+            np.std(
+                info[f"{data_type}_clean_rr_systole"][min_index:max_index],
+                ddof=1,
+            ),
             std_NN,
             operator.lt,
         )
@@ -171,7 +180,7 @@ def sqi_cardiac(
 
 def sqi_eda(signal_eda, info, sampling_rate=10000, window=None):
     """
-    Extract SQI for EDA processed signal
+    Extract SQI for EDA processed signal.
 
     NOTE: add option to compute the latency between stimulus onset
     and SCR onset
@@ -270,7 +279,7 @@ def sqi_eda(signal_eda, info, sampling_rate=10000, window=None):
 
 def sqi_rsp(signal_rsp, sampling_rate=10000, mean_rate=0.5):
     """
-    Extract SQI for respiratory processed signal
+    Extract SQI for respiratory processed signal.
 
     Parameters
     ----------
@@ -296,7 +305,8 @@ def sqi_rsp(signal_rsp, sampling_rate=10000, mean_rate=0.5):
     summary["Min_Amp"] = np.round(np.min(signal_rsp["RSP_Amplitude"]), 4)
     summary["CV_Amp"] = np.round(np.max(signal_rsp["RSP_Amplitude"]), 4)
     summary["variability_Amp"] = np.round(
-        np.std(signal_rsp["RSP_Amplitude"]) / np.mean(signal_rsp["RSP_Amplitude"]), 4
+        np.std(signal_rsp["RSP_Amplitude"]) / np.mean(signal_rsp["RSP_Amplitude"]),
+        4,
     )
     # Descriptive indices on signal rate
     summary["Mean_Rate"] = np.round(np.mean(signal_rsp["RSP_Rate"]), 4)
@@ -326,7 +336,7 @@ def sqi_rsp(signal_rsp, sampling_rate=10000, mean_rate=0.5):
 
 def metrics_hr_sqi(intervals, metric="mean"):
     """
-    Compute the mean heart rate from the RR intervals
+    Compute the mean heart rate from the RR intervals.
 
     Parameters
     ----------
@@ -355,16 +365,17 @@ def metrics_hr_sqi(intervals, metric="mean"):
             metric_rr = np.round(np.min(bpm), 4)
         elif metric == "max":
             metric_rr = np.round(np.max(bpm), 4)
-    except:
+    except Exception:
         print(f"Invalid metric: {metric}.")
+        traceback.print_exc()
 
     return metric_rr
 
 
 def minimal_range_sqi(signal, threshold):
     """
-    Compute the ratio between the number of timepoints under a definied `threshold`
-    and the signal length.
+    Compute the ratio between the number of timepoints under a defined
+    `threshold` and the signal length.
 
     Parameters
     ----------
@@ -400,7 +411,7 @@ def rac_sqi(signal, threshold, duration=2):
     signal : vector
         Signal on which to compute the RAC.
     threshold : float
-        Threshold to consider to evalutate the RAC. If the RAC is above
+        Threshold to consider to evaluate the RAC. If the RAC is above
         that threshold, the quality of the signal in the given window is
         considered as bad.
     duration : float
@@ -451,7 +462,7 @@ def threshold_sqi(metric, threshold, op=None):
         If a list of two elements is passed, the `metric` needs
         to be within that range to be consider as good.
     op : operator function
-        Operator to use for the comparaison between the `metric` and the `threshold`.
+        Operator to use for the comparison between the `metric` and the `threshold`.
         Only considered if `threshold` is a int or a float.
         See https://docs.python.org/2/library/operator.html#module-operator
         for all the possible operators.
@@ -470,10 +481,11 @@ def threshold_sqi(metric, threshold, op=None):
     >>> threshold_sqi(6, [2, 8])
     Acceptable
     """
-    if type(threshold) == list:
+    if isinstance(threshold, list):
         if len(threshold) != 2:
             print(
-                "Length of threshold should be 2 to set a range, otherwise pass an int or a float."
+                "Length of threshold should be 2 to set a range, "
+                "otherwise pass an int or a float."
             )
         # Check if `metric` is within the range of values defined in `threshold`
         elif min(threshold) <= metric <= max(threshold):

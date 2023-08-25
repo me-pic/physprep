@@ -1,17 +1,18 @@
-import os, sys
-import bids
-import click
-import pandas
-import bioread
-import logging
-import pathlib
 import argparse
 import datetime
+import logging
+import os
+
+import bioread
+import click
+import pandas
 from pytz import timezone
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     parser.add_argument(
         "--debug",
         dest="debug_level",
@@ -54,7 +55,7 @@ def match_all_bolds(bids_path, biopac_path):
             if len(acq_h.time_index):
                 acq_end = acq_start + datetime.timedelta(seconds=acq_h.time_index[-1])
             acqk_files_startends.append((acqk, acq_start, acq_end))
-        except Exception as e:
+        except Exception:
             logging.error(f"read error for file: {acqk}")
 
     sourcedata = bids_path / "sourcedata" / "physio"
@@ -93,12 +94,16 @@ def match_all_bolds(bids_path, biopac_path):
                             [acq[1] == acq_files[0][1] for acq in acq_files[1:]]
                         ):  # duplicated files
                             logging.warning(
-                                f"More that one acq file found for: {scan.filename} \n {acq_files}"
+                                "More that one acq file found for: "
+                                f"{scan.filename} \n {acq_files}"
                             )
                     bname = os.path.basename(acq_files[0][0])
                     dest_path = session_sourcedata / bname
                     matches.append(
-                        (session / scan.filename, dest_path.relative_to(bids_path))
+                        (
+                            session / scan.filename,
+                            dest_path.relative_to(bids_path),
+                        )
                     )
                     if not dest_path.exists() and acq_files[0][0].exists():
                         logging.info(f"moving {acq_files[0][0]} to {dest_path}")

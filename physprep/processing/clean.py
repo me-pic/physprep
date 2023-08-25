@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env python
 """
-Neuromod cleaning utilities
+Neuromod cleaning utilities.
 """
-import numpy as np
-import pandas as pd
+
 import neurokit2 as nk
+import numpy as np
 from scipy import signal
 
 # ======================================================================
@@ -27,7 +27,8 @@ def neuromod_ppg_clean(ppg_signal, sampling_rate=10000.0, downsampling=None):
         The sampling frequency of `ppg_signal` (in Hz, i.e., samples/second).
         Default to 10000.
     downsampling : int
-        The desired sampling frequency (Hz). If None, the signal is not resample.
+        The desired sampling frequency (Hz). If None, the signal is not
+        resample.
         Default to None.
 
     Returns
@@ -42,10 +43,14 @@ def neuromod_ppg_clean(ppg_signal, sampling_rate=10000.0, downsampling=None):
     # Downsample the signal if specified
     if downsampling is not None:
         ppg_clean = nk.signal_resample(
-            ppg_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+            ppg_clean,
+            sampling_rate=sampling_rate,
+            desired_sampling_rate=downsampling,
         )
         ppg_signal = nk.signal_resample(
-            ppg_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+            ppg_signal,
+            sampling_rate=sampling_rate,
+            desired_sampling_rate=downsampling,
         )
 
     return ppg_signal, ppg_clean
@@ -57,7 +62,11 @@ def neuromod_ppg_clean(ppg_signal, sampling_rate=10000.0, downsampling=None):
 
 
 def neuromod_ecg_clean(
-    ecg_signal, sampling_rate=10000.0, method="biopac", me=False, downsampling=None
+    ecg_signal,
+    sampling_rate=10000.0,
+    method="biopac",
+    me=False,
+    downsampling=None,
 ):
     """
     Clean an ECG signal.
@@ -79,7 +88,8 @@ def neuromod_ecg_clean(
         or the single-echo (False).
         Default to False.
     downsampling : int
-        The desired sampling frequency (Hz). If None, the signal is not resample.
+        The desired sampling frequency (Hz). If None, the signal is not
+        resample.
         Default to None.
 
     Returns
@@ -102,15 +112,23 @@ def neuromod_ecg_clean(
         # Apply comb band pass filter with Bottenhorn correction
         print("... Applying the corrected comb band pass filter.")
         ecg_clean = _ecg_clean_bottenhorn(
-            ecg_signal, sampling_rate=sampling_rate, tr=tr, mb=mb, slices=slices
+            ecg_signal,
+            sampling_rate=sampling_rate,
+            tr=tr,
+            mb=mb,
+            slices=slices,
         )
     # Downsample the signal if specified
     if downsampling is not None:
         ecg_clean = nk.signal_resample(
-            ecg_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+            ecg_clean,
+            sampling_rate=sampling_rate,
+            desired_sampling_rate=downsampling,
         )
         ecg_signal = nk.signal_resample(
-            ecg_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+            ecg_signal,
+            sampling_rate=sampling_rate,
+            desired_sampling_rate=downsampling,
         )
 
     return ecg_signal, ecg_clean
@@ -123,8 +141,9 @@ def _ecg_clean_biopac(ecg_signal, sampling_rate=10000.0, tr=1.49, slices=60, Q=1
     """
     Single-band sequence gradient noise reduction.
 
-    This function is a reverse-engineered appropriation of BIOPAC's application note 242.
-    It only applies to signals polluted by single-band (f)MRI sequence.
+    This function is a reverse-engineered appropriation of BIOPAC's
+    application note 242. It only applies to signals polluted by single-band
+    (f)MRI sequence.
 
     Parameters
     ----------
@@ -159,7 +178,9 @@ def _ecg_clean_biopac(ecg_signal, sampling_rate=10000.0, tr=1.49, slices=60, Q=1
     notches = {"slices": slices / tr, "tr": 1 / tr}
     # remove baseline wandering
     ecg_clean = nk.signal_filter(
-        ecg_signal, sampling_rate=int(sampling_rate), lowcut=2,
+        ecg_signal,
+        sampling_rate=int(sampling_rate),
+        lowcut=2,
     )
     # Filtering at specific harmonics
     ecg_clean = _comb_band_stop(notches, nyquist, ecg_clean, Q)
@@ -177,7 +198,13 @@ def _ecg_clean_biopac(ecg_signal, sampling_rate=10000.0, tr=1.49, slices=60, Q=1
 
 
 def _ecg_clean_bottenhorn(
-    ecg_signal, sampling_rate=10000.0, tr=1.49, mb=4, slices=60, Q=100, comb=False
+    ecg_signal,
+    sampling_rate=10000.0,
+    tr=1.49,
+    mb=4,
+    slices=60,
+    Q=100,
+    comb=False,
 ):
     """
     Multiband sequence gradient noise reduction.
@@ -209,9 +236,10 @@ def _ecg_clean_bottenhorn(
 
     References
     ----------
-    Bottenhorn, K. L., Salo, T., Riedel, M. C., Sutherland, M. T., Robinson, J. L.,
-        Musser, E. D., & Laird, A. R. (2021). Denoising physiological data collected
-        during multi-band, multi-echo EPI sequences. bioRxiv, 2021-04.
+    Bottenhorn, K. L., Salo, T., Riedel, M. C., Sutherland, M. T.,
+        Robinson, J. L., Musser, E. D., & Laird, A. R. (2021).
+        Denoising physiological data collected during multi-band,
+        multi-echo EPI sequences. bioRxiv, 2021-04.
         https://doi.org/10.1101/2021.04.01.437293
 
     See also
@@ -222,12 +250,14 @@ def _ecg_clean_bottenhorn(
     nyquist = np.float64(sampling_rate / 2)
     notches = {"slices": slices / mb / tr, "tr": 1 / tr}
 
-    # Remove low frequency artefacts: respiration & baseline wander using high pass butterworth filter (order=2)
+    # Remove low frequency artefacts: respiration & baseline wander using high
+    # pass butterworth filter (order=2)
     print("... Applying high pass filter.")
     ecg_clean = nk.signal_filter(
         ecg_signal, sampling_rate=sampling_rate, lowcut=2, method="butter"
     )
-    # Filtering at fundamental and specific harmonics per Biopac application note #265
+    # Filtering at fundamental and specific harmonics per Biopac application
+    # note #265
     if comb:
         print("... Applying notch filter.")
         ecg_clean = _comb_band_stop(notches, nyquist, ecg_clean, Q)
@@ -253,7 +283,8 @@ def neuromod_eda_clean(eda_signal, sampling_rate=10000.0, downsampling=None):
         The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
         Default to 10000.
     downsampling : int
-        The desired sampling frequency (Hz). If None, the signal is not resample.
+        The desired sampling frequency (Hz). If None, the signal is not
+        resample.
         Default to None.
 
     Returns
@@ -263,9 +294,10 @@ def neuromod_eda_clean(eda_signal, sampling_rate=10000.0, downsampling=None):
 
     References
     ----------
-    Bottenhorn, K. L., Salo, T., Riedel, M. C., Sutherland, M. T., Robinson, J. L.,
-        Musser, E. D., & Laird, A. R. (2021). Denoising physiological data collected
-        during multi-band, multi-echo EPI sequences. bioRxiv, 2021-04.
+    Bottenhorn, K. L., Salo, T., Riedel, M. C., Sutherland, M. T.,
+        Robinson, J. L., Musser, E. D., & Laird, A. R. (2021).
+        Denoising physiological data collected during multi-band,
+        multi-echo EPI sequences. bioRxiv, 2021-04.
         https://doi.org/10.1101/2021.04.01.437293
 
     See also
@@ -277,10 +309,14 @@ def neuromod_eda_clean(eda_signal, sampling_rate=10000.0, downsampling=None):
     # Downsample the signal if specified
     if downsampling is not None:
         eda_clean = nk.signal_resample(
-            eda_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+            eda_clean,
+            sampling_rate=sampling_rate,
+            desired_sampling_rate=downsampling,
         )
         eda_signal = nk.signal_resample(
-            eda_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+            eda_signal,
+            sampling_rate=sampling_rate,
+            desired_sampling_rate=downsampling,
         )
 
     return eda_signal, eda_clean
@@ -301,7 +337,8 @@ def neuromod_rsp_clean(rsp_signal, sampling_rate=10000.0, downsampling=None):
         The sampling frequency of `rsp_signal` (in Hz, i.e., samples/second).
         Default to 10000.
     downsampling : int
-        The desired sampling frequency (Hz). If None, the signal is not resample.
+        The desired sampling frequency (Hz). If None, the signal is not
+        resample.
         Default to None.
 
     Returns
@@ -311,9 +348,10 @@ def neuromod_rsp_clean(rsp_signal, sampling_rate=10000.0, downsampling=None):
 
     References
     ----------
-    Khodadad, D., Nordebo, S., Müller, B., Waldmann, A., Yerworth, R., Becher, T., ... & Bayford, R. (2018).
-        Optimized breath detection algorithm in electrical impedance tomography. Physiological measurement,
-        39(9), 094001.
+    Khodadad, D., Nordebo, S., Müller, B., Waldmann, A., Yerworth, R.,
+        Becher, T., ... & Bayford, R. (2018). Optimized breath detection
+        algorithm in electrical impedance tomography. Physiological
+        measurement, 39(9), 094001.
     """
     # Apply bandpass filter
     rsp_clean = nk.rsp_clean(
@@ -322,10 +360,14 @@ def neuromod_rsp_clean(rsp_signal, sampling_rate=10000.0, downsampling=None):
     # Downsample the signal if specified
     if downsampling is not None:
         rsp_clean = nk.signal_resample(
-            rsp_clean, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+            rsp_clean,
+            sampling_rate=sampling_rate,
+            desired_sampling_rate=downsampling,
         )
         rsp_signal = nk.signal_resample(
-            rsp_signal, sampling_rate=sampling_rate, desired_sampling_rate=downsampling
+            rsp_signal,
+            sampling_rate=sampling_rate,
+            desired_sampling_rate=downsampling,
         )
 
     return rsp_signal, rsp_clean
@@ -338,7 +380,7 @@ def neuromod_rsp_clean(rsp_signal, sampling_rate=10000.0, downsampling=None):
 
 def _comb_band_stop(notches, nyquist, filtered, Q):
     """
-    A serie of notch filters aligned with the scanner gradient's harmonics.
+    Series of notch filters aligned with the scanner gradient's harmonics.
 
     Parameters
     ----------
@@ -367,7 +409,7 @@ def _comb_band_stop(notches, nyquist, filtered, Q):
     https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.filtfilt.html
     https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.iirnotch.html
     """
-    # band stoping each frequency specified with notches dict
+    # band stopping each frequency specified with notches dict
     for notch in notches:
         for i in np.arange(1, int(nyquist / notches[notch])):
             f0 = notches[notch] * i

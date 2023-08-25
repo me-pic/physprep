@@ -2,11 +2,11 @@
 
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-This standalone repository acts as use-case documentation for physiological data processing steps. The proposed workflow integrates community-based Ptyhon librairies such as [phys2bids](https://github.com/physiopy/phys2bids) and [neurokit2](https://github.com/neuropsychology/NeuroKit). 
+This standalone repository acts as use-case documentation for physiological data processing steps. The proposed workflow integrates community-based Python libraries such as [phys2bids](https://github.com/physiopy/phys2bids) and [neurokit2](https://github.com/neuropsychology/NeuroKit).
 
 The repo is separated in three main modules, and provides a setp-by-step tutorial for each of them:
 
-`utils\` 
+`utils\`
 1. `list_sub.py`: list all the physiological files for a given subject (and a given session).
 2. `get_info.py`: retrieve physiological files information.
 3. `match_acq_bids.py`: match Acqknowledge files (.acq) with the fMRI Nifti files (.nii.gz).
@@ -24,4 +24,4 @@ The repo is separated in three main modules, and provides a setp-by-step tutoria
 `visu\` :construction_worker:
 
 ## Acqknowlegments
-Thanks to the generous data donation from a subject of the [Courtois-Neuromod project](https://www.cneuromod.ca/), research communities like [PhysioPy](https://physiopy.github.io/) will benefit from common data access to test and optimize their physio data preparation workflows, using [BIDS](https://bids-specification.readthedocs.io/en/stable/04-modality-specific-files/06-physiological-and-other-continuous-recordings.html) format. 
+Thanks to the generous data donation from a subject of the [Courtois-Neuromod project](https://www.cneuromod.ca/), research communities like [PhysioPy](https://physiopy.github.io/) will benefit from common data access to test and optimize their physio data preparation workflows, using [BIDS](https://bids-specification.readthedocs.io/en/stable/04-modality-specific-files/06-physiological-and-other-continuous-recordings.html) format.

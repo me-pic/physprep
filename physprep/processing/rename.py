@@ -3,18 +3,20 @@
 """Neuromod phys data rename converted files."""
 
 import glob
-import pandas as pd
-import numpy as np
-import click
-import os
 import logging
+import os
+
+import click
+import numpy as np
+import pandas as pd
 
 
 @click.command()
 @click.argument("indir", type=click.Path(exists=True), required=True)
 @click.argument("sub", type=str, required=True)
 @click.option(
-    "--sessions", type=str,
+    "--sessions",
+    type=str,
 )
 def co_register_physio(indir, sub, sessions=None):
     """
@@ -43,7 +45,7 @@ def co_register_physio(indir, sub, sessions=None):
     elif isinstance(sessions, list) is False:
         sessions = [sessions]
 
-    # iterate through sesssions
+    # iterate through sessions
     for ses in sessions:
         logger.info(f"renaming files in session : {ses}")
 
@@ -70,14 +72,7 @@ def co_register_physio(indir, sub, sessions=None):
 
         # remove padding trigger for videogames tasks
         if any(game in indir for game in ["mario", "shinobi"]):
-            triggers = [
-                trigger - 1 if trigger > 200 else trigger for trigger in triggers
-            ]
-
-        # check sanity of info - expected runs is number of runs in BOLD sidecar
-        # if info[ses]['expected_runs'] is not info[ses]['processed_runs']:
-        #    print(f"Expected number of runs {info[ses]['expected_runs']} "
-        #          "does not match info from neuroimaging metadata")
+            triggers = [trigger - 1 if trigger > 200 else trigger for trigger in triggers]
 
         if len(info[ses]["task"]) is not info[ses]["expected_runs"]:
             logger.info("Number of tasks does not match expected number of runs")
@@ -85,7 +80,7 @@ def co_register_physio(indir, sub, sessions=None):
 
         if info[ses]["recorded_triggers"].values is None:
             logger.info(
-                f"No recorded triggers information - check physio files for {ses}"
+                "No recorded triggers information - check physio files " f"for {ses}"
             )
             continue
 
@@ -115,7 +110,7 @@ def co_register_physio(indir, sub, sessions=None):
             os.remove(log[idx])
             os.remove(png[idx])
 
-        # theses are to be kept
+        # these are to be kept
         triggers = np.delete(triggers, to_be_del)
         tsv = np.delete(tsv, to_be_del)
         json = np.delete(json, to_be_del)
@@ -126,6 +121,8 @@ def co_register_physio(indir, sub, sessions=None):
         for idx, volumes in enumerate(triggers):
             i = f"{idx+1:02d}"
             logger.info(info[ses][i])
+            filename_tsv = f"{sub}_{ses}_{info[ses]['task'][idx]}_physio.tsv.gz"
+            filename_json = f"{sub}_{ses}_{info[ses]['task'][idx]}_physio.json"
             if volumes != info[ses][i]:
                 logger.info(
                     f"Recorded triggers info for {ses} does not match with "
@@ -137,11 +134,11 @@ def co_register_physio(indir, sub, sessions=None):
             else:
                 os.rename(
                     tsv[idx],
-                    f"{indir}{sub}/{ses}/{sub}_{ses}_{info[ses]['task'][idx]}_physio.tsv.gz",
+                    f"{indir}{sub}/{ses}/{filename_tsv}",
                 )
                 os.rename(
                     json[idx],
-                    f"{indir}{sub}/{ses}/{sub}_{ses}_{info[ses]['task'][idx]}_physio.json",
+                    f"{indir}{sub}/{ses}/{filename_json}",
                 )
 
 

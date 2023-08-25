@@ -1,26 +1,24 @@
-from typing import Dict, List, Optional, Tuple
-import traceback
-
-import click
-import numpy as np
-from bokeh.models import BoxAnnotation, ColumnDataSource, RangeTool
-from pandas.core.indexes.datetimes import DatetimeIndex
-
-from systole.plots import plot_rr
-from systole.utils import ecg_strings, ppg_strings, resp_strings
-
-import os
+# -*- coding: utf-8 -*-
+# !/usr/bin/env python -W ignore::DeprecationWarning
+"""
+Physiological signals plotting functions.
+"""
 import json
-import pandas as pd
+import os
+import traceback
+from typing import Dict, List, Optional, Tuple
 
 # from systole.plots import plot_raw
-import neurokit2 as nk
-from scipy import signal
-
-from bokeh.io import output_notebook
+import numpy as np
+import pandas as pd
 from bokeh.embed import components
-from bokeh.layouts import row, gridplot, column
-from bokeh.plotting import show, output_file, figure, save
+from bokeh.io import output_notebook
+from bokeh.layouts import column, gridplot
+from bokeh.models import BoxAnnotation, ColumnDataSource, RangeTool
+from bokeh.plotting import figure, output_file, save
+from pandas.core.indexes.datetimes import DatetimeIndex
+from systole.plots import plot_rr
+from systole.utils import ecg_strings, ppg_strings, resp_strings
 
 output_notebook()
 
@@ -42,9 +40,7 @@ def load_data(outdir, sub, ses):
     data, data_noseq, info = [], [], []
     for f in files:
         print(f)
-        data.append(
-            pd.read_csv(os.path.join(outdir, sub, ses, f + ".tsv.gz"), sep="\t")
-        )
+        data.append(pd.read_csv(os.path.join(outdir, sub, ses, f + ".tsv.gz"), sep="\t"))
         data_noseq.append(
             pd.read_csv(os.path.join(outdir, sub, ses, f + "_noseq.tsv.gz"), sep="\t")
         )
@@ -80,7 +76,11 @@ def plot_scr(
     )
 
     p1.line(
-        "time", "signal", source=source, legend_label="SCR", line_color="#3783a9",
+        "time",
+        "signal",
+        source=source,
+        legend_label="SCR",
+        line_color="#3783a9",
     )
 
     p1.circle(
@@ -104,7 +104,7 @@ def plot_scr(
     cols = (p1,)
 
     if len(cols) > 1:
-        return columns(*cols, sizing_mode="stretch_width")
+        return column(*cols, sizing_mode="stretch_width")
     else:
         return cols[0]
 
@@ -140,9 +140,11 @@ def plot_raw(
     signal :
         The physiological signal (1d numpy array).
     eda_scr :
-        The skin conductance response component associated with EDA signal (1d numpy array).
+        The skin conductance response component associated with EDA signal
+        (1d numpy array).
     eda_scl :
-        The skin conductance level component associate with the EDA signal (1d numpy array).
+        The skin conductance level component associate with the EDA signal
+        (1d numpy array).
     peaks :
         The peaks or R wave detection (1d boolean array).
     modality :
@@ -154,7 +156,7 @@ def plot_raw(
     show_artefacts :
         If `True`, the function will call
        :py:func:`systole.detection.rr_artefacts` to detect outliers intervalin the time
-        serie and outline them using different colors.
+        series and outline them using different colors.
     bad_segments :
         Mark some portion of the recording as bad. Grey areas are displayed on the top
         of the signal to help visualization (this is not correcting or transforming the
@@ -162,7 +164,7 @@ def plot_raw(
         end_idx) for each segment.
     decim :
         Factor by which to subsample the raw signal. Selects every Nth sample (where N
-        is the value passed to decim). Default set to `10` (considering that the imput
+        is the value passed to decim). Default set to `10` (considering that the input
         signal has a sampling frequency of 1000 Hz) to save memory.
     slider :
         If `True`, add a slider to zoom in/out in the signal (only working with
@@ -171,7 +173,7 @@ def plot_raw(
         Figure heights. Default is `300`.
     events_params :
         (Optional) Additional parameters that will be passed to
-       :py:func:`systole.plots.plot_events` and plot the events timing in the backgound.
+       :py:func:`systole.plots.plot_events` and plot the events timing in the background.
     kwargs:
         Other keyword arguments passed to the function but unused by the Bokeh backend.
 
@@ -199,9 +201,7 @@ def plot_raw(
             }
         )
     else:
-        source = ColumnDataSource(
-            data={"time": time[::decim], "signal": signal[::decim]}
-        )
+        source = ColumnDataSource(data={"time": time[::decim], "signal": signal[::decim]})
 
     if modality in ppg_strings:
         # title = "PPG recording"
@@ -337,10 +337,25 @@ def plot_raw(
 
 
 def generate_plot(source, sub, ses, filename, modality):
+    """
+    Parameters
+    ----------
+    source : str
+        The directory containing the processed signals.
+    sub : str
+        The id of the subject.
+    ses : str
+        The id of the session.
+    filename : str
+
+    modality : list
+        A list containing the biosignal modalities to plot.
+        The options include "ECG", "PPG", "EDA", and "RSP".
+    """
     data = pd.read_csv(os.path.join(source, sub, ses, filename + ".tsv.gz"), sep="\t")
     info = load_json(os.path.join(source, sub, ses, filename + ".json"))
 
-    print(f"Plotting Clean signal with scanner on: {modality} begin")
+    print(f"Plotting {modality} signal: begin")
     try:
         # Plot cleaned signal during MRI sequence
         if modality == "RSP":
@@ -376,7 +391,7 @@ def generate_plot(source, sub, ses, filename, modality):
                 show_heart_rate=True,
                 show_artefacts=True,
             )
-        print(f"Plotting Clean signal with scanner on: {modality} done")
+        print(f"Plotting {modality} signal: done")
     except Exception:
         print(f"Could not plot {modality} signal")
         traceback.print_exc()
@@ -386,7 +401,7 @@ def generate_plot(source, sub, ses, filename, modality):
 
 def generate_raw_filtered_plots(outdir, sub, ses, modality):
     """
-    Generate interactive plots for each modality
+    Generate interactive plots for each modality.
 
     Parameters
     ----------
@@ -401,14 +416,6 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
     modality : list
         A list containing the biosignal modalities to plot.
         The options include "ECG", "PPG", "EDA", and "RSP".
-    
-    Examples
-    --------
-    In script
-    >>> generate_plot(outdir="/home/user/dataset/derivatives/", sub="sub-01", ses="ses-001", modality=["PPG", "ECG", "EDA", "RSP"])
-    In terminal
-    >>> python plot_signals.py /home/user/dataset/derivatives/ sub-01 --ses ses-001 --modality '["PPG", "ECG", "EDA", "RSP"]'
-    NOTE: to specify the `modality` using the CLI, use the single quote ('') just like the example above.
     """
     modality = json.loads(modality)
 
@@ -506,16 +513,16 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
                     idx += 1
                     tmp += 1
                     print(f"Plotting Clean signal with scanner on: {mod} done")
-            except:
+            except Exception:
                 idx -= tmp
                 del figures[-tmp:]
                 print(f"Could not plot {mod} signal")
+                traceback.print_exc()
 
-        # Organize figures in grid containing 3 columns (Raw: scanner OFF; Raw: scanner ON; Clean: scanner ON)
+        # Organize figures in grid containing 3 columns
+        # (Raw: scanner OFF; Raw: scanner ON; Clean: scanner ON)
         layout = gridplot(
-            children=[
-                [figures[i] for i in range(j, j + 3)] for j in range(0, idx - 1, 3)
-            ]
+            children=[[figures[i] for i in range(j, j + 3)] for j in range(0, idx - 1, 3)]
         )
 
         # Save generate figure in html
