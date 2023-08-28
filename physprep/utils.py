@@ -152,15 +152,14 @@ def create_config(outdir, filename, overwrite=False):
     filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
 
     while True:
-        method = lowcut = highcut = order = desired_sampling_rate = cutoff = False
         tmp = {}
-
         step = input(
             "Enter a processing step among the following: resampling, "
             "filtering.\nIf you do not want to add a step, just press enter.\n"
         )
         step = _check_input_validity(step.lower(), valid_steps)
         if step not in ["", " "]:
+            method = lowcut = highcut = order = desired_sampling_rate = cutoff = False
             tmp["step"] = step
             if step in ["filtering", "filter"]:
                 while method is False:
