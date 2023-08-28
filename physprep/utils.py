@@ -39,13 +39,13 @@ def _check_input_validity(option, valid_options):
             if "." in option or "," in option:
                 return float(option)
             elif option.isdigit() is False:
-                print("Please enter a positive number")
+                print("**Please enter a positive number.")
                 return False
             else:
                 return int(option)
         else:
             if option not in valid_options:
-                print(f"**Please enter a valid option: {', '.join(valid_options)}")
+                print(f"**Please enter a valid option: {', '.join(valid_options)}.")
                 return False
             else:
                 if option in [
@@ -58,17 +58,23 @@ def _check_input_validity(option, valid_options):
                 ]:
                     option = "signal_resample"
                 return option
-    elif valid_options == int:
+    if valid_options in [int, "odd"]:
         if option.isdigit() is False:
-            print("**Please enter a positive integer")
+            print("**Please enter a positive integer.")
             return False
+        if valid_options == "odd":
+            if option % 2 != 0:
+                print("**Please enter an odd number.")
+                return False
+            else:
+                return int(option)
         else:
             return int(option)
-    elif valid_options == float:
+    if valid_options == float:
         if "." in option or "," in option:
             return float(option)
         else:
-            print("**Please enter a positive float")
+            print("**Please enter a positive float.")
             return False
 
 
@@ -166,7 +172,7 @@ def create_config(outdir, filename, overwrite=False):
                 if method == "notch":
                     Q = input("Enter the quality factor for the notch filter. \n")
                     tmp["Q"] = _check_input_validity(Q, [int, float])
-                else:
+                if method in ["butterworth", "fir", "bessel"]:
                     while cutoff is False:
                         while lowcut is False:
                             lowcut = input(
@@ -196,12 +202,17 @@ def create_config(outdir, filename, overwrite=False):
                             lowcut = highcut = False
                         else:
                             cutoff = True
+                if method in ["savgol", "butterworth", "bessel"]:
                     while order is False:
                         order = input(
                             "Enter the filter order. Must be a positive " "integer.\n"
                         )
-                        order = _check_input_validity(order, int)
-                        tmp["order"] = order
+                        tmp["order"] = _check_input_validity(order, int)
+                if method == "savgol":
+                    window_size = input(
+                        "Enter the length of the filter window. Must be an odd integer.\n"
+                    )
+                    tmp["window_size"] = _check_input_validity(window_size, "odd")
 
             if step in [
                 "resampling",
