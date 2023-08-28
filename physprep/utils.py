@@ -130,7 +130,7 @@ def create_config(outdir, filename, overwrite=False):
     step = None
     steps = []
     tmp = {}
-    valid_filters = ["butterworth", "fir", "bessel", "savgol"]
+    valid_filters = ["butterworth", "fir", "bessel", "savgol", "notch"]
     valid_steps = [
         "filtering",
         "resampling",
@@ -142,9 +142,6 @@ def create_config(outdir, filename, overwrite=False):
         "",
         " ",
     ]
-    valid_cutoff_type = [int, float, "", " "]
-    valid_order_type = int
-    valid_sampling_rate_type = [int, float]
 
     filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
 
@@ -163,43 +160,48 @@ def create_config(outdir, filename, overwrite=False):
                 while method is False:
                     method = input(
                         "Enter the filter type among the following: "
-                        "butterworth, fir, bessel, savgol.\n"
+                        f"{', '.join(valid_filters)}.\n"
                     )
-                    method = _check_input_validity(method.lower(), valid_filters)
-                    tmp["method"] = method
-                while cutoff is False:
-                    while lowcut is False:
-                        lowcut = input(
-                            "Enter the lower cutoff frequency (Hz). "
-                            "If you do not want to apply a high pass or band "
-                            "pass filter, just press enter. \n"
+                    tmp["method"] = _check_input_validity(method.lower(), valid_filters)
+                if method == "notch":
+                    Q = input("Enter the quality factor for the notch filter. \n")
+                    tmp["Q"] = _check_input_validity(Q, [int, float])
+                else:
+                    while cutoff is False:
+                        while lowcut is False:
+                            lowcut = input(
+                                "Enter the lower cutoff frequency (Hz). "
+                                "If you do not want to apply a high pass or band "
+                                "pass filter, just press enter. \n"
+                            )
+                            lowcut = _check_input_validity(lowcut, [int, float, "", " "])
+                            if lowcut not in ["", " "]:
+                                tmp["lowcut"] = lowcut
+                        while highcut is False:
+                            highcut = input(
+                                "Enter the higher cutoff frequency (Hz). "
+                                "If you do not want to apply a low pass filter "
+                                "or band pass filter, just press enter. \n"
+                            )
+                            highcut = _check_input_validity(
+                                highcut, [int, float, "", " "]
+                            )
+                            if highcut not in ["", " "]:
+                                tmp["highcut"] = highcut
+                        if lowcut in ["", " "] and highcut in ["", " "]:
+                            print(
+                                "**Please enter either the filter lower cutoff frequency "
+                                "and/or the filter higher cutoff frequency"
+                            )
+                            lowcut = highcut = False
+                        else:
+                            cutoff = True
+                    while order is False:
+                        order = input(
+                            "Enter the filter order. Must be a positive " "integer.\n"
                         )
-                        lowcut = _check_input_validity(lowcut, valid_cutoff_type)
-                        if lowcut not in ["", " "]:
-                            tmp["lowcut"] = lowcut
-                    while highcut is False:
-                        highcut = input(
-                            "Enter the higher cutoff frequency (Hz). "
-                            "If you do not want to apply a low pass filter "
-                            "or band pass filter, just press enter. \n"
-                        )
-                        highcut = _check_input_validity(highcut, valid_cutoff_type)
-                        if highcut not in ["", " "]:
-                            tmp["highcut"] = highcut
-                    if lowcut in ["", " "] and highcut in ["", " "]:
-                        print(
-                            "**Please enter either the filter lower cutoff frequency "
-                            "and/or the filter higher cutoff frequency"
-                        )
-                        lowcut = highcut = False
-                    else:
-                        cutoff = True
-                while order is False:
-                    order = input(
-                        "Enter the filter order. Must be a positive " "integer.\n"
-                    )
-                    order = _check_input_validity(order, valid_order_type)
-                    tmp["order"] = order
+                        order = _check_input_validity(order, int)
+                        tmp["order"] = order
 
             if step in [
                 "resampling",
@@ -215,7 +217,7 @@ def create_config(outdir, filename, overwrite=False):
                         "to resample the signal (in Hz). \n"
                     )
                     desired_sampling_rate = _check_input_validity(
-                        desired_sampling_rate, valid_sampling_rate_type
+                        desired_sampling_rate, [int, float]
                     )
                     tmp["desired_sampling_rate"] = desired_sampling_rate
 
