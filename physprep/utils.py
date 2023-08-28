@@ -72,6 +72,28 @@ def _check_input_validity(option, valid_options):
             return False
 
 
+def _create_ref():
+    ref = {}
+    ref["authors"] = input("Enter the author(s) name: \n")
+    ref["year"] = input("Enter the publication year: \n")
+    ref["title"] = input("Enter the publication title: \n")
+    publication_type = input("Is the source of information a journal ? [y/n]")
+    if publication_type in ["y", "yes"]:
+        ref["journal"] = input("Enter the title of the journal: \n")
+        ref["volume"] = input("Enter the volume number: \n")
+        ref["issue"] = input("Enter the issue number: \n")
+    else:
+        book = input("Is the source of information a book ? [y/n]")
+        if book in ["y", "yes"]:
+            ref["publisher"] = input("Enter the name of the publisher: \n")
+            ref["location"] = input(
+                "Enter the location of the publisher (city and state/country): \n"
+            )
+    ref["doi"] = input("Enter the DOI: \n")
+
+    return ref
+
+
 def load_json(filename):
     """
     Parameters
@@ -196,6 +218,10 @@ def create_config(outdir, filename, overwrite=False):
                         desired_sampling_rate, valid_sampling_rate_type
                     )
                     tmp["desired_sampling_rate"] = desired_sampling_rate
+
+            ref = input("Is there a reference related to that step ? [y/n]")
+            if ref in ["y", "yes"]:
+                tmp["reference"] = _create_ref()
             steps.append(tmp)
         else:
             with open(os.path.join(outdir, filename), "w") as f:
