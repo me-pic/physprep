@@ -83,19 +83,22 @@ def _create_ref():
     ref["authors"] = input("Enter the author(s) name: \n")
     ref["year"] = input("Enter the publication year: \n")
     ref["title"] = input("Enter the publication title: \n")
-    publication_type = input("Is the source of information a journal ? [y/n]")
+    publication_type = input("Is the source of information a journal ? [y/n] ")
     if publication_type in ["y", "yes"]:
         ref["journal"] = input("Enter the title of the journal: \n")
         ref["volume"] = input("Enter the volume number: \n")
         ref["issue"] = input("Enter the issue number: \n")
+        ref["page"] = input("Enter the page numbers: \n")
+        ref["doi"] = input("Enter the DOI: \n")
     else:
-        book = input("Is the source of information a book ? [y/n]")
+        book = input("Is the source of information a book ? [y/n] ")
         if book in ["y", "yes"]:
             ref["publisher"] = input("Enter the name of the publisher: \n")
             ref["location"] = input(
                 "Enter the location of the publisher (city and state/country): \n"
             )
-    ref["doi"] = input("Enter the DOI: \n")
+
+    ref["url"] = input("Enter the URL of the source: \n")
 
     return ref
 
