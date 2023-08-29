@@ -26,10 +26,10 @@ and respiratory signals is currently supported.
 
 Physprep was originally developed to preprocess physiological data acquired concurrently
 with large-scale individual functional MRI as part of the `CNeuromMod project
-<https://docs.cneuromod.ca/en/latest/>`. This workflow combines well-maintained,
+<https://docs.cneuromod.ca/en/latest/>`_. This workflow combines well-maintained,
 community-based Python libraries such as
-`Phys2bids <https://phys2bids.readthedocs.io/en/latest/>` and `NeuroKit2
-<https://neuropsychology.github.io/NeuroKit/>`, and relies on the BIDS standard.
+`Phys2bids <https://phys2bids.readthedocs.io/en/latest/>`_ and `NeuroKit2
+<https://neuropsychology.github.io/NeuroKit/>`_, and relies on the BIDS standard.
 
 Contents
 --------
