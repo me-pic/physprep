@@ -24,12 +24,6 @@ repos:
     hooks:
     -   id: flake8
         args: [--config, .flake8, --verbose]
--   repo: https://github.com/pre-commit/pygrep-hooks
-    rev: v1.10.0
-    hooks:
-      - id: rst-backticks
-      - id: rst-directive-colons
-      - id: rst-inline-touching-normal
 -   repo: https://github.com/codespell-project/codespell
     rev: v2.2.5
     hooks:
