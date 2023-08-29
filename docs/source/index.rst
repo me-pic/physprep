@@ -11,7 +11,11 @@ states, making it possible to characterize brain-body interactions in neuroimagi
 The relevance of these measures when acquiring neuroimaging data and the subsequent
 increase in the amount of data processing highlight the importance of establishing
 reliable processing and reporting practices for biosignals acquired in magnetic resonance
-(MR) context, but a standardized head-to-tail workflow has yet to be proposed.
+(MR) context, but a standardized head-to-tail workflow has yet to be proposed. Physprep
+is an open-source tool to prepare biosignals for analysis. This workflow presents itself
+as user-friendly and flexible by providing customization options through configuration
+files. The (pre-)processing of cardiac signals (ECG and PPG), electrodermal signals (EDA),
+and respiratory signals is currently supported.
 
 .. note::
 
