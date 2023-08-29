@@ -6,6 +6,12 @@ import pickle
 
 
 def _check_filename(outdir, filename, extension=None, overwrite=False):
+    # Check extension if specified
+    if extension is not None:
+        root, ext = os.path.splitext(filename)
+        if not ext or ext != extension:
+            filename = root + extension
+
     # Check if file already exist
     if os.path.exists(os.path.join(outdir, filename).strip()):
         if not overwrite:
@@ -20,12 +26,6 @@ def _check_filename(outdir, filename, extension=None, overwrite=False):
                 "If you do not want to overwrite the file, kill the script and "
                 "set the `overwrite` flag to `False`"
             )
-
-    # Check extension if specified
-    if extension is not None:
-        root, ext = os.path.splitext(filename)
-        if not ext or ext != extension:
-            filename = root + extension
 
     return filename
 
@@ -83,7 +83,7 @@ def _create_ref():
     ref["authors"] = input("Enter the author(s) name: \n")
     ref["year"] = input("Enter the publication year: \n")
     ref["title"] = input("Enter the publication title: \n")
-    publication_type = input("Is the source of information a journal ? [y/n] ")
+    publication_type = input("Is the source of information a journal ? [y/n] \n")
     if publication_type in ["y", "yes"]:
         ref["journal"] = input("Enter the title of the journal: \n")
         ref["volume"] = input("Enter the volume number: \n")
@@ -91,7 +91,7 @@ def _create_ref():
         ref["page"] = input("Enter the page numbers: \n")
         ref["doi"] = input("Enter the DOI: \n")
     else:
-        book = input("Is the source of information a book ? [y/n] ")
+        book = input("Is the source of information a book ? [y/n] \n")
         if book in ["y", "yes"]:
             ref["publisher"] = input("Enter the name of the publisher: \n")
             ref["location"] = input(
@@ -157,7 +157,7 @@ def create_config(outdir, filename, overwrite=False):
     while True:
         tmp = {}
         step = input(
-            "Enter a processing step among the following: resampling, "
+            "\n Enter a processing step among the following: resampling, "
             "filtering.\nIf you do not want to add a step, just press enter.\n"
         )
         step = _check_input_validity(step.lower(), valid_steps)
@@ -167,18 +167,18 @@ def create_config(outdir, filename, overwrite=False):
             if step in ["filtering", "filter"]:
                 while method is False:
                     method = input(
-                        "Enter the filter type among the following: "
+                        "\n Enter the filter type among the following: "
                         f"{', '.join(valid_filters)}.\n"
                     )
                     tmp["method"] = _check_input_validity(method.lower(), valid_filters)
                 if method == "notch":
-                    Q = input("Enter the quality factor for the notch filter. \n")
+                    Q = input("\n Enter the quality factor for the notch filter. \n")
                     tmp["Q"] = _check_input_validity(Q, [int, float])
                 if method in ["butterworth", "fir", "bessel"]:
                     while cutoff is False:
                         while lowcut is False:
                             lowcut = input(
-                                "Enter the lower cutoff frequency (Hz). "
+                                "\n Enter the lower cutoff frequency (Hz). "
                                 "If you do not want to apply a high pass or band "
                                 "pass filter, just press enter. \n"
                             )
@@ -187,7 +187,7 @@ def create_config(outdir, filename, overwrite=False):
                                 tmp["lowcut"] = lowcut
                         while highcut is False:
                             highcut = input(
-                                "Enter the higher cutoff frequency (Hz). "
+                                "\n Enter the higher cutoff frequency (Hz). "
                                 "If you do not want to apply a low pass filter "
                                 "or band pass filter, just press enter. \n"
                             )
@@ -207,19 +207,20 @@ def create_config(outdir, filename, overwrite=False):
                 if method in ["savgol", "butterworth", "bessel"]:
                     while order is False:
                         order = input(
-                            "Enter the filter order. Must be a positive " "integer.\n"
+                            "\n Enter the filter order. Must be a positive " "integer.\n"
                         )
                         tmp["order"] = _check_input_validity(order, int)
                 if method == "savgol":
                     window_size = input(
-                        "Enter the length of the filter window. Must be an odd integer.\n"
+                        "\n Enter the length of the filter window. Must be an odd "
+                        "integer.\n"
                     )
                     tmp["window_size"] = _check_input_validity(window_size, "odd")
 
             if step == "signal_resample":
                 while desired_sampling_rate is False:
                     desired_sampling_rate = input(
-                        "Enter the desired sampling frequency "
+                        "\n Enter the desired sampling frequency "
                         "to resample the signal (in Hz). \n"
                     )
                     desired_sampling_rate = _check_input_validity(
@@ -227,7 +228,7 @@ def create_config(outdir, filename, overwrite=False):
                     )
                     tmp["desired_sampling_rate"] = desired_sampling_rate
 
-            ref = input("Is there a reference related to that step ? [y/n]")
+            ref = input("\n Is there a reference related to that step ? [y/n] \n")
             if ref in ["y", "yes"]:
                 tmp["reference"] = _create_ref()
             steps.append(tmp)
