@@ -3,8 +3,11 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Physprep's documentation!
-====================================
+Physprep: Physiological Data Preparation Workflow Adapted for MR Settings
+=========================================================================
+
+About
+-----
 
 Peripheral biosignals are valuable for capturing fluctuations in cognitive and affective
 states, making it possible to characterize brain-body interactions in neuroimaging setup.
@@ -21,24 +24,28 @@ and respiratory signals is currently supported.
 
    This project is under active development.
 
+Physprep was originally developed to preprocess physiological data acquired concurrently
+with large-scale individual functional MRI as part of the `CNeuromMod project
+<https://docs.cneuromod.ca/en/latest/>`. This workflow combines well-maintained,
+community-based Python libraries such as
+`Phys2bids <https://phys2bids.readthedocs.io/en/latest/>` and `NeuroKit2
+<https://neuropsychology.github.io/NeuroKit/>`, and relies on the BIDS standard.
+
+Contents
+--------
+
 .. toctree::
    :maxdepth: 1
-   :caption: Contents:
 
    installation.md
    usage.md
    workflow.md
    outputs.md
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Contribution:
-
    authors.md
    api.rst
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`
