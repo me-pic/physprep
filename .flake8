@@ -2,6 +2,7 @@
 exclude =
     .git,
     __pycache__
+	**/__init__.py
 --select = D,E,F,W,C90
 docstring-convention = numpy
 max-line-length = 90
