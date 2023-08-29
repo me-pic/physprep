@@ -1,0 +1,24 @@
+[
+    {
+        "step": "filtering",
+        "method": "butterworth",
+        "lowcut": 0.5,
+        "highcut": 8,
+        "order": 3,
+        "reference": {
+            "authors": "Elgendi, M., Norton, I., Brearley, M., Abbott, D., & Schuurmans, D.",
+            "year": "2013",
+            "title": "Systolic peak detection in acceleration photoplethysmograms measured from emergency responders in tropical conditions",
+            "journal": "PloS one",
+            "volume": "8",
+            "issue": "10",
+            "page": "e76585",
+            "doi": "10.1371/journal.pone.0076585",
+            "url": "https://doi.org/10.1371/journal.pone.0076585"
+        }
+    },
+    {
+        "step": "signal_resample",
+        "desired_sampling_rate": 1000
+    }
+]
