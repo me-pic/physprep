@@ -246,3 +246,56 @@ def create_config_features(outdir, filename, overwrite=False):
     filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
 
     # TO DO
+
+
+def create_config_workflow(outdir, filename, overwrite=False):
+    """
+    outdir: str, Path
+    filename: str
+    overwrite: bool
+    """
+    # Instantiate variables
+    signals = []
+    valid_signals = ["PPG", "ECG", "EDA", "RSP", "", " "]
+    preprocessing_strategy = [
+        os.path.splitext(f)[0] for f in os.listdir("./data/preprocessing_strategy/")
+    ]
+    features_strategy = [
+        os.path.splitext(f)[0] for f in os.listdir("./data/features_strategy/")
+    ]
+
+    filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
+
+    while True:
+        tmp = {}
+        signal = input(
+            "\n Enter the type of signal to process. Currently only the (pre-)processing "
+            f"of {', '.join(valid_signals[:-2])}. \nIf you do not want to add another"
+            "type of signal, just press enter.\n"
+        )
+        signal = _check_input_validity(signal.lower(), valid_signals)
+        if signal not in ["", " "]:
+            tmp[signal] = {}
+            # Add preprocessing strategy to the workflow
+            preprocessing = input(
+                "\n Enter the name of the preprocessing "
+                f"strategy to clean the {signal} signal. Choose among the current "
+                "configuration files by providing the name of the strategy, or create "
+                "a new configuration file. To create a new configuration file type `new`."
+                " Otherwise, choose among those strategy: "
+                f"{', '.join(preprocessing_strategy)}"
+            )
+            preprocessing = _check_input_validity(preprocessing, preprocessing_strategy)
+
+            features = input(
+                "\n Enter the name of the features extraction "
+                f"strategy for the {signal} signal. Choose among the current "
+                "configuration files by providing the name of the strategy, or create a "
+                "new configuration file. To create a new configuration file type `new`. "
+                f"Otherwise, choose among those strategy: {', '.join(features_strategy)}"
+            )
+            features = _check_input_validity(features, features_strategy)
+        else:
+            with open(os.path.join(outdir, filename), "w") as f:
+                json.dump(signals, f, indent=4)
+            break
