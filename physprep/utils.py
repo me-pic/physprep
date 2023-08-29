@@ -213,14 +213,7 @@ def create_config(outdir, filename, overwrite=False):
                     )
                     tmp["window_size"] = _check_input_validity(window_size, "odd")
 
-            if step in [
-                "resampling",
-                "resample",
-                "upsampling",
-                "upsample",
-                "downsampling",
-                "downsample",
-            ]:
+            if step == "signal_resample":
                 while desired_sampling_rate is False:
                     desired_sampling_rate = input(
                         "Enter the desired sampling frequency "
