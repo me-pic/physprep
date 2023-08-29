@@ -130,15 +130,14 @@ def load_json(filename):
     return data
 
 
-def create_config(outdir, filename, overwrite=False):
+def create_config_preprocessing(outdir, filename, overwrite=False):
     """
     outdir: str, Path
     filename: str
+    overwrite: bool
     """
     # Instantiate variables
-    step = None
     steps = []
-    tmp = {}
     valid_filters = ["butterworth", "fir", "bessel", "savgol", "notch"]
     valid_steps = [
         "filtering",
@@ -236,3 +235,14 @@ def create_config(outdir, filename, overwrite=False):
             with open(os.path.join(outdir, filename), "w") as f:
                 json.dump(steps, f, indent=4)
             break
+
+
+def create_config_features(outdir, filename, overwrite=False):
+    """
+    outdir: str, Path
+    filename: str
+    overwrite: bool
+    """
+    filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
+
+    # TO DO
