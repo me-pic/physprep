@@ -22,13 +22,18 @@ and respiratory signals is currently supported.
    This project is under active development.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
    installation.md
    usage.md
    workflow.md
    outputs.md
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Contribution:
+
    authors.md
    api.rst
 

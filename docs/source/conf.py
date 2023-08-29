@@ -21,6 +21,7 @@ author = "Marie-Eve Picard"
 
 extensions = [
     "sphinx_rtd_theme",
+    "myst_parser",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
