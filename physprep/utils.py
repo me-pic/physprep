@@ -30,9 +30,9 @@ def _check_filename(outdir, filename, extension=None, overwrite=False):
     return filename
 
 
-def _check_input_validity(option, valid_options):
+def _check_input_validity(option, valid_options, empty=True):
     if type(valid_options) is list:
-        if set(["", " "]) <= set(valid_options):
+        if empty:
             if option in ["", " "]:
                 return option
         if int in valid_options or float in valid_options:
@@ -147,8 +147,6 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
         "upsample",
         "downsampling",
         "downsample",
-        "",
-        " ",
     ]
 
     filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
@@ -159,7 +157,7 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
             "\n Enter a processing step among the following: resampling, "
             "filtering.\nIf you do not want to add a step, just press enter.\n"
         )
-        step = _check_input_validity(step.lower(), valid_steps)
+        step = _check_input_validity(step.lower(), valid_steps, empty=True)
         if step not in ["", " "]:
             method = lowcut = highcut = order = desired_sampling_rate = cutoff = False
             tmp["step"] = step
@@ -181,7 +179,9 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
                                 "If you do not want to apply a high pass or band "
                                 "pass filter, just press enter. \n"
                             )
-                            lowcut = _check_input_validity(lowcut, [int, float, "", " "])
+                            lowcut = _check_input_validity(
+                                lowcut, [int, float], empty=True
+                            )
                             if lowcut not in ["", " "]:
                                 tmp["lowcut"] = lowcut
                         while highcut is False:
@@ -191,7 +191,7 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
                                 "or band pass filter, just press enter. \n"
                             )
                             highcut = _check_input_validity(
-                                highcut, [int, float, "", " "]
+                                highcut, [int, float], empty=True
                             )
                             if highcut not in ["", " "]:
                                 tmp["highcut"] = highcut
@@ -232,20 +232,10 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
                 tmp["reference"] = _create_ref()
             steps.append(tmp)
         else:
+            print("\n---Saving configuration file---")
             with open(os.path.join(outdir, filename), "w") as f:
                 json.dump(steps, f, indent=4)
             break
-
-
-def create_config_features(outdir, filename, overwrite=False):
-    """
-    outdir: str, Path
-    filename: str
-    overwrite: bool
-    """
-    filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
-
-    # TO DO
 
 
 def create_config_workflow(outdir, filename, overwrite=False):
@@ -255,47 +245,67 @@ def create_config_workflow(outdir, filename, overwrite=False):
     overwrite: bool
     """
     # Instantiate variables
-    signals = []
-    valid_signals = ["PPG", "ECG", "EDA", "RSP", "", " "]
+    signals = {}
+    valid_signals = ["PPG", "ECG", "EDA", "RSP"]
     preprocessing_strategy = [
         os.path.splitext(f)[0] for f in os.listdir("./data/preprocessing_strategy/")
     ]
-    features_strategy = [
-        os.path.splitext(f)[0] for f in os.listdir("./data/features_strategy/")
-    ]
+    preprocessing_strategy.append("new")
 
     filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
 
     while True:
-        tmp = {}
-        signal = input(
-            "\n Enter the type of signal to process. Currently only the (pre-)processing "
-            f"of {', '.join(valid_signals[:-2])}. \nIf you do not want to add another"
-            "type of signal, just press enter.\n"
-        )
-        signal = _check_input_validity(signal.lower(), valid_signals)
-        if signal not in ["", " "]:
-            tmp[signal] = {}
-            # Add preprocessing strategy to the workflow
-            preprocessing = input(
-                "\n Enter the name of the preprocessing "
-                f"strategy to clean the {signal} signal. Choose among the current "
-                "configuration files by providing the name of the strategy, or create "
-                "a new configuration file. To create a new configuration file type `new`."
-                " Otherwise, choose among those strategy: "
-                f"{', '.join(preprocessing_strategy)}"
+        signal = preprocessing = False
+        while signal is False:
+            signal = input(
+                "\n Enter the type of signal to process. Currently only the (pre-)"
+                f"processing of {', '.join(valid_signals)}. \nIf you do not want to add "
+                "another type of signal, just press enter.\n"
             )
-            preprocessing = _check_input_validity(preprocessing, preprocessing_strategy)
+            signal = _check_input_validity(signal.upper(), valid_signals, empty=True)
 
-            features = input(
-                "\n Enter the name of the features extraction "
-                f"strategy for the {signal} signal. Choose among the current "
-                "configuration files by providing the name of the strategy, or create a "
-                "new configuration file. To create a new configuration file type `new`. "
-                f"Otherwise, choose among those strategy: {', '.join(features_strategy)}"
-            )
-            features = _check_input_validity(features, features_strategy)
+        if signal not in ["", " "]:
+            signals[signal] = {}
+            # Add preprocessing strategy to the workflow
+            while preprocessing is False:
+                preprocessing = input(
+                    "\n Enter the name of the preprocessing "
+                    f"strategy to clean the {signal} signal. Choose among the current "
+                    "configuration files by providing the name of the strategy, or "
+                    "create a new configuration file. To create a new configuration file "
+                    "type `new`. Otherwise, choose among those strategy: "
+                    f"{', '.join(preprocessing_strategy[:-1])} \n"
+                )
+                preprocessing = _check_input_validity(
+                    preprocessing, preprocessing_strategy, empty=True
+                )
+
+            if preprocessing == "new":
+                filename_preprocessing = input(
+                    "\n Enter the name of the preprocessing "
+                    "strategy. The given name will be used as the name of the json file."
+                )
+                filename_preprocessing = _check_filename(
+                    outdir, filename_preprocessing, extension=".json", overwrite=overwrite
+                )
+                # Create the preprocessing configuration file
+                create_config_preprocessing(
+                    outdir, filename_preprocessing, overwrite=overwrite
+                )
+                # Add preprocessing config file directory to the workflow config file
+                signals[signal] = {
+                    "preprocessing_strategy": os.path.join(outdir, filename_preprocessing)
+                }
+            else:
+                filename_preprocessing = _check_filename(
+                    outdir, preprocessing, extension=".json", overwrite=overwrite
+                )
+                signals[signal] = {
+                    "preprocessing_strategy": os.path.join(outdir, filename_preprocessing)
+                }
+
         else:
+            print("\n---Saving configuration file---")
             with open(os.path.join(outdir, filename), "w") as f:
                 json.dump(signals, f, indent=4)
             break
