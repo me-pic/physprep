@@ -1,14 +1,18 @@
 [
     {
         "step": "filtering",
-        "method": "butterworth",
-        "lowcut": 2,
-        "order": 2
+        "parameters": {
+            "method": "butterworth",
+            "lowcut": 2,
+            "order": 2
+        }
     },
     {
         "step": "filtering",
-        "method": "notch",
-        "Q": 100,
+        "parameters": {
+            "method": "notch",
+            "Q": 100
+        },
         "reference": {
             "authors": "Bottenhorn, K. L., Salo, T., Riedel, M. C., Sutherland, M. T., Robinson, J. L., Musser, E. D., & Laird, A. R.",
             "year": "2021",
@@ -23,9 +27,11 @@
     },
     {
         "step": "filtering",
-        "method": "butterworth",
-        "highcut": 40,
-        "order": 2,
+        "parameters": {
+            "method": "butterworth",
+            "highcut": 40,
+            "order": 2
+        },
         "reference": {
             "authors": "BIOPAC Systems, Inc.",
             "year": "",
@@ -35,6 +41,8 @@
     },
     {
         "step": "signal_resample",
-        "desired_sampling_rate": 1000
+        "parameters": {
+            "desired_sampling_rate": 1000
+        }
     }
 ]

@@ -1,9 +1,11 @@
 [
     {
         "step": "filtering",
-        "method": "butterworth",
-        "highcut": 3,
-        "order": 4,
+        "parameters": {
+            "method": "butterworth",
+            "highcut": 3,
+            "order": 4
+        },
         "reference": {
             "authors": "Makowski, D., Pham, T., Lau, Z. J., Brammer, J. C., Lespinasse, F., Pham, H., ... & Chen, S. A.",
             "year": "2021",
@@ -18,6 +20,8 @@
     },
     {
         "step": "signal_resample",
-        "desired_sampling_rate": 1000
+        "parameters": {
+            "desired_sampling_rate": 1000
+        }
     }
 ]

@@ -79,20 +79,27 @@ def _check_input_validity(option, valid_options, empty=True):
 
 
 def _create_ref():
+    # Instantiate variable
     ref = {}
+    publication_type = book = False
+    # Collect input
     ref["authors"] = input("Enter the author(s) name: \n")
     ref["year"] = input("Enter the publication year: \n")
     ref["title"] = input("Enter the publication title: \n")
-    publication_type = input("Is the source of information a journal ? [y/n] \n")
-    if publication_type in ["y", "yes"]:
+    while publication_type is False:
+        publication_type = input("Is the source of information a journal ? [y/n] \n")
+        publication_type = _check_input_validity(publication_type, ["y", "n"])
+    if publication_type == "y":
         ref["journal"] = input("Enter the title of the journal: \n")
         ref["volume"] = input("Enter the volume number: \n")
         ref["issue"] = input("Enter the issue number: \n")
         ref["page"] = input("Enter the page numbers: \n")
         ref["doi"] = input("Enter the DOI: \n")
     else:
-        book = input("Is the source of information a book ? [y/n] \n")
-        if book in ["y", "yes"]:
+        while book is False:
+            book = input("Is the source of information a book ? [y/n] \n")
+            book = _check_input_validity(book, ["y", "n"])
+        if book == "y":
             ref["publisher"] = input("Enter the name of the publisher: \n")
             ref["location"] = input(
                 "Enter the location of the publisher (city and state/country): \n"
@@ -153,13 +160,16 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
 
     while True:
         tmp = {}
+        tmp_params = {}
         step = input(
             "\n Enter a processing step among the following: resampling, "
             "filtering.\nIf you do not want to add a step, just press enter.\n"
         )
         step = _check_input_validity(step.lower(), valid_steps, empty=True)
         if step not in ["", " "]:
-            method = lowcut = highcut = order = desired_sampling_rate = cutoff = False
+            method = (
+                lowcut
+            ) = highcut = order = desired_sampling_rate = cutoff = ref = False
             tmp["step"] = step
             if step in ["filtering", "filter"]:
                 while method is False:
@@ -167,10 +177,12 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
                         "\n Enter the filter type among the following: "
                         f"{', '.join(valid_filters)}.\n"
                     )
-                    tmp["method"] = _check_input_validity(method.lower(), valid_filters)
+                    tmp_params["method"] = _check_input_validity(
+                        method.lower(), valid_filters
+                    )
                 if method == "notch":
                     Q = input("\n Enter the quality factor for the notch filter. \n")
-                    tmp["Q"] = _check_input_validity(Q, [int, float])
+                    tmp_params["Q"] = _check_input_validity(Q, [int, float])
                 if method in ["butterworth", "fir", "bessel"]:
                     while cutoff is False:
                         while lowcut is False:
@@ -183,7 +195,7 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
                                 lowcut, [int, float], empty=True
                             )
                             if lowcut not in ["", " "]:
-                                tmp["lowcut"] = lowcut
+                                tmp_params["lowcut"] = lowcut
                         while highcut is False:
                             highcut = input(
                                 "\n Enter the higher cutoff frequency (Hz). "
@@ -194,7 +206,7 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
                                 highcut, [int, float], empty=True
                             )
                             if highcut not in ["", " "]:
-                                tmp["highcut"] = highcut
+                                tmp_params["highcut"] = highcut
                         if lowcut in ["", " "] and highcut in ["", " "]:
                             print(
                                 "**Please enter either the filter lower cutoff frequency "
@@ -208,13 +220,13 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
                         order = input(
                             "\n Enter the filter order. Must be a positive " "integer.\n"
                         )
-                        tmp["order"] = _check_input_validity(order, int)
+                        tmp_params["order"] = _check_input_validity(order, int)
                 if method == "savgol":
                     window_size = input(
                         "\n Enter the length of the filter window. Must be an odd "
                         "integer.\n"
                     )
-                    tmp["window_size"] = _check_input_validity(window_size, "odd")
+                    tmp_params["window_size"] = _check_input_validity(window_size, "odd")
 
             if step == "signal_resample":
                 while desired_sampling_rate is False:
@@ -225,10 +237,14 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
                     desired_sampling_rate = _check_input_validity(
                         desired_sampling_rate, [int, float]
                     )
-                    tmp["desired_sampling_rate"] = desired_sampling_rate
+                    tmp_params["desired_sampling_rate"] = desired_sampling_rate
 
-            ref = input("\n Is there a reference related to that step ? [y/n] \n")
-            if ref in ["y", "yes"]:
+            tmp["parameters"] = tmp_params
+
+            while ref is False:
+                ref = input("\n Is there a reference related to that step ? [y/n] \n")
+                ref = _check_input_validity(ref, ["y", "n"], empty=False)
+            if ref == "y":
                 tmp["reference"] = _create_ref()
             steps.append(tmp)
         else:

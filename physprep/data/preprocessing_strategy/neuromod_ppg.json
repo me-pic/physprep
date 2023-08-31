@@ -1,10 +1,12 @@
 [
     {
         "step": "filtering",
-        "method": "butterworth",
-        "lowcut": 0.5,
-        "highcut": 8,
-        "order": 3,
+        "parameters": {
+            "method": "butterworth",
+            "lowcut": 0.5,
+            "highcut": 8,
+            "order": 3
+        },
         "reference": {
             "authors": "Elgendi, M., Norton, I., Brearley, M., Abbott, D., & Schuurmans, D.",
             "year": "2013",
@@ -19,6 +21,8 @@
     },
     {
         "step": "signal_resample",
-        "desired_sampling_rate": 1000
+        "parameters": {
+            "desired_sampling_rate": 1000
+        }
     }
 ]
