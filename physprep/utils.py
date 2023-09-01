@@ -282,6 +282,12 @@ def create_config_workflow(outdir, filename, overwrite=False):
 
         if signal not in ["", " "]:
             signals[signal] = {}
+            channel = input(
+                "\n Enter the name of the channel in your acq file associated with the "
+                f"{signal} signal: \n"
+            )
+            signals[signal] = {"channel": channel}
+
             # Add preprocessing strategy to the workflow
             while preprocessing is False:
                 preprocessing = input(
@@ -290,7 +296,7 @@ def create_config_workflow(outdir, filename, overwrite=False):
                     "configuration files by providing the name of the strategy, or "
                     "create a new configuration file. To create a new configuration file "
                     "type `new`. Otherwise, choose among those strategy: "
-                    f"{', '.join(preprocessing_strategy[:-1])} \n"
+                    f"{', '.join(preprocessing_strategy[:-1])}.\n"
                 )
                 preprocessing = _check_input_validity(
                     preprocessing, preprocessing_strategy, empty=True
@@ -309,16 +315,24 @@ def create_config_workflow(outdir, filename, overwrite=False):
                     outdir, filename_preprocessing, overwrite=overwrite
                 )
                 # Add preprocessing config file directory to the workflow config file
-                signals[signal] = {
-                    "preprocessing_strategy": os.path.join(outdir, filename_preprocessing)
-                }
+                signals[signal].update(
+                    {
+                        "preprocessing_strategy": os.path.join(
+                            outdir, filename_preprocessing
+                        )
+                    }
+                )
             else:
                 filename_preprocessing = _check_filename(
                     outdir, preprocessing, extension=".json", overwrite=overwrite
                 )
-                signals[signal] = {
-                    "preprocessing_strategy": os.path.join(outdir, filename_preprocessing)
-                }
+                signals[signal].update(
+                    {
+                        "preprocessing_strategy": os.path.join(
+                            outdir, filename_preprocessing
+                        )
+                    }
+                )
 
         else:
             print("\n---Saving configuration file---")
