@@ -1,0 +1,28 @@
+[
+    {
+        "step": "filtering",
+        "parameters": {
+            "method": "butterworth",
+            "lowcut": 0.05,
+            "highcut": 3,
+            "order": 2
+        },
+        "reference": {
+            "authors": "Khodadad, D., Nordebo, S., M\\u00fcller, B., Waldmann, A., Yerworth, R., Becher, T., ... & Bayford, R.",
+            "year": "2018",
+            "title": "Optimized breath detection algorithm in electrical impedance tomography",
+            "journal": "Physiological measurement",
+            "volume": "39",
+            "issue": "9",
+            "page": "094001",
+            "doi": "10.1088/1361-6579/aad7e6",
+            "url": "https://doi.org/10.1088/1361-6579/aad7e6"
+        }
+    },
+    {
+        "step": "signal_resample",
+        "parameters": {
+            "desired_sampling_rate": 1000
+        }
+    }
+]

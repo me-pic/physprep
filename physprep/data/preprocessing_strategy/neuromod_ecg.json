@@ -1,0 +1,48 @@
+[
+    {
+        "step": "filtering",
+        "parameters": {
+            "method": "butterworth",
+            "lowcut": 2,
+            "order": 2
+        }
+    },
+    {
+        "step": "filtering",
+        "parameters": {
+            "method": "notch",
+            "Q": 100
+        },
+        "reference": {
+            "authors": "Bottenhorn, K. L., Salo, T., Riedel, M. C., Sutherland, M. T., Robinson, J. L., Musser, E. D., & Laird, A. R.",
+            "year": "2021",
+            "title": "Denoising physiological data collected during multi-band, multi-echo EPI sequences",
+            "journal": "bioRxiv",
+            "volume": "",
+            "issue": "",
+            "page": "",
+            "doi": "10.1101/2021.04.01.437293",
+            "url": "https://doi.org/10.1101/2021.04.01.437293"
+        }
+    },
+    {
+        "step": "filtering",
+        "parameters": {
+            "method": "butterworth",
+            "highcut": 40,
+            "order": 2
+        },
+        "reference": {
+            "authors": "BIOPAC Systems, Inc.",
+            "year": "",
+            "title": "Application Note 242: ECG Signal Processing During fMRI",
+            "url": "https://www.biopac.com/application-note/fmri-recording-ecg-ekg-electrocardiogram-data/"
+        }
+    },
+    {
+        "step": "signal_resample",
+        "parameters": {
+            "desired_sampling_rate": 1000
+        }
+    }
+]

@@ -1,0 +1,14 @@
+{
+    "PPG": {
+        "preprocessing_strategy": "neuromod_ppg.json"
+    },
+    "ECG": {
+        "preprocessing_strategy": "neuromod_ecg.json"
+    },
+    "EDA": {
+        "preprocessing_strategy": "neuromod_eda.json"
+    },
+    "RSP": {
+        "preprocessing_strategy": "neuromod_rsp.json"
+    }
+}

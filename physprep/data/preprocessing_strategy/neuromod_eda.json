@@ -1,0 +1,27 @@
+[
+    {
+        "step": "filtering",
+        "parameters": {
+            "method": "butterworth",
+            "highcut": 3,
+            "order": 4
+        },
+        "reference": {
+            "authors": "Makowski, D., Pham, T., Lau, Z. J., Brammer, J. C., Lespinasse, F., Pham, H., ... & Chen, S. A.",
+            "year": "2021",
+            "title": "NeuroKit2: A Python toolbox for neurophysiological signal processing",
+            "journal": "Behavior research methods",
+            "volume": "53",
+            "issue": "4",
+            "page": "1689-1696",
+            "doi": "10.3758/s13428-020-01516-y",
+            "url": "https://doi.org/10.3758/s13428-020-01516-y"
+        }
+    },
+    {
+        "step": "signal_resample",
+        "parameters": {
+            "desired_sampling_rate": 1000
+        }
+    }
+]
