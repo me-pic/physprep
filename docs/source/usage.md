@@ -15,7 +15,7 @@ related to them.
 
 ### Workflow strategy
 
-The workflow configuration file is defined as the following: 
+The workflow configuration file is defined as the following:
 
 ```
 {
@@ -36,17 +36,17 @@ the preprocessing strategy.
 An helper function is provided in the `utils` module to create a customized workflow
 configuration file:
 
-```bash
+```python
 from utils import create_config_workflow
 
 # Check the function documentation
 help(create_config_workflow)
 
 # Call the function specifying the parameters value. You will be asked to enter different
-# parameters from a set of currently supported values. 
+# parameters from a set of currently supported values.
 create_config_workflow(
-    "/path/to/your/config/file", 
-    "your_amazing_workflow_strategy.json", 
+    "/path/to/your/config/file",
+    "your_amazing_workflow_strategy.json",
     overwrite=True
 )
 ```
@@ -74,17 +74,17 @@ See presets in `physprep/data/preprocessing_strategy`.
 Users also have the possibility to create their own preprocessing configuration file using
 the `create_config_preprocessing` function from the utils module:
 
-```bash
+```python
 from utils import create_config_preprocessing
 
 # Check the function documentation
 help(create_config_preprocessing)
 
 # Call the function specifying the parameters value. You will be asked to enter different
-# parameters from a set of currently supported values. 
+# parameters from a set of currently supported values.
 create_config_preprocessing(
-    "/path/to/your/config/file", 
-    "your_amazing_preprocessing_strategy.json", 
+    "/path/to/your/config/file",
+    "your_amazing_preprocessing_strategy.json",
     overwrite=True
 )
 ```
