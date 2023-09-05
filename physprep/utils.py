@@ -139,9 +139,18 @@ def load_json(filename):
 
 def create_config_preprocessing(outdir, filename, overwrite=False):
     """
+    Generate a configuration file for the preprocessing strategy based on the user inputs.
+
+    Parameters
+    ----------
     outdir: str, Path
+        Saving directory.
     filename: str
+        Saving filename.
     overwrite: bool
+        If `True`, overwrite the existing file with the specified `filename` in the 
+        `outdir` directory. If `False`, the function will not be executed if there is
+        already a file with the specified `filename` in `outdir`.
     """
     # Instantiate variables
     steps = []
@@ -256,9 +265,18 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
 
 def create_config_workflow(outdir, filename, overwrite=False):
     """
+    Generate a configuration file for the workflow strategy based on the user inputs.
+
+    Parameters
+    ----------
     outdir: str, Path
+        Saving directory.
     filename: str
+        Saving filename.
     overwrite: bool
+        If `True`, overwrite the existing file with the specified `filename` in the 
+        `outdir` directory. If `False`, the function will not be executed if there is
+        already a file with the specified `filename` in `outdir`.
     """
     # Instantiate variables
     signals = {}

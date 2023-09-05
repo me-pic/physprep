@@ -1,18 +1,18 @@
 {
     "PPG": {
         "channel": "",
-        "preprocessing_strategy": "./data/workflow_strategy/neuromod_ppg.json"
+        "preprocessing_strategy": "neuromod_ppg"
     },
     "ECG": {
         "channel": "",
-        "preprocessing_strategy": "./data/workflow_strategy/neuromod_ecg.json"
+        "preprocessing_strategy": "neuromod_ecg"
     },
     "EDA": {
         "channel": "",
-        "preprocessing_strategy": "./data/workflow_strategy/neuromod_eda.json"
+        "preprocessing_strategy": "neuromod_eda"
     },
     "RSP": {
         "channel": "",
-        "preprocessing_strategy": "./data/workflow_strategy/neuromod_rsp.json"
+        "preprocessing_strategy": "neuromod_rsp"
     }
 }
