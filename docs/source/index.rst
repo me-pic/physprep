@@ -40,6 +40,7 @@ Contents
    installation.md
    usage.md
    workflow.md
+   tutorials.rst
    outputs.md
    authors.md
    api.rst

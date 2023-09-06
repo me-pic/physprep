@@ -1,6 +1,7 @@
 # Usage Notes
 
 ```bash
+usage: physprep [-h]
 ```
 
 ## Using configuration files
