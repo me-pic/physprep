@@ -63,7 +63,7 @@ def _check_input_validity(option, valid_options, empty=True):
             print("**Please enter a positive integer.")
             return False
         if valid_options == "odd":
-            if option % 2 != 0:
+            if int(option) % 2 != 0:
                 print("**Please enter an odd number.")
                 return False
             else:
