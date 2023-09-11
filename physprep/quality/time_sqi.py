@@ -365,11 +365,10 @@ def metrics_hr_sqi(intervals, metric="mean"):
             metric_rr = np.round(np.min(bpm), 4)
         elif metric == "max":
             metric_rr = np.round(np.max(bpm), 4)
-    except Exception:
-        print(f"Invalid metric: {metric}.")
+        return metric_rr
+    except ValueError:
         traceback.print_exc()
-
-    return metric_rr
+        raise ValueError(f"Invalid metric: {metric}.")
 
 
 def minimal_range_sqi(signal, threshold):
