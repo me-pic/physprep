@@ -365,7 +365,7 @@ def metrics_hr_sqi(intervals, metric="mean"):
             metric_rr = np.round(np.min(bpm), 4)
         elif metric == "max":
             metric_rr = np.round(np.max(bpm), 4)
-    except ValueError:
+    except Exception:
         traceback.print_exc()
         raise ValueError(f"Invalid metric: {metric}.")
     
