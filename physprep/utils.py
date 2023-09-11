@@ -15,7 +15,7 @@ def _check_filename(outdir, filename, extension=None, overwrite=False):
     # Check if file already exist
     if os.path.exists(os.path.join(outdir, filename).strip()):
         if not overwrite:
-            raise IOError(
+            raise FileExistsError(
                 "Killing the script because the file already exist. "
                 "If you want to overwrite the file, set the `overwrite` "
                 "flag to `True`"
@@ -148,7 +148,7 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
     filename: str
         Saving filename.
     overwrite: bool
-        If `True`, overwrite the existing file with the specified `filename` in the 
+        If `True`, overwrite the existing file with the specified `filename` in the
         `outdir` directory. If `False`, the function will not be executed if there is
         already a file with the specified `filename` in `outdir`.
     """
@@ -274,7 +274,7 @@ def create_config_workflow(outdir, filename, overwrite=False):
     filename: str
         Saving filename.
     overwrite: bool
-        If `True`, overwrite the existing file with the specified `filename` in the 
+        If `True`, overwrite the existing file with the specified `filename` in the
         `outdir` directory. If `False`, the function will not be executed if there is
         already a file with the specified `filename` in `outdir`.
     """
