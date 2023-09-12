@@ -263,7 +263,7 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
             break
 
 
-def create_config_workflow(outdir, filename, overwrite=False):
+def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=False):
     """
     Generate a configuration file for the workflow strategy based on the user inputs.
 
@@ -271,6 +271,9 @@ def create_config_workflow(outdir, filename, overwrite=False):
     ----------
     outdir: str, Path
         Saving directory.
+    dir_preprocessing: str, Path
+        Directory of the preprocessing configuration files. If `None`, assumes that
+        the configuration files are located in the `outdir`. Default: `None`.
     filename: str
         Saving filename.
     overwrite: bool
@@ -280,11 +283,15 @@ def create_config_workflow(outdir, filename, overwrite=False):
     """
     # Instantiate variables
     signals = {}
-    valid_signals = ["PPG", "ECG", "EDA", "RSP"]
+    valid_signals = ["cardiac_ppg", "cardiac_ecg", "electrodermal", "respiratory"]
     preprocessing_strategy = [
-        os.path.splitext(f)[0] for f in os.listdir("./data/preprocessing_strategy/")
+        os.path.splitext(f)[0]
+        for f in os.listdir("/physprep/data/preprocessing_strategy/")
     ]
     preprocessing_strategy.append("new")
+
+    if dir_preprocessing is None:
+        dir_preprocessing = outdir
 
     filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
 
@@ -296,15 +303,42 @@ def create_config_workflow(outdir, filename, overwrite=False):
                 f"processing of {', '.join(valid_signals)}. \nIf you do not want to add "
                 "another type of signal, just press enter.\n"
             )
-            signal = _check_input_validity(signal.upper(), valid_signals, empty=True)
+            signal = _check_input_validity(signal.lower(), valid_signals, empty=True)
 
         if signal not in ["", " "]:
             signals[signal] = {}
+            # Associate abrreviation to the signal type
+            if signal == "cardiac_ppg":
+                signals[signal] = {
+                    "id": "PPG",
+                    "Description": "continuous pulse measurement",
+                    "Units": "V",
+                }
+            elif signal == "cardiac_ecg":
+                signals[signal] = {
+                    "id": "ECG",
+                    "Description": "continuous electrocardiogram measurement",
+                    "Units": "mV",
+                }
+            elif signal == "electrodermal":
+                signals[signal] = {
+                    "id": "EDA",
+                    "Description": "continuous electrodermal activity measurement",
+                    "Units": "microsiemens",
+                }
+            elif signal == "respiratory":
+                signals[signal] = {
+                    "id": "RESP",
+                    "Description": "continuous breathing measurement",
+                    "Units": "cm H2O",
+                }
+
+            # Ask for the channel name associated with the signal
             channel = input(
                 "\n Enter the name of the channel in your acq file associated with the "
                 f"{signal} signal: \n"
             )
-            signals[signal] = {"channel": channel}
+            signals[signal].update({"channel": channel})
 
             # Add preprocessing strategy to the workflow
             while preprocessing is False:
@@ -336,7 +370,7 @@ def create_config_workflow(outdir, filename, overwrite=False):
                 signals[signal].update(
                     {
                         "preprocessing_strategy": os.path.join(
-                            outdir, filename_preprocessing
+                            dir_preprocessing, filename_preprocessing
                         )
                     }
                 )
@@ -347,13 +381,15 @@ def create_config_workflow(outdir, filename, overwrite=False):
                 signals[signal].update(
                     {
                         "preprocessing_strategy": os.path.join(
-                            outdir, filename_preprocessing
+                            dir_preprocessing, filename_preprocessing
                         )
                     }
                 )
 
         else:
-            print("\n---Saving configuration file---")
-            with open(os.path.join(outdir, filename), "w") as f:
-                json.dump(signals, f, indent=4)
+            # Save the configuration file only if there is at least one signal
+            if bool(signals):
+                print("\n---Saving configuration file---")
+                with open(os.path.join(outdir, filename), "w") as f:
+                    json.dump(signals, f, indent=4)
             break
