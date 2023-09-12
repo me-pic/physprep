@@ -10,7 +10,7 @@ from pathlib import Path
 
 import click
 import pandas as pd
-from time_sqi import sqi_cardiac, sqi_cardiac_overview, sqi_eda, sqi_rsp
+from time_sqi import sqi_cardiac, sqi_cardiac_overview, sqi_eda, sqi_eda_overview, sqi_rsp
 from utils import load_json
 from visu.plot_signals import generate_plot
 
@@ -91,6 +91,7 @@ def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={"duration": 60, "st
                             info["EDA"],
                             sampling_rate=info["EDA"]["sampling_rate"],
                         )
+                        summary["EDA"] = sqi_eda_overview(info["EDA"])
                     if modality == "RSP":
                         summary["RSP"] = sqi_rsp(
                             signal, sampling_rate=info["RSP"]["sampling_rate"]
@@ -173,6 +174,7 @@ def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={"duration": 60, "st
                         summary["ECG"].update(summary_ecg)
                     elif modality == "EDA":
                         summary["EDA"] = summary_eda
+                        summary["EDA"].update({"Overview": sqi_eda_overview(info["EDA"])})
                     elif modality == "RSP":
                         summary["RSP"] = summary_rsp
 
@@ -252,6 +254,7 @@ def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={"duration": 60, "st
                         summary["ECG"].update(summary_ecg)
                     elif modality == "EDA":
                         summary["EDA"] = summary_eda
+                        summary["EDA"].update({"Overview": sqi_eda_overview(info["EDA"])})
                     elif modality == "RSP":
                         summary["RSP"] = summary_rsp
                 except Exception:

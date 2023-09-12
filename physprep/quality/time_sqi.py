@@ -52,11 +52,34 @@ def sqi_cardiac_overview(info, data_type="ECG"):
     return summary
 
 
+def sqi_eda_overview(info, feature_quality = "SCR_Onsets", threshold=0):
+    """
+    Report SQI on the overall processed EDA signal.
+
+    Parameters
+    ----------
+    info : dict
+        Output from the process.py script.
+    feature_quality : str
+        Feature to consider to evaluate the quality if the signal.
+    threshold : int or float
+        Threshold to consider to evaluate the quality if the signal.
+
+    Returns
+    -------
+    summary : dict
+        Dictionary containing sqi values.
+    """
+    summary = {}
+    summary["Quality"] = threshold_sqi(len(info[feature_quality]), threshold, operator.gt)
+
+    return summary
+
+
 def sqi_cardiac(
     signal_cardiac,
     info,
     data_type="ECG",
-    sampling_rate=10000,
     mean_NN=[600, 1200],
     std_NN=300,
     window=None,
@@ -73,15 +96,14 @@ def sqi_cardiac(
     data_type : str
         Type of the signal. Valid options include 'ECG' and 'PPG'.
         Default to 'ECG'.
-    sampling_rate : int
-        The sampling frequency of `signal` (in Hz, i.e., samples/second).
-        Default to 10000.
     mean_NN : list
         Range to consider to evaluate the quality of the signal based on the
         mean NN interval.
     std_NN : int or float
         Value to consider to evaluate the quality if the signal based on the
         std NN interval.
+    window : list
+        List of two elements specifying the window on which to compute the SQI.
 
     Returns
     -------
@@ -178,12 +200,9 @@ def sqi_cardiac(
     return summary
 
 
-def sqi_eda(signal_eda, info, sampling_rate=10000, window=None):
+def sqi_eda(signal_eda, info, window=None):
     """
     Extract SQI for EDA processed signal.
-
-    NOTE: add option to compute the latency between stimulus onset
-    and SCR onset
 
     Parameters
     ----------
@@ -191,9 +210,8 @@ def sqi_eda(signal_eda, info, sampling_rate=10000, window=None):
         Output from the process.py script.
     info : dict
         Output from the process.py script.
-    sampling_rate : int
-        The sampling frequency of `signal_raw` (in Hz, i.e., samples/second).
-        Default to 10000.
+    window : list
+        List of two elements specifying the window on which to compute the SQI.
 
     Returns
     -------
@@ -277,7 +295,7 @@ def sqi_eda(signal_eda, info, sampling_rate=10000, window=None):
     return summary
 
 
-def sqi_rsp(signal_rsp, sampling_rate=10000, mean_rate=0.5):
+def sqi_rsp(signal_rsp, mean_rate=0.5):
     """
     Extract SQI for respiratory processed signal.
 
@@ -285,9 +303,6 @@ def sqi_rsp(signal_rsp, sampling_rate=10000, mean_rate=0.5):
     ----------
     signal_rsp : DataFrame
         Output from the process.py script.
-    sampling_rate : int
-        The sampling frequency of `signal_raw` (in Hz, i.e., samples/second).
-        Default to 10000.
     mean_rate : int or float
         Value to consider to evaluate the quality if the signal based on the
         respiratory rate mean (in Hz).
@@ -354,20 +369,19 @@ def metrics_hr_sqi(intervals, metric="mean"):
     """
     bpm = np.divide(60000, intervals)
 
-    try:
-        if metric == "mean":
-            metric_rr = np.round(np.mean(bpm), 4)
-        elif metric == "median":
-            metric_rr = np.round(np.median(bpm), 4)
-        elif metric == "std":
-            metric_rr = np.round(np.std(bpm), 4)
-        elif metric == "min":
-            metric_rr = np.round(np.min(bpm), 4)
-        elif metric == "max":
-            metric_rr = np.round(np.max(bpm), 4)
-    except Exception:
+    
+    if metric == "mean":
+        metric_rr = np.round(np.mean(bpm), 4)
+    elif metric == "median":
+        metric_rr = np.round(np.median(bpm), 4)
+    elif metric == "std":
+        metric_rr = np.round(np.std(bpm), 4)
+    elif metric == "min":
+        metric_rr = np.round(np.min(bpm), 4)
+    elif metric == "max":
+        metric_rr = np.round(np.max(bpm), 4)
+    else:
         metric_rr = np.nan
-        traceback.print_exc()
         raise ValueError(f"Invalid metric: {metric}.")
     
     return metric_rr
