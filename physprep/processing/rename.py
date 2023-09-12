@@ -15,7 +15,9 @@ import pandas as pd
 @click.argument("indir", type=click.Path(exists=True), required=True)
 @click.argument("sub", type=str, required=True)
 @click.option("--ses", type=str, required=False, default=None)
-def co_register_physio(indir, sub, ses=None):
+@click.option("--neuromod", type=bool, required=False, default=False)
+@click.option("--min_volumes", type=int, required=False, default=350)
+def co_register_physio(indir, sub, ses=None, neuromod=False, min_volumes=350):
     """
     Comply to BIDS and co-register functional acquisitions.
 
@@ -29,6 +31,11 @@ def co_register_physio(indir, sub, ses=None):
         name of path for a specific subject (e.g.'sub-03')
     ses : list
         specific session numbers can be listed (e.g. ['ses-001', 'ses-002']
+    neuromod : bool
+        Set to True if working with Neuromod data. Default is False.
+    min_volumes : int
+        Minimum number of  volumes expected for a run. If a run has less volumes than this
+        number, it will be removed. Default is 350.
     Returns:
     --------
     BIDS-compliant /func directory for physio files
@@ -47,7 +54,7 @@ def co_register_physio(indir, sub, ses=None):
         logger.info(f"renaming files in session : {s}")
 
         # list files in the session
-        tsv = glob.glob(f"{indir}{sub}/{s}/*.tsv.gz")
+        tsv = glob.glob(os.path.join(indir, sub, s, "*.tsv.gz"))
         tsv.sort()
 
         if tsv is None or len(tsv) == 0:
@@ -67,9 +74,10 @@ def co_register_physio(indir, sub, ses=None):
         triggers = list(info[s]["recorded_triggers"].values())
         triggers = list(np.concatenate(triggers).flat)
 
-        # remove padding trigger for videogames tasks
-        if any(game in indir for game in ["mario", "shinobi"]):
-            triggers = [trigger - 1 if trigger > 200 else trigger for trigger in triggers]
+        if neuromod:
+            # remove padding trigger for videogames tasks
+            if any(game in indir for game in ["mario", "shinobi"]):
+                triggers = [trigger - 1 if trigger > 200 else trigger for trigger in triggers]
 
         if len(info[s]["task"]) is not info[s]["expected_runs"]:
             logger.info("Number of tasks does not match expected number of runs")
@@ -93,11 +101,9 @@ def co_register_physio(indir, sub, ses=None):
         # if input is normal, then check co-registration
         else:
             to_be_del = []
-
             # remove files that don't contain enough volumes
             for idx, volumes in enumerate(triggers):
-                # NOTE: this should not be hardcoded
-                if volumes < 350:
+                if volumes < min_volumes:
                     to_be_del.append(idx)
 
         # these can be safely removed
@@ -110,8 +116,6 @@ def co_register_physio(indir, sub, ses=None):
         triggers = np.delete(triggers, to_be_del)
         tsv = np.delete(tsv, to_be_del)
         json = np.delete(json, to_be_del)
-        log = np.delete(log, to_be_del)
-        png = np.delete(png, to_be_del)
 
         # check if number of volumes matches neuroimaging JSON sidecar
         for idx, volumes in enumerate(triggers):
