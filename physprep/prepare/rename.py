@@ -64,9 +64,6 @@ def co_register_physio(indir, sub, ses=None, neuromod=False, min_volumes=350):
         log = glob.glob(os.path.join(indir, sub, s, "code", "conversion", "*.log"))
         log.sort()
 
-        png = glob.glob(os.path.join(indir, sub, s, "code", "conversion", "*.png"))
-        png.sort()
-
         # sanitize list of triggers
         triggers = list(info[s]["recorded_triggers"].values())
         triggers = list(np.concatenate(triggers).flat)
