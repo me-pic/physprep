@@ -36,9 +36,6 @@ def co_register_physio(indir, sub, ses=None, neuromod=False, min_volumes=350):
     min_volumes : int
         Minimum number of  volumes expected for a run. If a run has less volumes than this
         number, it will be removed. Default is 350.
-    Returns:
-    --------
-    BIDS-compliant /func directory for physio files
     """
     logger = logging.getLogger(__name__)
     # fetch info
