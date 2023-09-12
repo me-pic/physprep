@@ -1,6 +1,7 @@
 """Test clean functions"""
 
 import numpy as np
+
 from physprep.processing import clean
 
 
