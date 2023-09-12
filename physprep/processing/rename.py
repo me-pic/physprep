@@ -74,7 +74,9 @@ def co_register_physio(indir, sub, ses=None, neuromod=False, min_volumes=350):
         if neuromod:
             # remove padding trigger for videogames tasks
             if any(game in indir for game in ["mario", "shinobi"]):
-                triggers = [trigger - 1 if trigger > 200 else trigger for trigger in triggers]
+                triggers = [
+                    trigger - 1 if trigger > 200 else trigger for trigger in triggers
+                ]
 
         if len(info[s]["task"]) is not info[s]["expected_runs"]:
             logger.info("Number of tasks does not match expected number of runs")

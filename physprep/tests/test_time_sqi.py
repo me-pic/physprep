@@ -1,9 +1,12 @@
 """Test time_sqi functions"""
 
-from physprep.quality import time_sqi
-import pytest
 import operator
+
 import numpy as np
+import pytest
+
+from physprep.quality import time_sqi
+
 
 def test_metrics_hr_sqi():
     """Test metrics_hr_sqi function"""

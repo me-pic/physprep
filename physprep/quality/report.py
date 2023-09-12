@@ -10,7 +10,13 @@ from pathlib import Path
 
 import click
 import pandas as pd
-from time_sqi import sqi_cardiac, sqi_cardiac_overview, sqi_eda, sqi_eda_overview, sqi_rsp
+from time_sqi import (
+    sqi_cardiac,
+    sqi_cardiac_overview,
+    sqi_eda,
+    sqi_eda_overview,
+    sqi_rsp,
+)
 from utils import load_json
 from visu.plot_signals import generate_plot
 

@@ -52,7 +52,7 @@ def sqi_cardiac_overview(info, data_type="ECG"):
     return summary
 
 
-def sqi_eda_overview(info, feature_quality = "SCR_Onsets", threshold=0):
+def sqi_eda_overview(info, feature_quality="SCR_Onsets", threshold=0):
     """
     Report SQI on the overall processed EDA signal.
 
@@ -369,7 +369,6 @@ def metrics_hr_sqi(intervals, metric="mean"):
     """
     bpm = np.divide(60000, intervals)
 
-    
     if metric == "mean":
         metric_rr = np.round(np.mean(bpm), 4)
     elif metric == "median":
@@ -383,7 +382,7 @@ def metrics_hr_sqi(intervals, metric="mean"):
     else:
         metric_rr = np.nan
         raise ValueError(f"Invalid metric: {metric}.")
-    
+
     return metric_rr
 
 
