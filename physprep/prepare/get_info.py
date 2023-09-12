@@ -13,8 +13,9 @@ import os
 import click
 import pandas as pd
 import pprintpp
-from list_sub import list_sub
 from neurokit2 import read_acqknowledge
+
+from physprep.prepare import list_sub
 
 LGR = logging.getLogger(__name__)
 

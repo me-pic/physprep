@@ -78,7 +78,7 @@ def convert(root, save, sub, ses=None, tr=None, ch_names=None, overwrite=False, 
     # fetch info
     fetcher = f"{sub}_volumes_all-ses-runs.json"
     logger.info(f"Reading fetcher:\n{os.path.join(save, sub, fetcher)}")
-    info = pd.read_json(os.path.join(save, sub, f"{sub}_volumes_all-ses-runs.json"))
+    info = pd.read_json(os.path.join(save, sub, fetcher))
     # define sessions
     if ses is None:
         ses = sorted(list(info.columns))

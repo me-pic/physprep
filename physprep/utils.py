@@ -143,7 +143,7 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
 
     Parameters
     ----------
-    outdir: str, Path
+    outdir: str, pathlib.Path
         Saving directory.
     filename: str
         Saving filename.
@@ -269,9 +269,9 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
 
     Parameters
     ----------
-    outdir: str, Path
+    outdir: str, pathlib.Path
         Saving directory.
-    dir_preprocessing: str, Path
+    dir_preprocessing: str, pathlib.Path
         Directory of the preprocessing configuration files. If `None`, assumes that
         the configuration files are located in the `outdir`. Default: `None`.
     filename: str

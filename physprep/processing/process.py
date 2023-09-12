@@ -431,6 +431,12 @@ def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
         signals = pd.DataFrame({"PPG_Raw": ppg_signal, "PPG_Clean": ppg_cleaned})
         info = {"Processed": False}
 
+    # Remove potential duplicates
+    try:
+        del info["sampling_rate"]
+    except Exception:
+        pass
+
     return signals, info
 
 
@@ -511,6 +517,12 @@ def ecg_process(
         signals = pd.DataFrame({"ECG_Raw": ecg_signal, "ECG_Clean": ecg_cleaned})
         info = {"Processed": False}
 
+    # Remove potential duplicates
+    try:
+        del info["sampling_rate"]
+    except Exception:
+        pass
+
     return signals, info
 
 
@@ -569,6 +581,12 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
         traceback.print_exc()
         signals = pd.DataFrame({"EDA_Raw": eda_signal, "EDA_Clean": eda_cleaned})
         info = {"Processed": False}
+
+    # Remove potential duplicates
+    try:
+        del info["sampling_rate"]
+    except Exception:
+        pass
 
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
@@ -640,6 +658,12 @@ def rsp_process(
         traceback.print_exc()
         signals = pd.DataFrame({"RSP_Raw": rsp_signal, "RSP_Clean": rsp_cleaned})
         info = {"Processed": False}
+
+    # Remove potential duplicates
+    try:
+        del info["sampling_rate"]
+    except Exception:
+        pass
 
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
