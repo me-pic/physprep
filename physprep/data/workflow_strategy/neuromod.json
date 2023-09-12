@@ -1,18 +1,36 @@
 {
-    "PPG": {
-        "channel": "",
-        "preprocessing_strategy": "neuromod_ppg"
+    "cardiac_ppg": {
+        "id": "PPG",
+        "Description": "continuous pulse measurement",
+        "Units": "V",
+        "channel": "PPG100C",
+        "preprocessing_strategy": "./physprep/data/preprocessing_strategy/neuromod_ppg.json"
     },
-    "ECG": {
-        "channel": "",
-        "preprocessing_strategy": "neuromod_ecg"
+    "cardiac_ecg": {
+        "id": "ECG",
+        "Description": "continuous electrocardiogram measurement",
+        "Units": "mV",
+        "channel": "ECG100C",
+        "preprocessing_strategy": "./physprep/data/preprocessing_strategy/neuromod_ecg.json"
     },
-    "EDA": {
-        "channel": "",
-        "preprocessing_strategy": "neuromod_eda"
+    "electrodermal": {
+        "id": "EDA",
+        "Description": "continuous electrodermal activity measurement",
+        "Units": "microsiemens",
+        "channel": "EDA100C-MRI",
+        "preprocessing_strategy": "./physprep/data/preprocessing_strategy/neuromod_eda.json"
     },
-    "RSP": {
-        "channel": "",
-        "preprocessing_strategy": "neuromod_rsp"
+    "respiratory": {
+        "id": "RESP",
+        "Description": "continuous breathing measurement",
+        "Units": "cm H2O",
+        "channel": "DA100C",
+        "preprocessing_strategy": "./physprep/data/preprocessing_strategy/neuromod_rsp.json"
+    },
+    "trigger": {
+        "id": "TTL",
+        "Description": "continuous measurement of the scanner trigger signal",
+        "Units": "V",
+        "channel": "Custom, HLT100C - A 5"
     }
 }

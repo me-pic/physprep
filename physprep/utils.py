@@ -283,10 +283,16 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
     """
     # Instantiate variables
     signals = {}
-    valid_signals = ["cardiac_ppg", "cardiac_ecg", "electrodermal", "respiratory"]
+    valid_signals = [
+        "cardiac_ppg",
+        "cardiac_ecg",
+        "electrodermal",
+        "respiratory",
+        "trigger",
+    ]
     preprocessing_strategy = [
         os.path.splitext(f)[0]
-        for f in os.listdir("/physprep/data/preprocessing_strategy/")
+        for f in os.listdir("./physprep/data/preprocessing_strategy/")
     ]
     preprocessing_strategy.append("new")
 
@@ -332,6 +338,12 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
                     "Description": "continuous breathing measurement",
                     "Units": "cm H2O",
                 }
+            elif signal == "trigger":
+                signals[signal] = {
+                    "id": "TTL",
+                    "Description": "continuous measurement of the scanner trigger signal",
+                    "Units": "V",
+                }
 
             # Ask for the channel name associated with the signal
             channel = input(
@@ -340,51 +352,56 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
             )
             signals[signal].update({"channel": channel})
 
-            # Add preprocessing strategy to the workflow
-            while preprocessing is False:
-                preprocessing = input(
-                    "\n Enter the name of the preprocessing "
-                    f"strategy to clean the {signal} signal. Choose among the current "
-                    "configuration files by providing the name of the strategy, or "
-                    "create a new configuration file. To create a new configuration file "
-                    "type `new`. Otherwise, choose among those strategy: "
-                    f"{', '.join(preprocessing_strategy[:-1])}.\n"
-                )
-                preprocessing = _check_input_validity(
-                    preprocessing, preprocessing_strategy, empty=True
-                )
+            if signal != "trigger":
+                # Add preprocessing strategy to the workflow
+                while preprocessing is False:
+                    preprocessing = input(
+                        "\n Enter the name of the preprocessing "
+                        f"strategy to clean the {signal} signal. Choose among the "
+                        "current configuration files by providing the name of the "
+                        "strategy, \n or create a new configuration file. To create a "
+                        "new configuration file type `new`.\n Otherwise, choose among "
+                        f"those strategy: {', '.join(preprocessing_strategy[:-1])}.\n"
+                    )
+                    preprocessing = _check_input_validity(
+                        preprocessing, preprocessing_strategy, empty=True
+                    )
 
-            if preprocessing == "new":
-                filename_preprocessing = input(
-                    "\n Enter the name of the preprocessing "
-                    "strategy. The given name will be used as the name of the json file."
-                )
-                filename_preprocessing = _check_filename(
-                    outdir, filename_preprocessing, extension=".json", overwrite=overwrite
-                )
-                # Create the preprocessing configuration file
-                create_config_preprocessing(
-                    outdir, filename_preprocessing, overwrite=overwrite
-                )
-                # Add preprocessing config file directory to the workflow config file
-                signals[signal].update(
-                    {
-                        "preprocessing_strategy": os.path.join(
-                            dir_preprocessing, filename_preprocessing
-                        )
-                    }
-                )
-            else:
-                filename_preprocessing = _check_filename(
-                    outdir, preprocessing, extension=".json", overwrite=overwrite
-                )
-                signals[signal].update(
-                    {
-                        "preprocessing_strategy": os.path.join(
-                            dir_preprocessing, filename_preprocessing
-                        )
-                    }
-                )
+                if preprocessing == "new":
+                    filename_preprocessing = input(
+                        "\n Enter the name of the preprocessing "
+                        "strategy. The given name will be used as the name of the json "
+                        "file.\n"
+                    )
+                    filename_preprocessing = _check_filename(
+                        outdir,
+                        filename_preprocessing,
+                        extension=".json",
+                        overwrite=overwrite,
+                    )
+                    # Create the preprocessing configuration file
+                    create_config_preprocessing(
+                        outdir, filename_preprocessing, overwrite=overwrite
+                    )
+                    # Add preprocessing config file directory to the workflow config file
+                    signals[signal].update(
+                        {
+                            "preprocessing_strategy": os.path.join(
+                                dir_preprocessing, filename_preprocessing
+                            )
+                        }
+                    )
+                else:
+                    filename_preprocessing = _check_filename(
+                        outdir, preprocessing, extension=".json", overwrite=overwrite
+                    )
+                    signals[signal].update(
+                        {
+                            "preprocessing_strategy": os.path.join(
+                                dir_preprocessing, filename_preprocessing
+                            )
+                        }
+                    )
 
         else:
             # Save the configuration file only if there is at least one signal
