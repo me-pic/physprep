@@ -7,7 +7,7 @@ report.
 
 import click
 
-# from physprep import utils
+from physprep import utils
 from physprep.prepare import convert, get_info, match_acq_bids, rename
 
 # from physprep.processing import clean, process
@@ -18,9 +18,9 @@ from physprep.prepare import convert, get_info, match_acq_bids, rename
 @click.option(
     "workflow_strategy",
     type=click.Path(),
-    help="Path to a JSON file containing the workflow strategy. If not specified, the "
-    "workflow will include the creation of the following configuration files: "
-    "`workflow_strategy` and `preprocessing_strategy`.",
+    help="Name of the workflow_strategy if using preset (Ex: 'neuromod'). For all "
+    "available presets, please check Physprep documentation. Otherwise, path to custom "
+    "workflow strategy file (Ex: '/path/to/my_config_file.json').",
 )
 @click.argument(
     "indir_mri",
@@ -83,15 +83,17 @@ def main(
     ses : str, optional
         Session label, by default `None`.
     workflow_strategy : str or pathlib.Path
-        Path to a JSON file containing the workflow strategy.
+        Name of the workflow_strategy if using a preset. It is also possible to use a
+        custom file by providing the path to a JSON file containing workflow strategy.
+        In that case, please check Physprep documentation to make sure your file is
+        properly formatted.
     """
-    # if workflow_strategy is None:
-    # Create config files
-    # utils.create_config_workflow()
-    # else:
-    # Load config files
+
+    # Get workflow info as defined in the configuration file `workflow_strategy`
+    workflow_strategy = utils.get_workflow_strategy(workflow_strategy)
+
+    # Match acq files with bold files if specified
     if not skip_match_acq_bids:
-        # Match acq files with bold files
         match_acq_bids(indir_mri, indir_physio)
     if not skip_convert:
         # Get information about the physiological data
