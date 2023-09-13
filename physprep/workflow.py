@@ -8,16 +8,19 @@ report.
 import click
 
 # from physprep import utils
-# from physprep.prepare import convert, get_info, rename
+from physprep.prepare import convert, get_info, match_acq_bids, rename
+
 # from physprep.processing import clean, process
 # from physprep.quality import report
 
 
 @click.command()
-@click.argument(
+@click.option(
     "workflow_strategy",
     type=click.Path(),
-    help="Path to a JSON file containing the workflow strategy.",
+    help="Path to a JSON file containing the workflow strategy. If not specified, the "
+    "workflow will include the creation of the following configuration files: "
+    "`workflow_strategy` and `preprocessing_strategy`.",
 )
 @click.argument(
     "indir_mri",
@@ -36,7 +39,31 @@ import click
 )
 @click.argument("sub", type=str, help="Subject label.")
 @click.option("--ses", type=str, default=None, required=False, help="Session label.")
-def main(workflow_strategy, indir_mri, indir_physio, outdir, sub, ses=None):
+@click.option(
+    "--skip_match_acq_bids",
+    is_flag=True,
+    help="If specified, the workflow will not match the acq files with the bold files. "
+    "If acq files are already organized properly, this flag can be specified. For more "
+    "details, see the documentation of the mathc_acq_bids.py script.",
+)
+@click.option(
+    "--skip_convert",
+    is_flag=True,
+    help="If specified, the workflow will not convert the physiological data recordings "
+    "in BIDS format. This implies that the data is already segmented in runs, organized "
+    "in a BIDS-like structure (i.e., one tsv.gz and one json file per run), and named "
+    "following the BIDS recommandations.",
+)
+def main(
+    workflow_strategy,
+    indir_mri,
+    indir_physio,
+    outdir,
+    sub,
+    ses=None,
+    skip_match_acq_bids=False,
+    skip_convert=False,
+):
     """
     Physprep workflow.
 
@@ -45,8 +72,6 @@ def main(workflow_strategy, indir_mri, indir_physio, outdir, sub, ses=None):
 
     Parameters
     ----------
-    workflow_strategy : str or pathlib.Path
-        Path to a JSON file containing the workflow strategy.
     indir_mri : str or pathlib.Path
         Path to the directory containing the raw MRI data.
     indir_physio : str or pathlib.Path
@@ -57,13 +82,24 @@ def main(workflow_strategy, indir_mri, indir_physio, outdir, sub, ses=None):
         Subject label.
     ses : str, optional
         Session label, by default `None`.
+    workflow_strategy : str or pathlib.Path
+        Path to a JSON file containing the workflow strategy.
     """
-    # Get information about the physiological data
-
-    # Convert physiological data to BIDS format with phys2bids
-
-    # Rename physiological data to BIDS format
-
+    # if workflow_strategy is None:
+    # Create config files
+    # utils.create_config_workflow()
+    # else:
+    # Load config files
+    if not skip_match_acq_bids:
+        # Match acq files with bold files
+        match_acq_bids(indir_mri, indir_physio)
+    if not skip_convert:
+        # Get information about the physiological data
+        get_info()
+        # Convert physiological data to BIDS format with phys2bids
+        convert()
+        # Rename physiological data to BIDS format
+        rename()
     # Clean physiological data
 
     # Process physiological data
