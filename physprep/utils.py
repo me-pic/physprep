@@ -3,6 +3,11 @@
 import json
 import os
 import pickle
+from pathlib import Path
+
+from pkg_resources import resource_filename
+
+WORKFLOW_STRATEGIES = ["neuromod"]
 
 
 def _check_filename(outdir, filename, extension=None, overwrite=False):
@@ -410,3 +415,35 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
                 with open(os.path.join(outdir, filename), "w") as f:
                     json.dump(signals, f, indent=4)
             break
+
+
+def get_config_workflow(workflow_strategy):
+    """
+    Get the workflow strategy configuration file.
+
+    Parameters
+    ----------
+    workflow_strategy: str, pathlib.Path
+        Name of the workflow_strategy if using a preset or path to the configuration file
+        if using a custom workflow strategy.
+
+    Returns
+    -------
+    workflow: dict
+        Workflow to clean the physiological data.
+    """
+    if workflow_strategy in WORKFLOW_STRATEGIES:
+        workflow_path = resource_filename(
+            "physprep", f"data/workflow_strategy/{workflow_strategy}.json"
+        )
+    elif Path(workflow_strategy).exists():
+        workflow_path = Path(workflow_strategy)
+    else:
+        raise ValueError(
+            f"The given workflow strategy {workflow_strategy} is not valid. "
+            f"Please choose among {', '.join(WORKFLOW_STRATEGIES)} or enter a valid path"
+        )
+
+    workflow = load_json(workflow_path)
+
+    return workflow
