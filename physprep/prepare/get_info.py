@@ -10,7 +10,6 @@ import logging
 import math
 import os
 
-import click
 import pandas as pd
 import pprintpp
 from neurokit2 import read_acqknowledge
@@ -143,36 +142,6 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
                 ses_runs[exp].append(runs)
     LGR.info(f"Volumes for session :\n{ses_runs}")
     return ses_runs, bio_df.columns
-
-
-@click.command()
-@click.argument("root", type=str)
-@click.argument("sub", type=str)
-@click.option("--ses", type=str, default=None, required=False)
-@click.option("--count_vol", type=bool, default=False, required=False)
-@click.option("--show", type=bool, default=True, required=False)
-@click.option("--save", type=str, default=None, required=False)
-@click.option("--tr", type=float, default=None, required=False)
-@click.option("--tr_channel", type=str, default=None, required=False)
-@click.option("--scanning_sheet", type=str)
-def call_get_info(
-    root,
-    sub,
-    ses=None,
-    count_vol=False,
-    show=True,
-    save=None,
-    tr=None,
-    tr_channel=None,
-    scanning_sheet=None,
-):
-    """
-    Call `get_info` function only if `get_info.py` is called as CLI
-
-    For parameters description, please refer to the documentation of the
-    `get_info` function
-    """
-    get_info(root, sub, ses, count_vol, show, save, tr, tr_channel, scanning_sheet)
 
 
 def get_info(
@@ -383,9 +352,3 @@ def get_info(
         with open(os.path.join(save, sub, filename), "w") as f:
             json.dump(nb_expected_runs, f, indent=4)
     return nb_expected_runs
-
-
-if __name__ == "__main__":
-    log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_fmt)
-    call_get_info()
