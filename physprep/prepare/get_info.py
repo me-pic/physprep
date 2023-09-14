@@ -182,7 +182,6 @@ def get_info(
     count_vol=False,
     show=True,
     save=None,
-    tr=None,
     tr_channel=None,
     scanning_sheet=None,
 ):
@@ -212,7 +211,7 @@ def get_info(
                             └── file.acq
     Arguments
     ---------
-    root : str
+    root : str or pathlib.Path
         Root directory of dataset containing the data. Example: "/home/user/dataset/".
     sub : str
         Name of path for a specific subject. Example: "sub-01".
@@ -224,12 +223,9 @@ def get_info(
     show : bool
         Specify if you want to print the dictionary.
         Default to True.
-    save : str
+    save : str or pathlib.Path
         Specify where you want to save the dictionary in json format.
         If not specified, the output will be saved where you run the script.
-        Default to None.
-    tr : float
-        Value of the TR used in the MRI sequence.
         Default to None.
     trigger_ch : str
         Name of the trigger channel used on Acknowledge.
@@ -383,7 +379,7 @@ def get_info(
     if save is not None:
         if os.path.exists(os.path.join(save, sub)) is False:
             os.mkdir(os.path.join(save, sub))
-        filename = f"{sub}_volumes_all-ses-runs.json"
+        filename = f"{sub}_sessions.json"
         with open(os.path.join(save, sub, filename), "w") as f:
             json.dump(nb_expected_runs, f, indent=4)
     return nb_expected_runs
