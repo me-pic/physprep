@@ -445,5 +445,10 @@ def get_config_workflow(workflow_strategy):
         )
 
     workflow = load_json(workflow_path)
+    # Check if there is a key "trigger" in workflow
+    if "trigger" not in workflow.keys():
+        raise ValueError(
+            "The workflow strategy configuration file must contain a key `trigger`."
+        )
 
     return workflow

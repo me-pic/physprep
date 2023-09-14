@@ -5,6 +5,8 @@ Preprocess raw physiological data acquired in MRI, extract features, and generat
 report.
 """
 
+from pathlib import Path
+
 import click
 
 from physprep import utils
@@ -23,14 +25,9 @@ from physprep.prepare import convert, get_info, match_acq_bids, rename
     "workflow strategy file (Ex: '/path/to/my_config_file.json').",
 )
 @click.argument(
-    "indir_mri",
+    "indir_bids",
     type=click.Path(),
-    help="Path to the directory containing the raw MRI data.",
-)
-@click.argument(
-    "indir_physio",
-    type=click.Path(),
-    help="Path to the directory containing the raw physiological data.",
+    help="Path to the bids-like dataset directory.",
 )
 @click.argument(
     "outdir",
@@ -39,6 +36,14 @@ from physprep.prepare import convert, get_info, match_acq_bids, rename
 )
 @click.argument("sub", type=str, help="Subject label.")
 @click.option("--ses", type=str, default=None, required=False, help="Session label.")
+@click.option(
+    "indir_raw_physio",
+    type=click.Path(),
+    default=None,
+    help="Path to the directory containing the raw physiological data. Specify if raw "
+    "physiological data is not in the BIDS directory. For more details, about the BIDS "
+    "data structure, please refer to the documentation.",
+)
 @click.option(
     "--skip_match_acq_bids",
     is_flag=True,
@@ -56,11 +61,11 @@ from physprep.prepare import convert, get_info, match_acq_bids, rename
 )
 def main(
     workflow_strategy,
-    indir_mri,
-    indir_physio,
+    indir_bids,
     outdir,
     sub,
     ses=None,
+    indir_raw_physio=None,
     skip_match_acq_bids=False,
     skip_convert=False,
 ):
@@ -72,34 +77,78 @@ def main(
 
     Parameters
     ----------
-    indir_mri : str or pathlib.Path
-        Path to the directory containing the raw MRI data.
-    indir_physio : str or pathlib.Path
-        Path to the directory containing the raw physiological data.
+    workflow_strategy : str or pathlib.Path
+        Name of the workflow_strategy if using a preset. It is also possible to use a
+        custom file by providing the path to a JSON file containing workflow strategy.
+        In that case, please check Physprep documentation to make sure your file is
+        properly formatted.
+    indir_bids : str or pathlib.Path
+        Path to the directory containing the BIDS-like dataset.
     outdir : str or pathlib.Path
         Path to the directory where the processed physiological data will be saved.
     sub : str
         Subject label.
     ses : str, optional
         Session label, by default `None`.
-    workflow_strategy : str or pathlib.Path
-        Name of the workflow_strategy if using a preset. It is also possible to use a
-        custom file by providing the path to a JSON file containing workflow strategy.
-        In that case, please check Physprep documentation to make sure your file is
-        properly formatted.
+    indir_raw_physio : str or pathlib.Path
+        Path to the directory containing the raw physiological data. Specify if raw
+        physiological data is not in the BIDS directory.
+    skip_match_acq_bids : bool, optional
+        If specified, the workflow will not match the acq files with the bold files. Use
+        if acq files are already organized properly.
+    skip_convert : bool, optional
+        If specified, the workflow will not convert the physiological data recordings
+        in BIDS format.
     """
+    # Set up directories
+    # Check if directories exist
+    indir_bids = Path(indir_bids)
+    if not indir_bids.exists():
+        raise FileNotFoundError(f"{indir_bids} does not exist.")
+    if indir_raw_physio is not None:
+        indir_raw_physio = Path(indir_raw_physio)
+        if not indir_raw_physio.exists():
+            raise FileNotFoundError(f"{indir_raw_physio} does not exist.")
+    # Create output directories
+    if ses is not None:
+        raw_dir = indir_bids / "sourcedata" / sub / ses / "func"
+        segmented_dir = indir_bids / sub / ses / "func"
+        derivatives_dir = indir_bids / "derivatives" / "physprep" / sub / ses
+    elif ses is None:
+        ls_ses = sorted(Path(indir_bids / sub).glob("ses-*"))
+        # If no ses-* subdirectory in sub
+        if len(ls_ses) == 0:
+            raw_dir = indir_bids / "sourcedata" / sub / "func"
+            segmented_dir = indir_bids / sub / "func"
+            derivatives_dir = indir_bids / "derivatives" / "physprep" / sub
+        # If ses-* subdirectories in sub
+        else:
+            raw_dir = indir_bids / "sourcedata"
+            segmented_dir = indir_bids
+            derivatives_dir = indir_bids / "derivatives" / "physprep" / sub
+
+    raw_dir.mkdir(parents=True, exists_ok=True)
+    segmented_dir.mkdir(parents=True, exists_ok=True)
+    derivatives_dir.mkdir(parents=True, exists_ok=True)
 
     # Get workflow info as defined in the configuration file `workflow_strategy`
     workflow_strategy = utils.get_workflow_strategy(workflow_strategy)
 
     # Match acq files with bold files if specified
     if not skip_match_acq_bids:
-        match_acq_bids(indir_mri, indir_physio)
+        match_acq_bids(indir_bids, indir_raw_physio)
     if not skip_convert:
-        # Get information about the physiological data
-        get_info()
+        # Get information about the physiological recordings
+        info_sessions = get_info(
+            indir_bids,
+            sub,
+            ses,
+            count_vol=True,
+            save=indir_bids / "sourcedata",
+            tr_channel=workflow_strategy["trigger"],
+        )
         # Convert physiological data to BIDS format with phys2bids
-        convert()
+        convert(raw_dir, segmented_dir, info=info_sessions)
         # Rename physiological data to BIDS format
         rename()
     # Clean physiological data

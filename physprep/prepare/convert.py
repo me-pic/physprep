@@ -6,37 +6,12 @@ Physiological data conversion to BIDS.
 
 import gc
 import glob
-import json
 import logging
 import os
 
-import click
 from phys2bids.phys2bids import phys2bids
 
 from physprep import utils
-
-
-@click.command()
-@click.argument("root", type=click.Path())
-@click.argument("save", type=click.Path())
-@click.argument("sub", type=str)
-@click.option("--ses", type=str, default=None, required=False)
-@click.option("--tr", type=float, default=None, required=False)
-@click.option("--ch_name", default=None, required=False)
-@click.option("--overwrite", type=bool, default=False, required=False)
-@click.option("--pad", type=int, default=0, required=False)
-def call_convert(
-    root, save, sub, ses=None, tr=None, ch_name=None, overwrite=False, pad=0
-):
-    """
-    Call `convert` function only if `convert.py` is called as CLI.
-
-    For parameters description, please refer to the documentation of the
-    `convert` function
-    """
-    if ch_name is not None:
-        ch_name = json.loads(ch_name)
-    convert(root, save, sub, ses, tr, ch_name, overwrite, pad)
 
 
 def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False, pad=0):
@@ -71,16 +46,16 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
     """
     logger = logging.getLogger(__name__)
     # fetch info
-    logger.info(f"Reading fetcher in:\n{os.path.join(save, sub)}")
+    logger.info(f"Reading fetcher in:\n{os.path.join(root, sub)}")
     if info is None:
         fetcher = f"{sub}_sessions.json"
-        info = utils.load_json(os.path.join(save, sub, fetcher))
+        info = utils.load_json(os.path.join(root, sub, fetcher))
     # define sessions
     if ses is None:
         ses = sorted(list(info.keys()))
         # Remove the sessions that are already processed
         if overwrite is False:
-            existing = [str(d[-8:-1]) for d in glob.glob(f"{save}{sub}/*/")]
+            existing = [str(d[-8:-1]) for d in glob.glob(f"{root}{sub}/*/")]
             setA = set(ses)
             # Get new set with elements that are only in sessions but not in
             # existing
@@ -216,9 +191,3 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
                 continue
         gc.collect()
         print("~" * 30)
-
-
-if __name__ == "__main__":
-    log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_fmt)
-    call_convert()
