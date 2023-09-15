@@ -21,3 +21,5 @@ def test_order_channels():
     assert chsel == ch_idx
     with pytest.raises(ValueError):
         ch_names, chsel = get_info.order_channels(acq_channels, {})
+    with pytest.raises(ValueError):
+        ch_names, chsel = get_info.order_channels(acq_channels[1:], metadata_physio)
