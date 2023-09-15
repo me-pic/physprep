@@ -11,8 +11,8 @@ import click
 
 from physprep import utils
 from physprep.prepare import convert, get_info, match_acq_bids, rename
+from physprep.processing import clean  # , process
 
-# from physprep.processing import clean, process
 # from physprep.quality import report
 
 
@@ -59,6 +59,13 @@ from physprep.prepare import convert, get_info, match_acq_bids, rename
     "in a BIDS-like structure (i.e., one tsv.gz and one json file per run), and named "
     "following the BIDS recommandations.",
 )
+@click.option(
+    "--padding",
+    type=int,
+    default=9,
+    help="Time (in seconds) of padding to add at the beginning and end of each run. "
+    "Default to 9.",
+)
 def main(
     workflow_strategy,
     indir_bids,
@@ -68,6 +75,7 @@ def main(
     indir_raw_physio=None,
     skip_match_acq_bids=False,
     skip_convert=False,
+    padding=9,
 ):
     """
     Physprep workflow.
@@ -99,6 +107,10 @@ def main(
     skip_convert : bool, optional
         If specified, the workflow will not convert the physiological data recordings
         in BIDS format.
+    padding : int, optional
+        Time (in seconds) of padding to add at the beginning and end of each run. This
+        parameter is used if `skip_convert` is set to False. See Phys2BIDS documentation
+        for more details. By default, 9.
     """
     # Set up directories
     # Check if directories exist
@@ -111,6 +123,7 @@ def main(
             raise FileNotFoundError(f"{indir_raw_physio} does not exist.")
     # Create output directories
     if ses is not None:
+        ls_ses = [ses]
         raw_dir = indir_bids / "sourcedata" / sub / ses / "func"
         segmented_dir = indir_bids / sub / ses / "func"
         derivatives_dir = indir_bids / "derivatives" / "physprep" / sub / ses
@@ -123,6 +136,7 @@ def main(
             derivatives_dir = indir_bids / "derivatives" / "physprep" / sub
         # If ses-* subdirectories in sub
         else:
+            ses = ls_ses
             raw_dir = indir_bids / "sourcedata"
             segmented_dir = indir_bids
             derivatives_dir = indir_bids / "derivatives" / "physprep" / sub
@@ -132,29 +146,45 @@ def main(
     derivatives_dir.mkdir(parents=True, exists_ok=True)
 
     # Get workflow info as defined in the configuration file `workflow_strategy`
-    workflow_strategy = utils.get_workflow_strategy(workflow_strategy)
+    workflow = utils.get_config(workflow_strategy, strategy="workflow")
 
     # Match acq files with bold files if specified
     if not skip_match_acq_bids:
         match_acq_bids(indir_bids, indir_raw_physio)
     if not skip_convert:
         # Get information about the physiological recordings
-        info_sessions = get_info(
+        info_sessions = get_info.get_info(
             indir_bids,
             sub,
             ses,
             count_vol=True,
             save=indir_bids / "sourcedata",
-            tr_channel=workflow_strategy["trigger"],
+            tr_channel=workflow["trigger"]["channel"],
         )
         # Convert physiological data to BIDS format with phys2bids
-        convert(raw_dir, segmented_dir, info=info_sessions)
+        # Session-level
+        if len(ls_ses) == 1:
+            convert.convert(
+                raw_dir, segmented_dir, sub, ses=ses, info=info_sessions, pad=padding
+            )
+        # Subject-level: if ses-*, conversion will be done for all sessions
+        else:
+            convert.convert(raw_dir, segmented_dir, sub, info=info_sessions, pad=padding)
         # Rename physiological data to BIDS format
-        rename()
-    # Clean physiological data
+        rename.co_register_physio(segmented_dir, sub, ses=ses)
 
-    # Process physiological data
-
+    # Clean & process physiological data
+    for signal in workflow:
+        if signal != "trigger":
+            if "preprocessing_strategy" in signal and signal[
+                "preprocessing_strategy"
+            ] not in ["", " ", None]:
+                preprocessing = utils.get_config(
+                    signal["preprocessing_strategy"], strategy="preprocessing"
+                )
+                raw_signal, clean_signal = clean.preprocessing_workflow(
+                    preprocessing, segmented_dir, sub, ses=ses
+                )
+                print(raw_signal, clean_signal)
+                pass  # TODO
     # Generate quality report
-
-    pass
