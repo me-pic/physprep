@@ -19,7 +19,39 @@ from physprep.prepare import list_sub
 LGR = logging.getLogger(__name__)
 
 
-def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
+def order_channels(acq_channels, metadata_physio):
+    """
+    Order channels in the acq file according to the metadata_physio file.
+
+    Parameters
+    ----------
+    acq_channels : list
+        List of channels in the acq file.
+    metadata_physio : dict
+        Dictionary containing the metadata_physio file.
+    """
+    ch_names = []
+    chsel = []
+    for idx, channel in enumerate(acq_channels):
+        found = False
+        for key in metadata_physio:
+            if channel == metadata_physio[key]["channel"]:
+                ch_names.append(metadata_physio[key]["id"])
+                chsel.append(idx + 1)
+                found = True
+        if not found:
+            ch_names.append(channel)
+
+    if len(chsel) == 0:
+        raise ValueError(
+            "No correspondence between channels in the acq file and "
+            "channels defined in workflow configuration file."
+        )
+
+    return ch_names, chsel
+
+
+def volume_counter(root, sub, metadata_physio, ses=None, tr=1.49, trigger_ch="TTL"):
     """
     Volume counting for each run in a session.
 
@@ -140,13 +172,17 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
                 ses_runs[exp] = [runs]
             else:
                 ses_runs[exp].append(runs)
+
+    ch_names, chsel = order_channels(bio_df.columns, metadata_physio)
+
     LGR.info(f"Volumes for session :\n{ses_runs}")
-    return ses_runs, bio_df.columns
+    return ses_runs, ch_names, chsel
 
 
 def get_info(
     root,
     sub,
+    metadata_physio,
     ses=None,
     count_vol=False,
     show=True,
@@ -196,7 +232,7 @@ def get_info(
         Specify where you want to save the dictionary in json format.
         If not specified, the output will be saved where you run the script.
         Default to None.
-    trigger_ch : str
+    tr_channel : str
         Name of the trigger channel used on Acknowledge.
         Defaults to None.
 
@@ -312,9 +348,10 @@ def get_info(
                 else:
                     # count the triggers in physfile otherwise
                     try:
-                        vol_in_biopac, ch_names = volume_counter(
+                        vol_in_biopac, ch_names, chsel = volume_counter(
                             os.path.join(root, "sourcedata/physio/"),
                             sub,
+                            metadata_physio,
                             ses=exp,
                             tr=tr,
                             trigger_ch=tr_channel,
@@ -328,6 +365,7 @@ def get_info(
                             run_dict = vol_in_biopac
                         nb_expected_runs[exp]["recorded_triggers"] = run_dict
                         nb_expected_runs[exp]["ch_names"] = list(ch_names)
+                        nb_expected_runs[exp]["chsel"] = list(chsel)
 
                     # skip the session if we did not find the file
                     except KeyError:
