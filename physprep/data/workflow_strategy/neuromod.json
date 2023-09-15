@@ -4,28 +4,28 @@
         "Description": "continuous pulse measurement",
         "Units": "V",
         "channel": "PPG100C",
-        "preprocessing_strategy": "./physprep/data/preprocessing_strategy/neuromod_ppg.json"
+        "preprocessing_strategy": "neuromod_ppg"
     },
     "cardiac_ecg": {
         "id": "ECG",
         "Description": "continuous electrocardiogram measurement",
         "Units": "mV",
         "channel": "ECG100C",
-        "preprocessing_strategy": "./physprep/data/preprocessing_strategy/neuromod_ecg.json"
+        "preprocessing_strategy": "neuromod_ecg"
     },
     "electrodermal": {
         "id": "EDA",
         "Description": "continuous electrodermal activity measurement",
         "Units": "microsiemens",
         "channel": "EDA100C-MRI",
-        "preprocessing_strategy": "./physprep/data/preprocessing_strategy/neuromod_eda.json"
+        "preprocessing_strategy": "neuromod_eda"
     },
     "respiratory": {
         "id": "RESP",
         "Description": "continuous breathing measurement",
         "Units": "cm H2O",
         "channel": "DA100C",
-        "preprocessing_strategy": "./physprep/data/preprocessing_strategy/neuromod_rsp.json"
+        "preprocessing_strategy": "neuromod_rsp"
     },
     "trigger": {
         "id": "TTL",
