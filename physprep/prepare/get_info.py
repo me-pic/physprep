@@ -47,6 +47,11 @@ def order_channels(acq_channels, metadata_physio):
             "No correspondence between channels in the acq file and "
             "channels defined in workflow configuration file."
         )
+    if len(metadata_physio) != len(chsel):
+        raise ValueError(
+            "Some channels defined in the workflow configuration file "
+            "are not present in the acq file."
+        )
 
     return ch_names, chsel
 

@@ -15,9 +15,8 @@ import pandas as pd
 @click.argument("indir", type=click.Path(exists=True), required=True)
 @click.argument("sub", type=str, required=True)
 @click.option("--ses", type=str, required=False, default=None)
-@click.option("--neuromod", type=bool, required=False, default=False)
 @click.option("--min_volumes", type=int, required=False, default=350)
-def co_register_physio(indir, sub, ses=None, neuromod=False, min_volumes=350):
+def co_register_physio(indir, sub, ses=None, min_volumes=350):
     """
     Comply to BIDS and co-register functional acquisitions.
 
@@ -31,8 +30,6 @@ def co_register_physio(indir, sub, ses=None, neuromod=False, min_volumes=350):
         name of path for a specific subject (e.g.'sub-03')
     ses : list
         specific session numbers can be listed (e.g. ['ses-001', 'ses-002']
-    neuromod : bool
-        Set to True if working with Neuromod data. Default is False.
     min_volumes : int
         Minimum number of  volumes expected for a run. If a run has less volumes than this
         number, it will be removed. Default is 350.
@@ -68,12 +65,9 @@ def co_register_physio(indir, sub, ses=None, neuromod=False, min_volumes=350):
         triggers = list(info[s]["recorded_triggers"].values())
         triggers = list(np.concatenate(triggers).flat)
 
-        if neuromod:
-            # remove padding trigger for videogames tasks
-            if any(game in indir for game in ["mario", "shinobi"]):
-                triggers = [
-                    trigger - 1 if trigger > 200 else trigger for trigger in triggers
-                ]
+        # remove padding trigger for videogames tasks; specific to neuromod data
+        if any(game in indir for game in ["mario", "shinobi"]):
+            triggers = [trigger - 1 if trigger > 200 else trigger for trigger in triggers]
 
         if len(info[s]["task"]) is not info[s]["expected_runs"]:
             logger.info("Number of tasks does not match expected number of runs")
