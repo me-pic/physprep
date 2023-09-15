@@ -6,27 +6,9 @@ import json
 import logging
 import os
 
-import click
 import pprintpp
 
 LGR = logging.getLogger(__name__)
-
-
-@click.command()
-@click.argument("root", type=str)
-@click.argument("sub", type=str)
-@click.option("--ses", type=str, default=None, required=False)
-@click.option("--ext", type=str, default=".acq", required=False)
-@click.option("--save", type=str, default=None, required=False)
-@click.option("--show", type=bool, default=False, required=False)
-def call_list_sub(root, sub, ses=None, ext=".acq", save=None, show=False):
-    """
-    Call `list_sub` function only if `list_sub.py` is called as CLI
-
-    For parameters description, please refer to the documentation of the
-    `list_sub` function
-    """
-    list_sub(root, sub, ses, ext, save, show)
 
 
 def list_sub(root, sub, ses=None, ext=".acq", save=None, show=False):
@@ -147,7 +129,3 @@ def list_sub(root, sub, ses=None, ext=".acq", save=None, show=False):
 
         # return a dictionary of sessions each containing a list of files
         return ses_runs
-
-
-if __name__ == "__main__":
-    call_list_sub()
