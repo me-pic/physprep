@@ -97,22 +97,7 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
             )
             continue
         else:
-            # Define chtrig ; should find a way to find it from a list of
-            # possible values
-            ch_list = [
-                "EDA"
-                if "EDA" in ch
-                else "ECG"
-                if "ECG" in ch
-                else "PPG"
-                if "PPG" in ch
-                else "TTL"
-                if "A 5" in ch or "TTL" in ch
-                else "RSP"
-                for ch in info[col]["ch_names"]
-            ]
-            chtrig = ch_list.index("TTL") + 1
-            info[col].update({"ch_names": ch_list})
+            chtrig = info[col]["ch_names"].index("TTL") + 1
 
         # Iterate through files in each session and run phys2bids
         filename = info[col]["in_file"]
@@ -129,7 +114,7 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
                     sub=sub[-2:],
                     ses=ses_id,
                     chtrig=chtrig,
-                    chsel=None,
+                    chsel=info[col]["chsel"],
                     num_timepoints_expected=info[col]["recorded_triggers"][f"run-0{i+1}"],
                     tr=info[col]["tr"],
                     thr=4,
@@ -150,7 +135,7 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
                     sub=sub[-2:],
                     ses=ses_id[-3:],
                     chtrig=chtrig,
-                    chsel=None,
+                    chsel=info[col]["chsel"],
                     num_timepoints_expected=info[col]["recorded_triggers"]["run-01"],
                     tr=info[col]["tr"],
                     thr=4,
@@ -173,7 +158,7 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
                         sub=sub[-2:],
                         ses=ses_id[-3:],
                         chtrig=chtrig,
-                        chsel=None,
+                        chsel=info[col]["chsel"],
                         num_timepoints_expected=info[col]["recorded_triggers"][
                             f"run-0{i+1}"
                         ],
