@@ -4,6 +4,8 @@
 Neuromod cleaning utilities.
 """
 
+# from pathlib import Path
+
 import neurokit2 as nk
 import numpy as np
 from scipy import signal
@@ -11,6 +13,15 @@ from scipy import signal
 # ======================================================================
 # Photoplethysmograph (PPG)
 # =======================================================================
+
+
+def preprocessing_workflow(steps, segmented_dir, sub, ses):
+    # Load timeseries
+    # a. Participants did one session only
+    # b. Participants did multiple sessions, but ses label specified
+    # c. Participants did multiple sessions, but no ses label specified
+    #    (preprocessing at subject level)
+    pass
 
 
 def neuromod_ppg_clean(ppg_signal, sampling_rate=10000.0, downsampling=None):

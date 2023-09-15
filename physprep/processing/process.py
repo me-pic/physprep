@@ -40,7 +40,7 @@ def process_session(args):
     # Unpack arguments for parallel processing
     source, sub, ses, outdir, multi_echo = args
     multi_echo = bool(multi_echo)
-    neuromod_bio_process(source, sub, ses, outdir, False)
+    workflow_process(source, sub, ses, outdir, False)
 
 
 # ==================================================================================
@@ -54,7 +54,7 @@ def process_session(args):
 # @click.argument("ses", type=str)
 # @click.argument("outdir", type=str)
 # @click.argument("multi_echo", type=bool)
-def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
+def workflow_process(source, sub, ses, outdir, multi_echo):
     """
     Run processing pipeline on specified biosignals.
 
@@ -677,7 +677,7 @@ def rsp_process(
 @click.argument("outdir", type=str)
 @click.argument("sub", type=str)
 @click.argument("multi_echo", type=bool)
-def parallel_neuromod_bio_process(source, sub, outdir, multi_echo):
+def parallel_workflow_process(source, sub, outdir, multi_echo):
     num_cpus = multiprocessing.cpu_count()
     num_cpus = round(num_cpus / 3)
     pool = multiprocessing.Pool(processes=num_cpus)
@@ -693,5 +693,5 @@ def parallel_neuromod_bio_process(source, sub, outdir, multi_echo):
 
 
 if __name__ == "__main__":
-    # neuromod_bio_process()
-    parallel_neuromod_bio_process()
+    # workflow_process()
+    parallel_workflow_process()
