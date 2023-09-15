@@ -8,6 +8,12 @@ from pathlib import Path
 from pkg_resources import resource_filename
 
 WORKFLOW_STRATEGIES = ["neuromod"]
+PREPROCESSING_STRATEGIES = [
+    "neuromod_ecg",
+    "neuromod_eda",
+    "neuromod_ppg",
+    "neuromod_resp",
+]
 
 
 def _check_filename(outdir, filename, extension=None, overwrite=False):
@@ -417,38 +423,54 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
             break
 
 
-def get_config_workflow(workflow_strategy):
+def get_config(strategy_name, strategy="workflow"):
     """
-    Get the workflow strategy configuration file.
+    Get the strategy configuration file.
 
     Parameters
     ----------
-    workflow_strategy: str, pathlib.Path
+    strategy_name: str, pathlib.Path
         Name of the workflow_strategy if using a preset or path to the configuration file
         if using a custom workflow strategy.
+    strategy: str
+        Type of strategy to load. Choose among `workflow` or `preprocessing`. Default:
+        `workflow`.
 
     Returns
     -------
-    workflow: dict
-        Workflow to clean the physiological data.
+    load_strategy: dict
+        Dictionary containing the strategy configuration.
     """
-    if workflow_strategy in WORKFLOW_STRATEGIES:
-        workflow_path = resource_filename(
-            "physprep", f"data/workflow_strategy/{workflow_strategy}.json"
-        )
-    elif Path(workflow_strategy).exists():
-        workflow_path = Path(workflow_strategy)
+    if strategy == "workflow":
+        valid_strategies = WORKFLOW_STRATEGIES
+        preset_path = "workflow_strategy"
+    elif strategy == "preprocessing":
+        valid_strategies = PREPROCESSING_STRATEGIES
+        preset_path = "preprocessing_strategy"
     else:
         raise ValueError(
-            f"The given workflow strategy {workflow_strategy} is not valid. "
-            f"Please choose among {', '.join(WORKFLOW_STRATEGIES)} or enter a valid path"
+            "The given strategy is not valid. Choose among `workflow` or `preprocessing`."
         )
 
-    workflow = load_json(workflow_path)
-    # Check if there is a key "trigger" in workflow
-    if "trigger" not in workflow.keys():
+    # Check if the given strategy is valid
+    if strategy_name in valid_strategies:
+        strategy_path = resource_filename(
+            "physprep", f"data/{preset_path}/{strategy_name}.json"
+        )
+    elif Path(strategy_name).exists():
+        strategy_path = Path(strategy_name)
+    else:
         raise ValueError(
-            "The workflow strategy configuration file must contain a key `trigger`."
+            f"The given `strategy_name` {strategy_name} is not valid. "
+            f"Please choose among {', '.join(valid_strategies)} or enter a valid path"
         )
 
-    return workflow
+    load_strategy = load_json(strategy_path)
+    # Specific check for the workflow strategy
+    if strategy == "workflow":
+        if "trigger" not in load_json.keys():
+            raise ValueError(
+                "The workflow strategy configuration file must contain a key `trigger`."
+            )
+
+    return load_strategy
