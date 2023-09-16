@@ -9,19 +9,161 @@ Neuromod cleaning utilities.
 import neurokit2 as nk
 import numpy as np
 from scipy import signal
-
-# ======================================================================
-# Photoplethysmograph (PPG)
-# =======================================================================
+import pandas as pd
+from physprep import utils
 
 
-def preprocessing_workflow(steps, segmented_dir, sub, ses):
-    # Load timeseries
-    # a. Participants did one session only
-    # b. Participants did multiple sessions, but ses label specified
-    # c. Participants did multiple sessions, but no ses label specified
-    #    (preprocessing at subject level)
-    pass
+def preprocessing_workflow(data, metadata, workflow_strategy, save=True):
+    """
+    Parameters
+    ----------
+    data : dataframe
+        The raw physiological signal.
+    metadata : dict
+        The metadata associated with the physiological recording.
+    workflow_strategy : dict
+        Dictionary containing the content of the workflow strategy.
+    save : bool
+        Specify if the preprocessed signals should be saved.
+        Default to True.
+    """
+    clean_signals = {}
+
+    # Remove padding in data if any
+    if metadata["StartTime"] > 2e-3:
+        data = remove_padding(data)
+
+    # Iterate over content of `workflow_strategy`
+    for signal_type in workflow_strategy:
+        if signal_type != "trigger":
+            if "preprocessing_strategy" in signal and signal[
+                "preprocessing_strategy"
+            ] not in ["", " ", None]:
+                clean = preprocess_signal(
+                    data[signal_type.id],
+                    signal_type["preprocessing_strategy"],
+                    signal_type.id,
+                    sampling_rate=metadata["SamplingFrequency"],
+                )
+                clean_signals.update({signal_type.id: clean})
+            else:
+                print(f"No preprocessing strategy specified for {signal_type}. The preprocessing step will be skipped.")
+    
+
+    if save:
+        # Save preprocessed signal
+        pass
+
+
+def remove_padding(data, start_time=None, end_time=None, trigger_threshold=4):
+    """
+    Remove padding in data if any.
+
+    Parameters
+    ----------
+    data : array or Series
+        The raw physiological signal.
+    start_time : float
+        The time at which the recording started (in seconds). 
+        Default to 0.
+    end_time : float
+        The time at which the recording ended (in seconds).
+        Default to None.
+    trigger_threshold : float
+        The threshold to use to detect the trigger. The data before the first
+        detected trigger and after the last detected trigger will be removed.
+        If `start_time` and/or `end_time` are specified, the trigger detection
+        will be skipped and the data will be cropped based on the specified
+        times. Default to 4.
+
+    Returns
+    -------
+    data : array or Series
+        The raw physiological signal without padding.
+    """
+    if start_time is None and end_time is None:
+        # Cropped the data based on the detected triggers
+        trigger = data[data["TTL"] > trigger_threshold]
+        start_time = list(trigger.index)[0]
+        end_time = list(trigger.index)[-1]
+    else:
+        # Crop the data based on the specified start and end times
+        if start_time is not None:
+            start_time = list(data[data["time"] == start_time].index)[0]
+        if end_time is not None:
+            end_time = list(data[data["time"] == end_time].index)[0]
+        
+    data = data.loc[start_time:end_time].reset_index(drop=True)
+
+    return data
+
+
+def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
+    """
+    Apply a preprocessing workflow to a physiological signal.
+
+    Parameters
+    ----------
+    signal : array or Series
+        The raw physiological signal.
+    preprocessing_strategy : dict
+        Dictionary containing the preprocessing steps to apply to the signal.
+    signal_type : str
+        The type of physiological signal. Can be 'ECG', 'PPG', 'RSP', 'EDA'.
+    sampling_rate : float
+        The sampling frequency of `signal` (in Hz, i.e., samples/second).
+
+    Returns
+    -------
+    signal : array or Series
+        The cleaned physiological signal.
+    """
+    # Retrieve preprocessing steps
+    preprocessing = utils.get_config(preprocessing_strategy, strategy="preprocessing")
+    # Iterate over preprocessing steps as defined in the configuration file
+    for step in preprocessing:
+        if step["step"] == "filtering":
+            if step["parameters"]["method"] == "notch":
+                pass
+            else:
+                signal = nk.signal_filter(
+                    signal, sampling_rate=sampling_rate, **step["parameters"]
+                )
+        elif step["step"] == "signal_resample":
+            # Resample the signal
+            signal = nk.signal_resample(
+                signal, sampling_rate=sampling_rate, **step["parameters"]
+            )
+        else:
+            raise ValueError(
+                f"Unknown preprocessing step: {step['step']}. Make sure the "
+                "preprocessing strategy is properly defined. For more "
+                "details, please refer to the Physprep documentation."
+            )
+
+    # Create a dataframe with the raw and cleaned signal
+    # Dataframe containing the cleaned physiological signal.
+    # timeseries = pd.DataFrame(
+    #    {f"{signal_type}_Raw": raw, f"{signal_type}_Clean": signal}
+    #)
+
+    return signal
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def neuromod_ppg_clean(ppg_signal, sampling_rate=10000.0, downsampling=None):

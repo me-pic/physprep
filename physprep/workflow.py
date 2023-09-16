@@ -8,6 +8,7 @@ report.
 from pathlib import Path
 
 import click
+import pandas as pd
 
 from physprep import utils
 from physprep.prepare import convert, get_info, match_acq_bids, rename
@@ -122,11 +123,11 @@ def main(
         if not indir_raw_physio.exists():
             raise FileNotFoundError(f"{indir_raw_physio} does not exist.")
     # Create output directories
-    if ses is not None:
+    if ses is not None and not isinstance(ses, list):
         ls_ses = [ses]
-        raw_dir = indir_bids / "sourcedata" / sub / ses / "func"
-        segmented_dir = indir_bids / sub / ses / "func"
-        derivatives_dir = indir_bids / "derivatives" / "physprep" / sub / ses
+        raw_dir = indir_bids / "sourcedata" / sub
+        segmented_dir = indir_bids / sub
+        derivatives_dir = indir_bids / "derivatives" / "physprep" / sub
     elif ses is None:
         ls_ses = sorted(Path(indir_bids / sub).glob("ses-*"))
         # If no ses-* subdirectory in sub
@@ -137,8 +138,8 @@ def main(
         # If ses-* subdirectories in sub
         else:
             ses = ls_ses
-            raw_dir = indir_bids / "sourcedata"
-            segmented_dir = indir_bids
+            raw_dir = indir_bids / "sourcedata" / sub
+            segmented_dir = indir_bids / sub
             derivatives_dir = indir_bids / "derivatives" / "physprep" / sub
 
     raw_dir.mkdir(parents=True, exists_ok=True)
@@ -174,17 +175,22 @@ def main(
         rename.co_register_physio(segmented_dir, sub, ses=ses)
 
     # Clean & process physiological data
-    for signal in workflow:
-        if signal != "trigger":
-            if "preprocessing_strategy" in signal and signal[
-                "preprocessing_strategy"
-            ] not in ["", " ", None]:
-                preprocessing = utils.get_config(
-                    signal["preprocessing_strategy"], strategy="preprocessing"
+    if len(ls_ses) >= 1:
+        for s in ls_ses:
+            runs = sorted(s.glob("func/*_physio.*"))
+            # Remove duplicated elements in runs with same filename but different extension
+            runs = list(set([run.parent / run.stem for run in runs]))
+            # Need to run it twice because of the tsv.gz extension
+            runs = list(set([run.parent / run.stem for run in runs]))
+
+            for run in runs:
+                # Load data
+                metadata = utils.load_json(run.with_suffix(".json"))
+                data = pd.read_csv(
+                    run.with_suffix(".tsv.gz"), sep="\t", names=metadata["Columns"]
                 )
-                raw_signal, clean_signal = clean.preprocessing_workflow(
-                    preprocessing, segmented_dir, sub, ses=ses
-                )
-                print(raw_signal, clean_signal)
+                # Preprocess data
+                preprocessed_signal = clean.preprocessing_workflow(data, metadata, workflow)
+                print(preprocessed_signal)
                 pass  # TODO
     # Generate quality report
