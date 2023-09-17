@@ -19,14 +19,6 @@ import neurokit2 as nk
 import numpy as np
 import pandas as pd
 
-# home brewed cleaning utils
-from clean import (
-    neuromod_ecg_clean,
-    neuromod_eda_clean,
-    neuromod_ppg_clean,
-    neuromod_rsp_clean,
-)
-
 # high-level processing utils
 from neurokit2 import ecg_peaks, ppg_findpeaks, signal_fixpeaks, signal_rate
 from neurokit2.misc import as_vector
@@ -36,11 +28,64 @@ from systole.utils import input_conversion
 from utils import load_json
 
 
+def features_extraction_workflow(
+        data, metadata, workflow_strategy, outdir=None, filename=None, save=True
+):
+    """
+    Extract features from physiological data.
+
+    Parameters
+    ----------
+    data : DataFrame or dict
+        The physiological timeseries on which to extract features.
+    metadata : dict
+        The metadata associated with the physiological recording.
+    workflow_strategy : dict
+        Dictionary containing the content of the workflow strategy.
+    outdir : str or pathlib.Path
+        Path to the directory where the preprocessed physiological data will be saved.
+    filename : str or pathlib.Path
+        Name of the file to save the preprocessed physiological data.
+    save : bool
+        Specify if the preprocessed signals should be saved.
+        Default to True.
+    """
+    pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def process_session(args):
     # Unpack arguments for parallel processing
     source, sub, ses, outdir, multi_echo = args
     multi_echo = bool(multi_echo)
-    workflow_process(source, sub, ses, outdir, False)
+    neuromod_bio_process(source, sub, ses, outdir, False)
 
 
 # ==================================================================================
@@ -54,7 +99,7 @@ def process_session(args):
 # @click.argument("ses", type=str)
 # @click.argument("outdir", type=str)
 # @click.argument("multi_echo", type=bool)
-def workflow_process(source, sub, ses, outdir, multi_echo):
+def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
     """
     Run processing pipeline on specified biosignals.
 
@@ -677,7 +722,7 @@ def rsp_process(
 @click.argument("outdir", type=str)
 @click.argument("sub", type=str)
 @click.argument("multi_echo", type=bool)
-def parallel_workflow_process(source, sub, outdir, multi_echo):
+def parallel_neuromod_bio_process(source, sub, outdir, multi_echo):
     num_cpus = multiprocessing.cpu_count()
     num_cpus = round(num_cpus / 3)
     pool = multiprocessing.Pool(processes=num_cpus)
@@ -694,4 +739,4 @@ def parallel_workflow_process(source, sub, outdir, multi_echo):
 
 if __name__ == "__main__":
     # workflow_process()
-    parallel_workflow_process()
+    parallel_neuromod_bio_process()
