@@ -77,8 +77,11 @@ def main(
     skip_match_acq_bids=False,
     skip_convert=False,
     padding=9,
+    n_jobs=None,
 ):
     """
+    TODO: add parallelization option
+
     Physprep workflow.
 
     Preprocess raw physiological data acquired in MRI, extract features, and generate
@@ -178,19 +181,24 @@ def main(
     if len(ls_ses) >= 1:
         for s in ls_ses:
             runs = sorted(s.glob("func/*_physio.*"))
-            # Remove duplicated elements in runs with same filename but different extension
+            # Remove duplicated elements in runs with same filename but different 
+            # extension
             runs = list(set([run.parent / run.stem for run in runs]))
             # Need to run it twice because of the tsv.gz extension
             runs = list(set([run.parent / run.stem for run in runs]))
 
             for run in runs:
+                filename = run.stem
                 # Load data
                 metadata = utils.load_json(run.with_suffix(".json"))
                 data = pd.read_csv(
                     run.with_suffix(".tsv.gz"), sep="\t", names=metadata["Columns"]
                 )
                 # Preprocess data
-                preprocessed_signal = clean.preprocessing_workflow(data, metadata, workflow)
-                print(preprocessed_signal)
-                pass  # TODO
+                preprocessed_signals = clean.preprocessing_workflow(
+                    data, metadata, workflow, Path(derivatives_dir / s), filename
+                )
+                print(preprocessed_signals)
+                # Extract features
+                # Save data
     # Generate quality report
