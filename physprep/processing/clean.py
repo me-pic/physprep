@@ -4,11 +4,14 @@
 Neuromod cleaning utilities.
 """
 
+import pickle
+from pathlib import Path
+
 import neurokit2 as nk
 import numpy as np
-from scipy import signal
 import pandas as pd
-from pathlib import Path
+from scipy import signal
+
 from physprep import utils
 
 
@@ -35,6 +38,8 @@ def preprocessing_workflow(
         Default to True.
     """
     clean_signals = {}
+    sampling_rates = {}
+    metadata_derivatives = {}
 
     # Remove padding in data if any
     if metadata["StartTime"] > 2e-3:
@@ -46,18 +51,23 @@ def preprocessing_workflow(
             if "preprocessing_strategy" in signal and signal[
                 "preprocessing_strategy"
             ] not in ["", " ", None]:
-                clean = preprocess_signal(
+                clean, sampling_rate = preprocess_signal(
                     data[signal_type.id],
                     signal_type["preprocessing_strategy"],
                     signal_type.id,
                     sampling_rate=metadata["SamplingFrequency"],
                 )
                 clean_signals.update({signal_type.id: clean})
+                sampling_rates.update({signal_type.id: sampling_rate})
             else:
                 print(
                     f"No preprocessing strategy specified for {signal_type}. "
                     "The preprocessing step will be skipped."
                 )
+
+    # Update metadata_derivatives
+    metadata_derivatives.update({"StartTime": data["time"].loc[0]})
+    metadata_derivatives.update({"SamplingFrequency": sampling_rates})
 
     if save:
         # Save preprocessed signal
@@ -89,16 +99,21 @@ def preprocessing_workflow(
                     for name in workflow_strategy
                     if workflow_strategy[name]["id"] == list(clean_signal.keys())[0]
                 ][0]
-                filename = filename.replace("physio", signal_name)
+                filename_signal = filename.replace("physio", signal_name)
                 clean_signal = pd.DataFrame(clean_signal)
                 clean_signal.to_csv(
-                    Path(outdir / filename).with_suffix(".tsv.gz"),
+                    Path(outdir / filename_signal).with_suffix(".tsv.gz"),
                     sep="\t",
                     index=False,
                     compression="gzip",
                 )
-        
-        return clean_signals
+
+        # Save metadata on filtered signals
+        with open(Path(outdir / filename).with_suffix(".json"), "w") as f:
+            pickle.dump(metadata_derivatives, f, indent=4)
+            f.close()
+
+        return clean_signals, metadata_derivatives
 
 
 def remove_padding(data, start_time=None, end_time=None, trigger_threshold=None):
@@ -168,7 +183,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
     for step in preprocessing:
         if step["step"] == "filtering":
             if step["parameters"]["method"] == "notch":
-                pass # TODO: implement notch filtering
+                pass  # TODO: implement notch filtering
             else:
                 signal = nk.signal_filter(
                     signal, sampling_rate=sampling_rate, **step["parameters"]
@@ -178,6 +193,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
             signal = nk.signal_resample(
                 signal, sampling_rate=sampling_rate, **step["parameters"]
             )
+            sampling_rate = step["signal_resample"]["desired_sampling_rate"]
         else:
             raise ValueError(
                 f"Unknown preprocessing step: {step['step']}. Make sure the "
@@ -185,7 +201,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
                 "details, please refer to the Physprep documentation."
             )
 
-    return signal
+    return signal, sampling_rate
 
 
 # =============================================================================
