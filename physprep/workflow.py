@@ -12,7 +12,7 @@ import pandas as pd
 
 from physprep import utils
 from physprep.prepare import convert, get_info, match_acq_bids, rename
-from physprep.processing import clean  # , process
+from physprep.processing import clean, process
 
 # from physprep.quality import report
 
@@ -181,7 +181,7 @@ def main(
     if len(ls_ses) >= 1:
         for s in ls_ses:
             runs = sorted(s.glob("func/*_physio.*"))
-            # Remove duplicated elements in runs with same filename but different 
+            # Remove duplicated elements in runs with same filename but different
             # extension
             runs = list(set([run.parent / run.stem for run in runs]))
             # Need to run it twice because of the tsv.gz extension
@@ -195,10 +195,17 @@ def main(
                     run.with_suffix(".tsv.gz"), sep="\t", names=metadata["Columns"]
                 )
                 # Preprocess data
-                preprocessed_signals = clean.preprocessing_workflow(
+                preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
                     data, metadata, workflow, Path(derivatives_dir / s), filename
                 )
                 print(preprocessed_signals)
                 # Extract features
+                timeseries, features = process.features_extraction_workflow(
+                    preprocessed_signals,
+                    metadata_derivatives,
+                    Path(derivatives_dir / s),
+                    filename,
+                )
                 # Save data
+
     # Generate quality report
