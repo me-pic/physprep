@@ -3,6 +3,7 @@
 import json
 import os
 
+import pandas as pd
 import pytest
 
 from physprep import utils
@@ -77,3 +78,33 @@ def test_check_input_validity():  # option, valid_options, empty=True):
     # Test float
     assert utils._check_input_validity("1.0", float) == 1.0  # valid
     assert utils._check_input_validity("a", float) is False  # invalid
+
+
+def test_rename_in_bids():
+    snake_case = ["resp_signal", "eda_signal"]
+    camel_case = ["RespSignal", "EdaSignal"]
+    # Test renaming of DataFrame
+    df_renamed = utils.rename_in_bids(
+        pd.DataFrame({"RESP_Signal": ["test"], "EDA_Signal": ["test"]})
+    )
+    assert df_renamed.columns.tolist() == snake_case
+    df_renamed = utils.rename_in_bids(
+        pd.DataFrame({"RespSignal": ["test"], "EdaSignal": ["test"]})
+    )
+    assert df_renamed.columns.tolist() == snake_case
+    df_renamed = utils.rename_in_bids(
+        pd.DataFrame({"respSignal": ["test"], "edaSignal": ["test"]})
+    )
+    assert df_renamed.columns.tolist() == snake_case
+    df_renamed = utils.rename_in_bids(
+        pd.DataFrame({"resp_signal": ["test"], "eda_signal": ["test"]})
+    )
+    assert df_renamed.columns.tolist() == snake_case
+
+    # Test renaming of dict
+    dict_renamed = utils.rename_in_bids({"RESP_Signal": ["test"], "EDA_Signal": ["test"]})
+    assert list(dict_renamed.keys()) == camel_case
+    dict_renamed = utils.rename_in_bids({"RespSignal": ["test"], "EdaSignal": ["test"]})
+    assert list(dict_renamed.keys()) == camel_case
+    dict_renamed = utils.rename_in_bids({"respSignal": ["test"], "edaSignal": ["test"]})
+    assert list(dict_renamed.keys()) == camel_case
