@@ -116,6 +116,7 @@ def main(
         parameter is used if `skip_convert` is set to False. See Phys2BIDS documentation
         for more details. By default, 9.
     """
+    # TODO: add dataset_description.json file in derivatives/ directory
     # Set up directories
     # Check if directories exist
     indir_bids = Path(indir_bids)
@@ -205,7 +206,7 @@ def main(
                     metadata_derivatives,
                     Path(derivatives_dir / s),
                     filename,
+                    save=True,
                 )
-                # Save data
 
     # Generate quality report

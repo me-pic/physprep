@@ -3,8 +3,8 @@
 """
 Neuromod processing utilities.
 """
-# import pickle
 
+import pickle
 import timeit
 import traceback
 from pathlib import Path
@@ -23,7 +23,7 @@ from neurokit2.misc import as_vector
 from neurokit2.signal.signal_formatpeaks import _signal_from_indices
 from systole.correction import correct_peaks, correct_rr
 from systole.utils import input_conversion
-from utils import load_json
+from utils import load_json, rename_in_bids
 
 
 def features_extraction_workflow(
@@ -90,8 +90,8 @@ def features_extraction_workflow(
         # Under the key SamplingFrequency as recommended in the BIDS specification.
         del info["sampling_rate"]
 
-        timeseries.update({signal_type.id: timeserie})
-        info_dict.update({signal_type.id: info})
+        timeseries.update({signal_type: timeserie.to_dict("list")})
+        info_dict.update({signal_type: info})
 
         end_time = timeit.default_timer() - start_time
         print(f"***{signal_type.id} features extraction: done in {end_time} sec***\n")
@@ -107,33 +107,20 @@ def features_extraction_workflow(
                 f"current working directory: {Path.cwd()}"
             )
             outdir = Path.cwd()
-        # If signals have different lengths (i.e. different sampling rates), data will
-        # be saved in different files
-        vals = timeseries.values()
-        ref_length = len(vals[0])
-        if all(len(item) == ref_length for item in vals):
-            # Save timeseries
-            timeseries = pd.DataFrame(timeseries)
-            timeseries.to_csv(
-                Path(outdir / filename).with_suffix(".tsv.gz"),
-                sep="\t",
-                index=False,
-                compression="gzip",
-            )
-            # TODO: Save info_dict; check BIDS spec for filename
-        else:
             # Save timeseries
             for timeserie in timeseries:
-                signal_name = list(timeserie.keys())[0]
-                filename_signal = filename.replace("physio", signal_name)
-                timeserie = pd.DataFrame(timeserie)
-                timeserie.to_csv(
+                filename_signal = filename.replace("physio", f"desc-features_{timeserie}")
+                df_timeserie = pd.DataFrame(timeseries[timeserie])
+                df_timeserie.to_csv(
                     Path(outdir / filename_signal).with_suffix(".tsv.gz"),
                     sep="\t",
                     index=False,
                     compression="gzip",
                 )
-            # TODO: Save info_dict; check BIDS spec for filename
+                # Save info_dict
+                with open(Path(outdir, filename_signal).with_suffix(".json"), "w") as f:
+                    pickle.dump(info_dict[timeserie], f, indent=4)
+                    f.close()
 
     return timeseries, info_dict
 
@@ -163,8 +150,8 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="PPG"):
 
     Returns
     -------
-    timeseries : dict
-        A Dictionary containing the cleaned PPG/ECG signals.
+    timeseries : pd.DataFrame
+        A DataFrame containing the cleaned PPG/ECG signals.
         - the raw signal.
         - the cleaned signal.
         - the heart rate as measured based on PPG/ECG peaks.
@@ -182,8 +169,8 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="PPG"):
                 method="promac",
                 correct_artifacts=False,
             )
-            info["ECG_Peaks"] = info["ECG_R_Peaks"]
-            info["ECG_Clean_Peaks_NK"] = signal_fixpeaks(
+            info["Peaks"] = info["ECG_R_Peaks"]
+            info["CleanPeaksNK"] = signal_fixpeaks(
                 peaks=info["ECG_Peaks"],
                 sampling_rate=sampling_rate,
                 interval_min=0.5,
@@ -193,8 +180,8 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="PPG"):
         elif data_type == "PPG":
             info = ppg_findpeaks(signal, sampling_rate=sampling_rate, method="elgendi")
             print("Neurokit found peaks")
-            info["PPG_Clean_Peaks_NK"] = signal_fixpeaks(
-                info["PPG_Peaks"],
+            info["CleanPeaksNK"] = signal_fixpeaks(
+                info["Peaks"],
                 sampling_rate=sampling_rate,
                 interval_min=0.5,
                 interval_max=1.5,
@@ -206,13 +193,11 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="PPG"):
             print("Please use a valid data type: 'ECG' or 'PPG'")
 
         print("Formatting peaks into signal")
-        peak_list_nk = _signal_from_indices(
-            info[f"{data_type.upper()}_Peaks"], desired_length=len(signal)
-        )
+        peak_list_nk = _signal_from_indices(info["Peaks"], desired_length=len(signal))
         print("Formatting Peaks signal into RR timeseries")
         # peak to intervals
         rr = input_conversion(
-            info[f"{data_type.upper()}_Peaks"],
+            info["Peaks"],
             input_type="peaks_idx",
             output_type="rr_ms",
             sfreq=sampling_rate,
@@ -224,7 +209,7 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="PPG"):
         print("systole corrected RR and Peaks series")
         # Compute rate based on peaks
         rate = signal_rate(
-            info[f"{data_type.upper()}_Clean_Peaks_NK"],
+            info["CleanPeaksNk"],
             sampling_rate=sampling_rate,
             desired_length=len(signal),
         )
@@ -232,26 +217,28 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="PPG"):
         # sanitize info dict
         info.update(
             {
-                f"{data_type}_ectopic": nEctopic,
-                f"{data_type}_short": nShort,
-                f"{data_type}_long": nLong,
-                f"{data_type}_extra": nExtra,
-                f"{data_type}_missed": nMissed,
-                f"{data_type}_Clean_RR_Systole": corrected.tolist(),
+                "Ectopic": nEctopic,
+                "Short": nShort,
+                "Long": nLong,
+                "Extra": nExtra,
+                "Missed": nMissed,
+                "CleanRRSystole": corrected.tolist(),
             }
         )
         # Prepare output
-        timeseries = {
-            f"{data_type}_Clean": signal,
-            f"{data_type}_Peaks_NK": peak_list_nk,
-            f"{data_type}_Peaks_Systole": corrected_peaks["clean_peaks"],
-            f"{data_type}_Rate": rate,
-        }
+        timeseries = pd.DataFrame(
+            {
+                f"{data_type.lower()}_clean": signal,
+                f"{data_type.lower()}_peaks_nk": peak_list_nk,
+                f"{data_type.lower()}_peaks_systole": corrected_peaks["clean_peaks"],
+                f"{data_type.lower()}_rate": rate,
+            }
+        )
 
     except Exception:
         print(f"ERROR in {data_type} features extraction procedure")
         traceback.print_exc()
-        timeseries = {f"{data_type}": signal}
+        timeseries = pd.DataFrame({f"{data_type.lower()}": signal})
         info = {"Processed": False}
 
     return timeseries, info
@@ -273,7 +260,7 @@ def extract_electrodermal(signal, sampling_rate=1000, method="neurokit"):
 
     Returns
     -------
-    signals : DataFrame
+    timeseries : pd.DataFrame
         A DataFrame containing the cleaned eda signals.
         - *"EDA_Raw"*: the raw signal.
         - *"EDA_Clean"*: the clean signal.
@@ -284,11 +271,13 @@ def extract_electrodermal(signal, sampling_rate=1000, method="neurokit"):
     """
     try:
         timeseries, info = eda_process(signal, sampling_rate=sampling_rate, method=method)
-        timeseries.to_dict(orient="list")
+        # Renaming cols/keys
+        timeseries = rename_in_bids(timeseries)
+        info = rename_in_bids(info)
     except Exception:
         print("ERROR in EDA features extraction procedure")
         traceback.print_exc()
-        timeseries = {"EDA": signal}
+        timeseries = pd.DataFrame({"eda": signal})
         info = {"Processed": False}
 
     for k in info.keys():
@@ -313,8 +302,8 @@ def extract_respiratory(signal, sampling_rate=1000, method="khodadad2018"):
 
     Returns
     -------
-    timeseries : dict
-        A dictionary containing the cleaned RSP signals.
+    timeseries : pd.DataFrame
+        A DataFrame containing the cleaned RSP signals.
     info : dict
         Dictionary containing a list of peaks and troughts.
 
@@ -330,11 +319,13 @@ def extract_respiratory(signal, sampling_rate=1000, method="khodadad2018"):
     """
     try:
         timeseries, info = rsp_process(signal, sampling_rate=sampling_rate, method=method)
-        timeseries.to_dict(orient="list")
+        # Renaming cols/keys
+        timeseries = rename_in_bids(timeseries)
+        info = rename_in_bids(info)
     except Exception:
         print("ERROR in RESP features extraction procedure")
         traceback.print_exc()
-        timeseries = {"RESP": signal}
+        timeseries = pd.DataFrame({"resp": signal})
         info = {"Processed": False}
 
     for k in info.keys():

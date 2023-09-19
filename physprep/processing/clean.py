@@ -38,7 +38,6 @@ def preprocessing_workflow(
         Default to True.
     """
     clean_signals = {}
-    sampling_rates = {}
     metadata_derivatives = {}
 
     # Remove padding in data if any
@@ -51,23 +50,34 @@ def preprocessing_workflow(
             if "preprocessing_strategy" in signal and signal[
                 "preprocessing_strategy"
             ] not in ["", " ", None]:
-                clean, sampling_rate = preprocess_signal(
-                    data[signal_type.id],
+                raw, clean, sampling_rate = preprocess_signal(
+                    data[signal_type],
                     signal_type["preprocessing_strategy"],
                     signal_type.id,
                     sampling_rate=metadata["SamplingFrequency"],
                 )
-                clean_signals.update({signal_type.id: clean})
-                sampling_rates.update({signal_type.id: sampling_rate})
+                clean_signals.update(
+                    {
+                        signal_type: {
+                            f"{signal_type}_raw": raw,
+                            f"{signal_type}_clean": clean,
+                        }
+                    }
+                )
+                metadata_derivatives.update(
+                    {
+                        signal_type: {
+                            "StartTime": data["time"].loc[0],
+                            "SamplingFrequency": sampling_rate,
+                            "Columns": list(f"{signal_type}_raw", f"{signal_type}_clean"),
+                        }
+                    }
+                )
             else:
                 print(
                     f"No preprocessing strategy specified for {signal_type}. "
                     "The preprocessing step will be skipped."
                 )
-
-    # Update metadata_derivatives
-    metadata_derivatives.update({"StartTime": data["time"].loc[0]})
-    metadata_derivatives.update({"SamplingFrequency": sampling_rates})
 
     if save:
         # Save preprocessed signal
@@ -78,40 +88,21 @@ def preprocessing_workflow(
                 "WARNING! No output directory specified. Data will be saved in the "
                 f"current working directory: {Path.cwd()}"
             )
-            outdir = Path.cwd()
-        # If signals have different lengths (i.e. different sampling rates), data will
-        # be saved in different files
-        vals = clean_signals.values()
-        ref_length = len(vals[0])
-        if all(len(item) == ref_length for item in vals):
-            # Save all signals in a single file
-            clean_signals = pd.DataFrame(clean_signals)
-            clean_signals.to_csv(
-                Path(outdir / filename).with_suffix(".tsv.gz"),
+        outdir = Path.cwd()
+        for clean_signal in clean_signals:
+            filename_signal = filename.replace("physio", f"desc-preproc_{clean_signal}")
+            df_signal = pd.DataFrame(clean_signals[clean_signal])
+            df_signal.to_csv(
+                Path(outdir / filename_signal).with_suffix(".tsv.gz"),
                 sep="\t",
                 index=False,
                 compression="gzip",
             )
-        else:
-            for clean_signal in clean_signals:
-                signal_name = [
-                    name
-                    for name in workflow_strategy
-                    if workflow_strategy[name]["id"] == list(clean_signal.keys())[0]
-                ][0]
-                filename_signal = filename.replace("physio", signal_name)
-                clean_signal = pd.DataFrame(clean_signal)
-                clean_signal.to_csv(
-                    Path(outdir / filename_signal).with_suffix(".tsv.gz"),
-                    sep="\t",
-                    index=False,
-                    compression="gzip",
-                )
 
-        # Save metadata on filtered signals
-        with open(Path(outdir / filename).with_suffix(".json"), "w") as f:
-            pickle.dump(metadata_derivatives, f, indent=4)
-            f.close()
+            # Save metadata on filtered signals
+            with open(Path(outdir / filename_signal).with_suffix(".json"), "w") as f:
+                pickle.dump(metadata_derivatives[clean_signal], f, indent=4)
+                f.close()
 
         return clean_signals, metadata_derivatives
 
@@ -174,9 +165,12 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
 
     Returns
     -------
+    raw : array or Series
+        The raw physiological signal.
     signal : array or Series
         The cleaned physiological signal.
     """
+    raw = signal
     # Retrieve preprocessing steps
     preprocessing = utils.get_config(preprocessing_strategy, strategy="preprocessing")
     # Iterate over preprocessing steps as defined in the configuration file
@@ -193,6 +187,9 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
             signal = nk.signal_resample(
                 signal, sampling_rate=sampling_rate, **step["parameters"]
             )
+            raw = nk.signal_resample(
+                raw, sampling_rate=sampling_rate, **step["parameters"]
+            )
             sampling_rate = step["signal_resample"]["desired_sampling_rate"]
         else:
             raise ValueError(
@@ -201,7 +198,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
                 "details, please refer to the Physprep documentation."
             )
 
-    return signal, sampling_rate
+    return raw, signal, sampling_rate
 
 
 # =============================================================================
