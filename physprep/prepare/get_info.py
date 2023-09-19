@@ -36,7 +36,7 @@ def order_channels(acq_channels, metadata_physio):
         found = False
         for key in metadata_physio:
             if channel == metadata_physio[key]["channel"]:
-                ch_names.append(metadata_physio[key]["id"])
+                ch_names.append(key)
                 chsel.append(idx + 1)
                 found = True
         if not found:
@@ -65,8 +65,10 @@ def volume_counter(root, sub, metadata_physio, ses=None, tr=1.49, trigger_ch="TT
     root : str
         Directory containing the biopac data.
         Example: "/home/user/dataset/sourcedata/physio".
-    subject : str
+    sub : str
         Name of path for a specific subject. Example: "sub-01".
+    metadata_physio : dict
+        Dictionary containing the metadata_physio file.
     ses : str
         Name of path for a specific session (optional workflow for specific experiment).
         Default to none.
@@ -225,6 +227,9 @@ def get_info(
         Root directory of dataset containing the data. Example: "/home/user/dataset/".
     sub : str
         Name of path for a specific subject. Example: "sub-01".
+    metadata_physio : dict
+        Dictionary containing metadata information about the physio data (output of the
+        `get_info` function).
     ses : str
         Name of path for a specific session. Example: "ses-001".
     count_vol : bool
