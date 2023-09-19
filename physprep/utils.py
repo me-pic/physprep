@@ -3,8 +3,10 @@
 import json
 import os
 import pickle
+import re
 from pathlib import Path
 
+import pandas as pd
 from pkg_resources import resource_filename
 
 WORKFLOW_STRATEGIES = ["neuromod"]
@@ -59,14 +61,7 @@ def _check_input_validity(option, valid_options, empty=True):
                 print(f"**Please enter a valid option: {', '.join(valid_options)}.")
                 return False
             else:
-                if option in [
-                    "resampling",
-                    "resample",
-                    "upsampling",
-                    "upsample",
-                    "downsampling",
-                    "downsample",
-                ]:
+                if option == "resampling":
                     option = "signal_resample"
                 return option
     if valid_options in [int, "odd"]:
@@ -160,21 +155,12 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
         Saving filename.
     overwrite: bool
         If `True`, overwrite the existing file with the specified `filename` in the
-        `outdir` directory. If `False`, the function will not be executed if there is
-        already a file with the specified `filename` in `outdir`.
+        `outdir` directory. Default is False.
     """
     # Instantiate variables
     steps = []
     valid_filters = ["butterworth", "fir", "bessel", "savgol", "notch"]
-    valid_steps = [
-        "filtering",
-        "resampling",
-        "resample",
-        "upsampling",
-        "upsample",
-        "downsampling",
-        "downsample",
-    ]
+    valid_steps = ["filtering", "resampling"]
 
     filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
 
@@ -289,8 +275,7 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
         Saving filename.
     overwrite: bool
         If `True`, overwrite the existing file with the specified `filename` in the
-        `outdir` directory. If `False`, the function will not be executed if there is
-        already a file with the specified `filename` in `outdir`.
+        `outdir` directory. Default: False.
     """
     # Instantiate variables
     signals = {}
@@ -474,3 +459,69 @@ def get_config(strategy_name, strategy="workflow"):
             )
 
     return load_strategy
+
+
+def rename_in_bids(data):
+    """
+    Rename the columns/keys in BIDS format.
+
+    Parameters
+    ----------
+    data: dict or DataFrame
+        Dictionary or DataFrame containing the data.
+
+    Returns
+    -------
+    data: dict or DataFrame
+        Dictionary or DataFrame containing the data with the new key/column names.
+    """
+    # If the data is a DataFrame, rename the columns according to the snake_case
+    # convention
+    bids_names = {}
+    names = data.columns if isinstance(data, pd.DataFrame) else data
+    if isinstance(data, pd.DataFrame):
+        print("Converting to snake_case...")
+        # Rename columns following BIDS convention for tabular files
+
+        for col in names:
+            col_snake = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", col)
+            # Deal with multiple consecutive uppercase letters
+            col_snake = re.sub("([a-z0-9])([A-Z])", r"\1_\2", col_snake).lower()
+            col_snake = col_snake.replace("__", "_")
+            bids_names.update({col: col_snake})
+
+    # If the data is a dictionary, rename the keys according to the CamelCase convention
+    elif isinstance(data, dict):
+        print("Converting to CamelCase...")
+        # Rename keys following BIDS convention for Key-value files
+        for k in names:
+            if _is_camel_case(k):
+                if k[0].lower() == k[0]:
+                    bids_names.update({k: k[0].upper() + k[1:]})
+                else:
+                    bids_names.update({k: k})
+            elif not _is_camel_case(k):
+                key_camel = k.split("_")
+                key_camel = "".join(map(str.capitalize, key_camel))
+                bids_names.update({k: key_camel})
+
+    # Rename columns/keys
+    if isinstance(data, pd.DataFrame):
+        data.rename(columns=bids_names, inplace=True)
+    elif isinstance(data, dict):
+        data = dict((bids_names[k], v) for (k, v) in data.items())
+
+    return data
+
+
+def _is_camel_case(input):
+    """
+    Helper function to check if the input is in CamelCase format.
+
+    input: str
+        Input string to check.
+    """
+    pattern = r"^[a-zA-Z][a-zA-Z0-9]*$"
+
+    # Use re.match to see if the entire string matches the pattern
+    return bool(re.match(pattern, input))
