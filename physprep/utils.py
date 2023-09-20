@@ -325,7 +325,7 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
             elif signal == "electrodermal":
                 signals[signal] = {
                     "id": "EDA",
-                    "Description": "continuous electrodermal activity measurement",
+                    "Description": "continuous electrodermal measurement",
                     "Units": "microsiemens",
                 }
             elif signal == "respiratory":
@@ -346,7 +346,7 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
                 "\n Enter the name of the channel in your acq file associated with the "
                 f"{signal} signal: \n"
             )
-            signals[signal].update({"channel": channel})
+            signals[signal].update({"Channel": channel})
 
             if signal != "trigger":
                 # Add preprocessing strategy to the workflow
