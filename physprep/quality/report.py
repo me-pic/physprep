@@ -10,15 +10,16 @@ from pathlib import Path
 
 import click
 import pandas as pd
-from time_sqi import (
+
+from physprep.quality.time_sqi import (
     sqi_cardiac,
     sqi_cardiac_overview,
     sqi_eda,
     sqi_eda_overview,
     sqi_rsp,
 )
-from utils import load_json
-from visu.plot_signals import generate_plot
+from physprep.utils import load_json
+from physprep.visu.plot_signals import generate_plot
 
 
 @click.command()
@@ -27,7 +28,7 @@ from visu.plot_signals import generate_plot
 @click.argument("sub", type=str)
 @click.argument("ses", type=str)
 @click.argument("sliding", type=str)
-def neuromod_bio_sqi(source, derivatives, sub, ses, sliding={"duration": 60, "step": 10}):
+def computing_sqi(source, derivatives, sub, ses, sliding={"duration": 60, "step": 10}):
     """
     Run processing QC-ing pipeline on specified biosignals, and generate an html report
     containing the quality metrics.
@@ -436,7 +437,3 @@ def generate_report(summary, source, derivatives, sub, ses, filename, window=Fal
     ) as file:
         file.write(html_report)
         file.close()
-
-
-if __name__ == "__main__":
-    neuromod_bio_sqi()

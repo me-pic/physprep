@@ -14,7 +14,7 @@ PREPROCESSING_STRATEGIES = [
     "neuromod_ecg",
     "neuromod_eda",
     "neuromod_ppg",
-    "neuromod_resp",
+    "neuromod_rsp",
 ]
 
 
@@ -453,7 +453,7 @@ def get_config(strategy_name, strategy="workflow"):
     load_strategy = load_json(strategy_path)
     # Specific check for the workflow strategy
     if strategy == "workflow":
-        if "trigger" not in load_json.keys():
+        if "trigger" not in load_strategy.keys():
             raise ValueError(
                 "The workflow strategy configuration file must contain a key `trigger`."
             )

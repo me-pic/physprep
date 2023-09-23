@@ -21,7 +21,7 @@
         "preprocessing_strategy": "neuromod_eda"
     },
     "respiratory": {
-        "id": "RESP",
+        "id": "RSP",
         "Description": "continuous breathing measurement",
         "Units": "cm H2O",
         "Channel": "DA100C",

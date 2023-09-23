@@ -13,32 +13,22 @@ import pandas as pd
 from physprep import utils
 from physprep.prepare import convert, get_info, match_acq_bids, rename
 from physprep.processing import clean, process
-
-# from physprep.quality import report
+from physprep.quality import report
 
 
 @click.command()
-@click.option(
+@click.argument(
     "workflow_strategy",
     type=click.Path(),
-    help="Name of the workflow_strategy if using preset (Ex: 'neuromod'). For all "
-    "available presets, please check Physprep documentation. Otherwise, path to custom "
-    "workflow strategy file (Ex: '/path/to/my_config_file.json').",
 )
 @click.argument(
     "indir_bids",
     type=click.Path(),
-    help="Path to the bids-like dataset directory.",
 )
-@click.argument(
-    "outdir",
-    type=click.Path(),
-    help="Path to the directory where the processed physiological data will be saved.",
-)
-@click.argument("sub", type=str, help="Subject label.")
+@click.argument("sub", type=str)
 @click.option("--ses", type=str, default=None, required=False, help="Session label.")
 @click.option(
-    "indir_raw_physio",
+    "--indir_raw_physio",
     type=click.Path(),
     default=None,
     help="Path to the directory containing the raw physiological data. Specify if raw "
@@ -70,7 +60,6 @@ from physprep.processing import clean, process
 def main(
     workflow_strategy,
     indir_bids,
-    outdir,
     sub,
     ses=None,
     indir_raw_physio=None,
@@ -79,39 +68,55 @@ def main(
     padding=9,
     n_jobs=None,
 ):
-    """
-    TODO: add parallelization option
-
-    Physprep workflow.
+    """Physprep workflow.
 
     Preprocess raw physiological data acquired in MRI, extract features, and generate
     quality report.
+    \b
 
     Parameters
+
     ----------
+
     workflow_strategy : str or pathlib.Path
+
         Name of the workflow_strategy if using a preset. It is also possible to use a
         custom file by providing the path to a JSON file containing workflow strategy.
         In that case, please check Physprep documentation to make sure your file is
         properly formatted.
+
     indir_bids : str or pathlib.Path
+
         Path to the directory containing the BIDS-like dataset.
+
     outdir : str or pathlib.Path
         Path to the directory where the processed physiological data will be saved.
+
     sub : str
+
         Subject label.
+
     ses : str, optional
+
         Session label, by default `None`.
+
     indir_raw_physio : str or pathlib.Path
+
         Path to the directory containing the raw physiological data. Specify if raw
         physiological data is not in the BIDS directory.
+
     skip_match_acq_bids : bool, optional
+
         If specified, the workflow will not match the acq files with the bold files. Use
         if acq files are already organized properly.
+
     skip_convert : bool, optional
+
         If specified, the workflow will not convert the physiological data recordings
         in BIDS format.
+
     padding : int, optional
+
         Time (in seconds) of padding to add at the beginning and end of each run. This
         parameter is used if `skip_convert` is set to False. See Phys2BIDS documentation
         for more details. By default, 9.
@@ -146,9 +151,9 @@ def main(
             segmented_dir = indir_bids / sub
             derivatives_dir = indir_bids / "derivatives" / "physprep" / sub
 
-    raw_dir.mkdir(parents=True, exists_ok=True)
-    segmented_dir.mkdir(parents=True, exists_ok=True)
-    derivatives_dir.mkdir(parents=True, exists_ok=True)
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    segmented_dir.mkdir(parents=True, exist_ok=True)
+    derivatives_dir.mkdir(parents=True, exist_ok=True)
 
     # Get workflow info as defined in the configuration file `workflow_strategy`
     workflow = utils.get_config(workflow_strategy, strategy="workflow")
@@ -187,26 +192,41 @@ def main(
             runs = list(set([run.parent / run.stem for run in runs]))
             # Need to run it twice because of the tsv.gz extension
             runs = list(set([run.parent / run.stem for run in runs]))
+            runs.sort()
 
             for run in runs:
                 filename = run.stem
+                print(f"\nLoading {filename}...\n")
                 # Load data
                 metadata = utils.load_json(run.with_suffix(".json"))
                 data = pd.read_csv(
                     run.with_suffix(".tsv.gz"), sep="\t", names=metadata["Columns"]
                 )
+                print("Data loaded.\n")
+                print("Preprocessing data...\n")
                 # Preprocess data
                 preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
-                    data, metadata, workflow, Path(derivatives_dir / s), filename
+                    data, metadata, workflow, Path(derivatives_dir / s.stem), filename
                 )
-                print(preprocessed_signals)
+                print("Preprocessing done.\n")
+                print("Extracting features...\n")
                 # Extract features
                 timeseries, features = process.features_extraction_workflow(
                     preprocessed_signals,
                     metadata_derivatives,
-                    Path(derivatives_dir / s),
+                    workflow,
+                    Path(derivatives_dir / s.stem),
                     filename,
                     save=True,
                 )
+                print("Features extracted.\n")
+                print("Generating quality report...\n")
+                # Generate quality report
+                report.computing_sqi(segmented_dir.parent, derivatives_dir.parent, sub, s)
+                print("Quality report generated.\n")
+    else:
+        pass
 
-    # Generate quality report
+
+if __name__ == "__main__":
+    main()

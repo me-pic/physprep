@@ -42,18 +42,29 @@ def preprocessing_workflow(
 
     # Remove padding in data if any
     if metadata["StartTime"] > 2e-3:
-        data = remove_padding(data)
+        data = remove_padding(data, trigger_threshold=4)
 
     # Iterate over content of `workflow_strategy`
     for signal_type in workflow_strategy:
         if signal_type != "trigger":
-            if "preprocessing_strategy" in signal and signal[
-                "preprocessing_strategy"
-            ] not in ["", " ", None]:
+            if "preprocessing_strategy" in workflow_strategy[
+                signal_type
+            ] and workflow_strategy[signal_type]["preprocessing_strategy"] not in [
+                "",
+                " ",
+                None,
+            ]:
+                # Get the timeseries
+                if signal_type in data.columns:
+                    raw = data[signal_type]
+                elif workflow_strategy[signal_type]["id"] in data.columns:
+                    raw = data[workflow_strategy[signal_type]["id"]]
+                else:
+                    raise ValueError(f"Signal type {signal_type} not found in the data.")
+                # Apply the preprocessing strategy
                 raw, clean, sampling_rate = preprocess_signal(
-                    data[signal_type],
-                    signal_type["preprocessing_strategy"],
-                    signal_type.id,
+                    raw,
+                    workflow_strategy[signal_type]["preprocessing_strategy"],
                     sampling_rate=metadata["SamplingFrequency"],
                 )
                 clean_signals.update(
@@ -69,7 +80,7 @@ def preprocessing_workflow(
                         signal_type: {
                             "StartTime": data["time"].loc[0],
                             "SamplingFrequency": sampling_rate,
-                            "Columns": list(f"{signal_type}_raw", f"{signal_type}_clean"),
+                            "Columns": [f"{signal_type}_raw", f"{signal_type}_clean"],
                         }
                     }
                 )
@@ -80,15 +91,17 @@ def preprocessing_workflow(
                 )
 
     if save:
+        print("Saving preprocessed signals...\n")
         # Save preprocessed signal
         if outdir is not None:
             outdir = Path(outdir)
+            outdir.mkdir(parents=True, exist_ok=True)
         else:
             print(
                 "WARNING! No output directory specified. Data will be saved in the "
                 f"current working directory: {Path.cwd()}"
             )
-        outdir = Path.cwd()
+            outdir = Path.cwd()
         for clean_signal in clean_signals:
             filename_signal = filename.replace("physio", f"desc-preproc_{clean_signal}")
             df_signal = pd.DataFrame(clean_signals[clean_signal])
@@ -100,9 +113,10 @@ def preprocessing_workflow(
             )
 
             # Save metadata on filtered signals
-            with open(Path(outdir / filename_signal).with_suffix(".json"), "w") as f:
-                pickle.dump(metadata_derivatives[clean_signal], f, indent=4)
+            with open(Path(outdir / filename_signal).with_suffix(".json"), "wb") as f:
+                pickle.dump(metadata_derivatives[clean_signal], f, protocol=4)
                 f.close()
+        print("Preprocessed signals saved.\n")
 
         return clean_signals, metadata_derivatives
 
@@ -190,7 +204,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
             raw = nk.signal_resample(
                 raw, sampling_rate=sampling_rate, **step["parameters"]
             )
-            sampling_rate = step["signal_resample"]["desired_sampling_rate"]
+            sampling_rate = step["parameters"]["desired_sampling_rate"]
         else:
             raise ValueError(
                 f"Unknown preprocessing step: {step['step']}. Make sure the "

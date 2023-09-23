@@ -8,7 +8,6 @@ import os
 import traceback
 from typing import Dict, List, Optional, Tuple
 
-# from systole.plots import plot_raw
 import numpy as np
 import pandas as pd
 from bokeh.embed import components
@@ -19,7 +18,8 @@ from bokeh.plotting import figure, output_file, save
 from pandas.core.indexes.datetimes import DatetimeIndex
 from systole.plots import plot_rr
 from systole.utils import ecg_strings, ppg_strings, resp_strings
-from utils import load_json
+
+from physprep.utils import load_json
 
 output_notebook()
 

@@ -23,7 +23,8 @@ from neurokit2.misc import as_vector
 from neurokit2.signal.signal_formatpeaks import _signal_from_indices
 from systole.correction import correct_peaks, correct_rr
 from systole.utils import input_conversion
-from utils import load_json, rename_in_bids
+
+from physprep.utils import load_json, rename_in_bids
 
 
 def features_extraction_workflow(
@@ -65,17 +66,18 @@ def features_extraction_workflow(
     # Extract features for each signal type in the `workflow_strategy`
     for signal_type in workflow_strategy:
         # Retrieve SamplingFrequency
-        if isinstance(metadata["SamplingFrequency"], dict):
-            sampling_rate = metadata["SamplingFrequency"][signal_type.id]
+        if isinstance(metadata[signal_type]["SamplingFrequency"], dict):
+            # TODO: check that line
+            sampling_rate = metadata[signal_type]["SamplingFrequency"][signal_type.id]
         else:
-            sampling_rate = metadata["SamplingFrequency"]
+            sampling_rate = metadata[signal_type]["SamplingFrequency"]
 
         # Extract features for each signal type
         signal = as_vector(data[signal_type.id])
         print(f"***{signal_type.id} features extraction: begin***\n")
         start_time = timeit.default_timer()
 
-        if signal_type.id in ["ECG", "PPG"]:
+        if workflow_strategy[signal_type]["id"] in ["ECG", "PPG"]:
             timeserie, info = extract_cardiac(
                 signal,
                 sampling_rate=sampling_rate,
@@ -101,6 +103,7 @@ def features_extraction_workflow(
         # Save preprocessed signal
         if outdir is not None:
             outdir = Path(outdir)
+            outdir.mkdir(parents=True, exist_ok=True)
         else:
             print(
                 "WARNING! No output directory specified. Data will be saved in the "
@@ -118,8 +121,8 @@ def features_extraction_workflow(
                     compression="gzip",
                 )
                 # Save info_dict
-                with open(Path(outdir, filename_signal).with_suffix(".json"), "w") as f:
-                    pickle.dump(info_dict[timeserie], f, indent=4)
+                with open(Path(outdir, filename_signal).with_suffix(".json"), "wb") as f:
+                    pickle.dump(info_dict[timeserie], f, protocol=4)
                     f.close()
 
     return timeseries, info_dict
