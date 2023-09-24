@@ -65,41 +65,43 @@ def features_extraction_workflow(
 
     # Extract features for each signal type in the `workflow_strategy`
     for signal_type in workflow_strategy:
-        # Retrieve SamplingFrequency
-        if isinstance(metadata[signal_type]["SamplingFrequency"], dict):
-            # TODO: check that line
-            sampling_rate = metadata[signal_type]["SamplingFrequency"][signal_type.id]
-        else:
+        if signal_type != "trigger":
+            # Retrieve SamplingFrequency
             sampling_rate = metadata[signal_type]["SamplingFrequency"]
+            # Extract features for each signal type
+            if signal_type in data.keys():
+                signal = data[signal_type]
+            elif workflow_strategy[signal_type]["id"] in data.columns:
+                signal = data[workflow_strategy[signal_type]["id"]]
+            else:
+                raise ValueError(f"Signal type {signal_type} not found in the data.")
 
-        # Extract features for each signal type
-        signal = as_vector(data[signal_type.id])
-        print(f"***{signal_type.id} features extraction: begin***\n")
-        start_time = timeit.default_timer()
+            signal = as_vector(signal[f"{signal_type}_clean"])
+            print(f"***{signal_type} features extraction: begin***\n")
+            start_time = timeit.default_timer()
 
-        if workflow_strategy[signal_type]["id"] in ["ECG", "PPG"]:
-            timeserie, info = extract_cardiac(
-                signal,
-                sampling_rate=sampling_rate,
-                data_type=signal_type.id,
-            )
-        elif signal_type.id == "RESP":
-            timeserie, info = extract_respiratory(signal, sampling_rate=sampling_rate)
-        elif signal_type.id == "EDA":
-            timeserie, info = extract_electrodermal(signal, sampling_rate=sampling_rate)
+            if signal_type.lower() in ["ecg", "cardiac_ecg", "ppg", "cardiac_ppg"]:
+                timeserie, info = extract_cardiac(
+                    signal,
+                    sampling_rate=sampling_rate,
+                    data_type=signal_type,
+                )
+            elif signal_type.lower() in ["respiratory", "rsp", "resp", "breathing"]:
+                timeserie, info = extract_respiratory(signal, sampling_rate=sampling_rate)
+            elif signal_type.lower() in ["electrodermal", "eda"]:
+                timeserie, info = extract_electrodermal(
+                    signal, sampling_rate=sampling_rate
+                )
 
-        # Remove duplicated info, that info should already be available in the metadata
-        # Under the key SamplingFrequency as recommended in the BIDS specification.
-        del info["sampling_rate"]
+            timeseries.update({signal_type: timeserie.to_dict("list")})
+            info_dict.update({signal_type: info})
 
-        timeseries.update({signal_type: timeserie.to_dict("list")})
-        info_dict.update({signal_type: info})
-
-        end_time = timeit.default_timer() - start_time
-        print(f"***{signal_type.id} features extraction: done in {end_time} sec***\n")
+            end_time = timeit.default_timer() - start_time
+            print(f"***{signal_type} features extraction: done in {end_time} sec***\n")
 
     # Save derivatives
     if save:
+        print("Saving extracted features...\n")
         # Save preprocessed signal
         if outdir is not None:
             outdir = Path(outdir)
@@ -107,23 +109,25 @@ def features_extraction_workflow(
         else:
             print(
                 "WARNING! No output directory specified. Data will be saved in the "
-                f"current working directory: {Path.cwd()}"
+                f"current working directory: {Path.cwd()}\n"
             )
             outdir = Path.cwd()
-            # Save timeseries
-            for timeserie in timeseries:
-                filename_signal = filename.replace("physio", f"desc-features_{timeserie}")
-                df_timeserie = pd.DataFrame(timeseries[timeserie])
-                df_timeserie.to_csv(
-                    Path(outdir / filename_signal).with_suffix(".tsv.gz"),
-                    sep="\t",
-                    index=False,
-                    compression="gzip",
-                )
-                # Save info_dict
-                with open(Path(outdir, filename_signal).with_suffix(".json"), "wb") as f:
-                    pickle.dump(info_dict[timeserie], f, protocol=4)
-                    f.close()
+        # Save timeseries
+        for timeserie in timeseries:
+            name = timeserie.replace("_", "-")
+            filename_signal = filename.replace("physio", f"desc-features_{name}")
+            df_timeserie = pd.DataFrame(timeseries[timeserie])
+            df_timeserie.to_csv(
+                Path(outdir / filename_signal).with_suffix(".tsv.gz"),
+                sep="\t",
+                index=False,
+                compression="gzip",
+            )
+            # Save info_dict
+            with open(Path(outdir, filename_signal).with_suffix(".json"), "wb") as f:
+                pickle.dump(info_dict[timeserie], f, protocol=4)
+                f.close()
+        print("Extracted features saved. \n")
 
     return timeseries, info_dict
 
@@ -133,7 +137,7 @@ def features_extraction_workflow(
 # ==================================================================================
 
 
-def extract_cardiac(signal, sampling_rate=1000, data_type="PPG"):
+def extract_cardiac(signal, sampling_rate=1000, data_type="ppg"):
     """
     Process cardiac signal.
 
@@ -147,9 +151,8 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="PPG"):
         The sampling frequency of `signal` (in Hz, i.e., samples/second).
         Defaults to 1000.
     data_type : str
-        Precise the type of signal to be processed. The function currently
-        support PPG and ECG signal processing.
-        Default to 'PPG'.
+        Precise the type of signal to be processed (`ppg` or `ecg`).
+        Default to 'ppg'.
 
     Returns
     -------
@@ -165,23 +168,31 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="PPG"):
     try:
         # Find peaks
         print("Neurokit processing started")
-        if data_type == "ECG":
+        if data_type.lower() in ["ecg", "cardiac_ecg"]:
             _, info = ecg_peaks(
                 ecg_cleaned=signal,
                 sampling_rate=sampling_rate,
                 method="promac",
                 correct_artifacts=False,
             )
+            # Rename Peaks key
             info["Peaks"] = info["ECG_R_Peaks"]
+            # Remove duplicated info
+            del info["ECG_R_Peaks"]
+            del info["sampling_rate"]
+            # Correct peaks
             info["CleanPeaksNK"] = signal_fixpeaks(
-                peaks=info["ECG_Peaks"],
+                peaks=info["Peaks"],
                 sampling_rate=sampling_rate,
                 interval_min=0.5,
                 interval_max=1.5,
                 method="neurokit",
             )
-        elif data_type == "PPG":
+        elif data_type.lower() in ["ppg", "cardiac_ppg"]:
             info = ppg_findpeaks(signal, sampling_rate=sampling_rate, method="elgendi")
+            info["Peaks"] = info["PPG_Peaks"]
+            # Rename Peaks key
+            del info["PPG_Peaks"]
             print("Neurokit found peaks")
             info["CleanPeaksNK"] = signal_fixpeaks(
                 info["Peaks"],
@@ -193,7 +204,7 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="PPG"):
             print("Neurokit fixed peaks")
 
         else:
-            print("Please use a valid data type: 'ECG' or 'PPG'")
+            raise ValueError("Please use a valid data type: 'ecg' or 'ppg'")
 
         print("Formatting peaks into signal")
         peak_list_nk = _signal_from_indices(info["Peaks"], desired_length=len(signal))
@@ -212,7 +223,7 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="PPG"):
         print("systole corrected RR and Peaks series")
         # Compute rate based on peaks
         rate = signal_rate(
-            info["CleanPeaksNk"],
+            info["CleanPeaksNK"],
             sampling_rate=sampling_rate,
             desired_length=len(signal),
         )
@@ -237,6 +248,9 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="PPG"):
                 f"{data_type.lower()}_rate": rate,
             }
         )
+        # Renaming cols/keys
+        timeseries = rename_in_bids(timeseries)
+        info = rename_in_bids(info)
 
     except Exception:
         print(f"ERROR in {data_type} features extraction procedure")
@@ -274,6 +288,8 @@ def extract_electrodermal(signal, sampling_rate=1000, method="neurokit"):
     """
     try:
         timeseries, info = eda_process(signal, sampling_rate=sampling_rate, method=method)
+        # Remove duplicated info
+        del info["sampling_rate"]
         # Renaming cols/keys
         timeseries = rename_in_bids(timeseries)
         info = rename_in_bids(info)
@@ -322,6 +338,8 @@ def extract_respiratory(signal, sampling_rate=1000, method="khodadad2018"):
     """
     try:
         timeseries, info = rsp_process(signal, sampling_rate=sampling_rate, method=method)
+        # Remove duplicated info
+        del info["sampling_rate"]
         # Renaming cols/keys
         timeseries = rename_in_bids(timeseries)
         info = rename_in_bids(info)

@@ -217,7 +217,6 @@ def main(
                     workflow,
                     Path(derivatives_dir / s.stem),
                     filename,
-                    save=True,
                 )
                 print("Features extracted.\n")
                 print("Generating quality report...\n")

@@ -103,7 +103,8 @@ def preprocessing_workflow(
             )
             outdir = Path.cwd()
         for clean_signal in clean_signals:
-            filename_signal = filename.replace("physio", f"desc-preproc_{clean_signal}")
+            name = clean_signal.replace("_", "-")
+            filename_signal = filename.replace("physio", f"desc-preproc_{name}")
             df_signal = pd.DataFrame(clean_signals[clean_signal])
             df_signal.to_csv(
                 Path(outdir / filename_signal).with_suffix(".tsv.gz"),

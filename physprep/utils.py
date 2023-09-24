@@ -480,7 +480,6 @@ def rename_in_bids(data):
     bids_names = {}
     names = data.columns if isinstance(data, pd.DataFrame) else data
     if isinstance(data, pd.DataFrame):
-        print("Converting to snake_case...")
         # Rename columns following BIDS convention for tabular files
 
         for col in names:
@@ -492,7 +491,6 @@ def rename_in_bids(data):
 
     # If the data is a dictionary, rename the keys according to the CamelCase convention
     elif isinstance(data, dict):
-        print("Converting to CamelCase...")
         # Rename keys following BIDS convention for Key-value files
         for k in names:
             if _is_camel_case(k):
