@@ -279,8 +279,8 @@ def generate_summary(workflow, filename):
     """
     # Add info about recorded modalities
     for modality in workflow:
-        processing_strategy = workflow[modality]["preprocessing_strategy"]
         if modality != "trigger":
+            processing_strategy = workflow[modality]["preprocessing_strategy"]
             html_report += f"""
                 <li>{modality} (channel - {workflow[modality]["Channel"]})</li>
                     <ul>
