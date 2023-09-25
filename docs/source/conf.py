@@ -6,14 +6,12 @@
 import os
 import sys
 
-from physprep import __copyright__, __packagename__
-
 sys.path.insert(0, os.path.abspath(".."))
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = __packagename__
-copyright = __copyright__
+project = "Physprep"
+copyright = "2023, Courtois NeuroMod team"
 author = "Marie-Eve Picard"
 
 # -- General configuration ---------------------------------------------------
