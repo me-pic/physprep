@@ -123,6 +123,7 @@ def features_extraction_workflow(
                 index=False,
                 compression="gzip",
             )
+            timeseries[timeserie] = df_timeserie
             # Save info_dict
             with open(Path(outdir, filename_signal).with_suffix(".json"), "wb") as f:
                 pickle.dump(info_dict[timeserie], f, protocol=4)
@@ -237,6 +238,7 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="ppg"):
                 "Extra": nExtra,
                 "Missed": nMissed,
                 "CleanRRSystole": corrected.tolist(),
+                "SamplingFrequency": sampling_rate,
             }
         )
         # Prepare output
@@ -288,6 +290,7 @@ def extract_electrodermal(signal, sampling_rate=1000, method="neurokit"):
     """
     try:
         timeseries, info = eda_process(signal, sampling_rate=sampling_rate, method=method)
+        info.update({"SamplingFrequency": sampling_rate})
         # Remove duplicated info
         del info["sampling_rate"]
         # Renaming cols/keys
@@ -338,6 +341,7 @@ def extract_respiratory(signal, sampling_rate=1000, method="khodadad2018"):
     """
     try:
         timeseries, info = rsp_process(signal, sampling_rate=sampling_rate, method=method)
+        info.update({"SamplingFrequency": sampling_rate})
         # Remove duplicated info
         del info["sampling_rate"]
         # Renaming cols/keys

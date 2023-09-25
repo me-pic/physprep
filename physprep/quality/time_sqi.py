@@ -2,7 +2,6 @@
 # !/usr/bin/env python -W ignore::DeprecationWarning
 
 import operator
-import traceback
 
 import numpy as np
 from scipy.stats import kurtosis, skew
@@ -12,7 +11,7 @@ from scipy.stats import kurtosis, skew
 # ==================================================================================
 
 
-def sqi_cardiac_overview(info, data_type="ECG"):
+def sqi_cardiac_overview(info):
     """
     Report artefacts identified by the library systole during
     the processing of the cardiac signals
@@ -37,22 +36,18 @@ def sqi_cardiac_overview(info, data_type="ECG"):
         https://doi.org/10.21105/joss.03832
     """
     summary = {}
-    # Make sure the data_type string is in capital letters
-    data_type = data_type.upper()
 
     # Descriptive indices on overall signal
-    summary["Ectopic"] = info[f"{data_type}_ectopic"]
-    summary["Missed"] = info[f"{data_type}_missed"]
-    summary["Extra"] = info[f"{data_type}_extra"]
-    summary["Long"] = info[f"{data_type}_long"]
-    summary["Short"] = info[f"{data_type}_short"]
-    summary["Cumulseconds_rejected"] = info[f"{data_type}_cumulseconds_rejected"]
-    summary["%_rejected_segments"] = np.round(info[f"{data_type}_%_rejected_segments"], 4)
+    summary["Ectopic"] = info["Ectopic"]
+    summary["Missed"] = info["Missed"]
+    summary["Extra"] = info["Extra"]
+    summary["Long"] = info["Long"]
+    summary["Short"] = info["Short"]
 
     return summary
 
 
-def sqi_eda_overview(info, feature_quality="SCR_Onsets", threshold=0):
+def sqi_eda_overview(info, feature_quality="ScrOnsets", threshold=0):
     """
     Report SQI on the overall processed EDA signal.
 
@@ -79,7 +74,6 @@ def sqi_eda_overview(info, feature_quality="SCR_Onsets", threshold=0):
 def sqi_cardiac(
     signal_cardiac,
     info,
-    data_type="ECG",
     mean_NN=[600, 1200],
     std_NN=300,
     window=None,
@@ -93,9 +87,6 @@ def sqi_cardiac(
         Output from the process.py script.
     info : dict
         Output from the process.py script.
-    data_type : str
-        Type of the signal. Valid options include 'ECG' and 'PPG'.
-        Default to 'ECG'.
     mean_NN : list
         Range to consider to evaluate the quality of the signal based on the
         mean NN interval.
@@ -119,57 +110,54 @@ def sqi_cardiac(
     """
     summary = {}
     # Make sure the data_type string is in capital letters
-    data_type = data_type.upper()
-    if data_type == "PPG":
-        peaks = "PPG_Peaks"
-    elif data_type == "ECG":
-        peaks = "ECG_R_Peaks"
+    peaks = "Peaks"
     # Segment info according to the specify window
     if window is not None:
-        sub_list = [x for x in info[peaks] if min(window) <= x <= max(window)]
-        min_index = info[peaks].index(min(sub_list))
-        max_index = info[peaks].index(max(sub_list)) + 1
+        start, end = min(window), max(window)
+        sub_list = [x for x in info[peaks] if start <= x <= end]
+        min_index = np.where(info[peaks] == min(sub_list))[0][0]
+        max_index = np.where(info[peaks] == max(sub_list))[0][0] + 1
     else:
         min_index = 0
         max_index = len(info[peaks])
 
     # Descriptive indices on NN intervals
     summary["Mean_NN_intervals (ms)"] = np.round(
-        np.mean(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), 4
+        np.mean(info["CleanRRSystole"][min_index:max_index]), 4
     )
     summary["Median_NN_intervals (ms)"] = np.round(
-        np.median(info[f"{data_type}_clean_rr_systole"][min_index:max_index]),
+        np.median(info["CleanRRSystole"][min_index:max_index]),
         4,
     )
     summary["SD_NN_intervals (ms)"] = np.round(
-        np.std(info[f"{data_type}_clean_rr_systole"][min_index:max_index], ddof=1),
+        np.std(info["CleanRRSystole"][min_index:max_index], ddof=1),
         4,
     )
     summary["Min_NN_intervals (ms)"] = np.round(
-        np.min(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), 4
+        np.min(info["CleanRRSystole"][min_index:max_index]), 4
     )
     summary["Max_NN_intervals (ms)"] = np.round(
-        np.max(info[f"{data_type}_clean_rr_systole"][min_index:max_index]), 4
+        np.max(info["CleanRRSystole"][min_index:max_index]), 4
     )
     # Descriptive indices on heart rate
     summary["Mean_HR (bpm)"] = metrics_hr_sqi(
-        info[f"{data_type}_clean_rr_systole"][min_index:max_index],
+        info["CleanRRSystole"][min_index:max_index],
         metric="mean",
     )
     summary["Median_HR (bpm)"] = metrics_hr_sqi(
-        info[f"{data_type}_clean_rr_systole"][min_index:max_index],
+        info["CleanRRSystole"][min_index:max_index],
         metric="median",
     )
     summary["SD_HR (bpm)"] = metrics_hr_sqi(
-        info[f"{data_type}_clean_rr_systole"][min_index:max_index],
+        info["CleanRRSystole"][min_index:max_index],
         metric="std",
     )
     summary["Min_HR (bpm)"] = metrics_hr_sqi(
-        info[f"{data_type}_clean_rr_systole"][min_index:max_index],
+        info["CleanRRSystole"][min_index:max_index],
         metric="min",
     )
     summary["Max_HR (bpm)"] = metrics_hr_sqi(
-        info[f"{data_type}_clean_rr_systole"][min_index:max_index],
+        info["CleanRRSystole"][min_index:max_index],
         metric="max",
     )
     # Descriptive indices on overall signal
@@ -179,13 +167,13 @@ def sqi_cardiac(
     # Quality assessment based on mean NN intervals and std
     if (
         threshold_sqi(
-            np.mean(info[f"{data_type}_clean_rr_systole"][min_index:max_index]),
+            np.mean(info["CleanRRSystole"][min_index:max_index]),
             mean_NN,
         )
         == "Acceptable"
         and threshold_sqi(
             np.std(
-                info[f"{data_type}_clean_rr_systole"][min_index:max_index],
+                info["CleanRRSystole"][min_index:max_index],
                 ddof=1,
             ),
             std_NN,
@@ -221,76 +209,87 @@ def sqi_eda(signal_eda, info, window=None):
     summary = {}
     # Segment info according to the specify window
     if window is not None:
-        sub_list = [x for x in info["SCR_Peaks"] if min(window) <= x <= max(window)]
-        min_index = info["SCR_Peaks"].index(min(sub_list))
-        max_index = info["SCR_Peaks"].index(max(sub_list))
+        try:
+            start, end = min(window), max(window)
+            sub_list = [x for x in info["ScrPeaks"] if start <= x <= end]
+            min_index = info["ScrPeaks"].index(min(sub_list))
+            max_index = info["ScrPeaks"].index(max(sub_list))
+        except Exception:
+            print("No SCR detected...")
+            min_index = max_index = 0
     else:
         min_index = 0
-        max_index = len(info["SCR_Peaks"])
+        max_index = len(info["ScrPeaks"])
 
     # Descriptive indices on overall signal
     # summary["Minimal_range"] = minimal_range_sqi(
     #    signal_eda["EDA_Clean"], threshold=0.05
     # )
     # summary["RAC"] = rac_sqi(signal_eda["EDA_Clean"], threshold=0.2, duration=2)
-    summary["Mean_EDA"] = np.round(np.mean(signal_eda["EDA_Clean"]), 4)
-    summary["Median_EDA"] = np.round(np.median(signal_eda["EDA_Clean"]), 4)
-    summary["SD_EDA"] = np.round(np.std(signal_eda["EDA_Clean"]), 4)
-    summary["Min_EDA"] = np.round(np.min(signal_eda["EDA_Clean"]), 4)
-    summary["Max_EDA"] = np.round(np.max(signal_eda["EDA_Clean"]), 4)
+    summary["Mean_EDA"] = np.round(np.mean(signal_eda["eda_clean"]), 4)
+    summary["Median_EDA"] = np.round(np.median(signal_eda["eda_clean"]), 4)
+    summary["SD_EDA"] = np.round(np.std(signal_eda["eda_clean"]), 4)
+    summary["Min_EDA"] = np.round(np.min(signal_eda["eda_clean"]), 4)
+    summary["Max_EDA"] = np.round(np.max(signal_eda["eda_clean"]), 4)
     # Descriptive indices on SCL
-    summary["Mean_SCL"] = np.round(np.mean(signal_eda["EDA_Tonic"]), 4)
-    summary["SD_SCL"] = np.round(np.std(signal_eda["EDA_Tonic"]), 4)
-    summary["Median_SCL"] = np.round(np.median(signal_eda["EDA_Tonic"]), 4)
-    summary["Min_SCL"] = np.round(np.min(signal_eda["EDA_Tonic"]), 4)
-    summary["Max_SCL"] = np.round(np.max(signal_eda["EDA_Tonic"]), 4)
+    summary["Mean_SCL"] = np.round(np.mean(signal_eda["eda_tonic"]), 4)
+    summary["SD_SCL"] = np.round(np.std(signal_eda["eda_tonic"]), 4)
+    summary["Median_SCL"] = np.round(np.median(signal_eda["eda_tonic"]), 4)
+    summary["Min_SCL"] = np.round(np.min(signal_eda["eda_tonic"]), 4)
+    summary["Max_SCL"] = np.round(np.max(signal_eda["eda_tonic"]), 4)
     # Descriptive indices on SCR
-    summary["Mean_SCR"] = np.round(np.mean(signal_eda["EDA_Phasic"]), 4)
-    summary["SD_SCR"] = np.round(np.std(signal_eda["EDA_Phasic"]), 4)
-    summary["Median_SCR"] = np.round(np.median(signal_eda["EDA_Phasic"]), 4)
-    summary["Min_SCR"] = np.round(np.min(signal_eda["EDA_Phasic"]), 4)
-    summary["Max_SCR"] = np.round(np.max(signal_eda["EDA_Phasic"]), 4)
-    summary["Number_of_detected_peaks"] = len(info["SCR_Peaks"][min_index:max_index])
-    # Descriptive indices on SCR rise time
-    summary["Mean_rise_time"] = np.round(
-        np.mean(info["SCR_RiseTime"][min_index:max_index]), 4
-    )
-    summary["SD_rise_time"] = np.round(
-        np.std(info["SCR_RiseTime"][min_index:max_index]), 4
-    )
-    summary["Median_rise_time"] = np.round(
-        np.median(info["SCR_RiseTime"][min_index:max_index]), 4
-    )
-    try:
+    summary["Mean_SCR"] = np.round(np.mean(signal_eda["eda_phasic"]), 4)
+    summary["SD_SCR"] = np.round(np.std(signal_eda["eda_phasic"]), 4)
+    summary["Median_SCR"] = np.round(np.median(signal_eda["eda_phasic"]), 4)
+    summary["Min_SCR"] = np.round(np.min(signal_eda["eda_phasic"]), 4)
+    summary["Max_SCR"] = np.round(np.max(signal_eda["eda_phasic"]), 4)
+    # Descriptive indices on SCR
+    if min_index != max_index and max_index != 0:
+        summary["Number_of_detected_peaks"] = len(info["ScrPeaks"][min_index:max_index])
+        # Descriptive indices on SCR rise time
+        summary["Mean_rise_time"] = np.round(
+            np.mean(info["ScrRisetime"][min_index:max_index]), 4
+        )
+        summary["SD_rise_time"] = np.round(
+            np.std(info["ScrRisetime"][min_index:max_index]), 4
+        )
+        summary["Median_rise_time"] = np.round(
+            np.median(info["ScrRisetime"][min_index:max_index]), 4
+        )
         summary["Min_rise_time"] = np.round(
-            np.min(info["SCR_RiseTime"][min_index:max_index]), 4
+            np.min(info["ScrRisetime"][min_index:max_index]), 4
         )
-    except Exception:
-        traceback.print_exc()
-        summary["Min_rise_time"] = np.nan
-    try:
         summary["Max_rise_time"] = np.round(
-            np.max(info["SCR_RiseTime"][min_index:max_index]), 4
+            np.max(info["ScrRisetime"][min_index:max_index]), 4
         )
-    except Exception:
-        traceback.print_exc()
+        # Descriptive indices on SCR Recovery
+        summary["Mean_recovery_time"] = np.round(
+            np.mean(info["ScrRecoverytime"][min_index:max_index]), 4
+        )
+        summary["SD_recovery_time"] = np.round(
+            np.std(info["ScrRecoverytime"][min_index:max_index]), 4
+        )
+        summary["Median_recovery_time"] = np.round(
+            np.median(info["ScrRecoverytime"][min_index:max_index]), 4
+        )
+        summary["Min_recovery_time"] = np.round(
+            np.min(info["ScrRecoverytime"][min_index:max_index]), 4
+        )
+        summary["Max_recovery_time"] = np.round(
+            np.max(info["ScrRecoverytime"][min_index:max_index]), 4
+        )
+    else:
+        summary["Number_of_detected_peaks"] = 0
+        summary["Mean_rise_time"] = np.nan
+        summary["SD_rise_time"] = np.nan
+        summary["Median_rise_time"] = np.nan
+        summary["Min_rise_time"] = np.nan
         summary["Max_rise_time"] = np.nan
-    # Descriptive indices on SCR Recovery
-    summary["Mean_recovery_time"] = np.round(
-        np.mean(info["SCR_Recovery"][min_index:max_index]), 4
-    )
-    summary["SD_recovery_time"] = np.round(
-        np.std(info["SCR_Recovery"][min_index:max_index]), 4
-    )
-    summary["Median_recovery_time"] = np.round(
-        np.median(info["SCR_Recovery"][min_index:max_index]), 4
-    )
-    summary["Min_recovery_time"] = np.round(
-        np.min(info["SCR_Recovery"][min_index:max_index]), 4
-    )
-    summary["Max_recovery_time"] = np.round(
-        np.max(info["SCR_Recovery"][min_index:max_index]), 4
-    )
+        summary["Mean_recovery_time"] = np.nan
+        summary["SD_recovery_time"] = np.nan
+        summary["Median_recovery_time"] = np.nan
+        summary["Min_recovery_time"] = np.nan
+        summary["Max_recovery_time"] = np.nan
 
     return summary
 
@@ -314,27 +313,27 @@ def sqi_rsp(signal_rsp, mean_rate=0.5):
     """
     summary = {}
     # Descriptive indices on signal amplitude
-    summary["Mean_Amp"] = np.round(np.mean(signal_rsp["RSP_Amplitude"]), 4)
-    summary["Median_Amp"] = np.round(np.median(signal_rsp["RSP_Amplitude"]), 4)
-    summary["SD_Amp"] = np.round(np.std(signal_rsp["RSP_Amplitude"]), 4)
-    summary["Min_Amp"] = np.round(np.min(signal_rsp["RSP_Amplitude"]), 4)
-    summary["CV_Amp"] = np.round(np.max(signal_rsp["RSP_Amplitude"]), 4)
+    summary["Mean_Amp"] = np.round(np.mean(signal_rsp["rsp_amplitude"]), 4)
+    summary["Median_Amp"] = np.round(np.median(signal_rsp["rsp_amplitude"]), 4)
+    summary["SD_Amp"] = np.round(np.std(signal_rsp["rsp_amplitude"]), 4)
+    summary["Min_Amp"] = np.round(np.min(signal_rsp["rsp_amplitude"]), 4)
+    summary["CV_Amp"] = np.round(np.max(signal_rsp["rsp_amplitude"]), 4)
     summary["variability_Amp"] = np.round(
-        np.std(signal_rsp["RSP_Amplitude"]) / np.mean(signal_rsp["RSP_Amplitude"]),
+        np.std(signal_rsp["rsp_amplitude"]) / np.mean(signal_rsp["rsp_amplitude"]),
         4,
     )
     # Descriptive indices on signal rate
-    summary["Mean_Rate"] = np.round(np.mean(signal_rsp["RSP_Rate"]), 4)
-    summary["Median_Rate"] = np.round(np.median(signal_rsp["RSP_Rate"]), 4)
-    summary["SD_Rate"] = np.round(np.std(signal_rsp["RSP_Rate"]), 4)
-    summary["Min_Rate"] = np.round(np.min(signal_rsp["RSP_Rate"]), 4)
-    summary["Max_Rate"] = np.round(np.max(signal_rsp["RSP_Rate"]), 4)
+    summary["Mean_Rate"] = np.round(np.mean(signal_rsp["rsp_rate"]), 4)
+    summary["Median_Rate"] = np.round(np.median(signal_rsp["rsp_rate"]), 4)
+    summary["SD_Rate"] = np.round(np.std(signal_rsp["rsp_rate"]), 4)
+    summary["Min_Rate"] = np.round(np.min(signal_rsp["rsp_rate"]), 4)
+    summary["Max_Rate"] = np.round(np.max(signal_rsp["rsp_rate"]), 4)
     summary["CV_Rate"] = np.round(
-        np.std(signal_rsp["RSP_Rate"]) / np.mean(signal_rsp["RSP_Rate"]), 4
+        np.std(signal_rsp["rsp_rate"]) / np.mean(signal_rsp["rsp_rate"]), 4
     )
     # Quality assessment based on the mean respiratory rate
     if (
-        threshold_sqi(np.mean(signal_rsp["RSP_Rate"]) / 60, mean_rate, operator.lt)
+        threshold_sqi(np.mean(signal_rsp["rsp_rate"]) / 60, mean_rate, operator.lt)
         == "Acceptable"
     ):
         summary["Quality"] = "Acceptable"

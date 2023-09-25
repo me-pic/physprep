@@ -17,7 +17,6 @@ from bokeh.models import BoxAnnotation, ColumnDataSource, RangeTool
 from bokeh.plotting import figure, output_file, save
 from pandas.core.indexes.datetimes import DatetimeIndex
 from systole.plots import plot_rr
-from systole.utils import ecg_strings, ppg_strings, resp_strings
 
 from physprep.utils import load_json
 
@@ -142,7 +141,8 @@ def plot_raw(
     peaks :
         The peaks or R wave detection (1d boolean array).
     modality :
-        The recording modality. Can be `"ppg"`, `"ecg"` or `"resp"`.
+        The recording modality. Can be `"cardiac_ppg"`, `"cardiac_ecg"`, "electrodermal"
+        or `"respiratory"`.
     show_heart_rate :
         If `True`, create a second row and plot the instantanesou heart rate
         derived from the physiological signal
@@ -197,22 +197,22 @@ def plot_raw(
     else:
         source = ColumnDataSource(data={"time": time[::decim], "signal": signal[::decim]})
 
-    if modality in ppg_strings:
+    if modality == "cardiac_ppg":
         # title = "PPG recording"
         ylabel = "PPG level (a.u.)"
         peaks_label = "Systolic peaks"
         signal_label = "PPG signal"
-    elif modality in ecg_strings:
+    elif modality == "cardiac_ecg":
         # title = "ECG recording"
         ylabel = "ECG (mV)"
         peaks_label = "R wave"
         signal_label = "ECG signal"
-    elif modality in resp_strings:
+    elif modality == "respiratory":
         # title = "Respiration"
         ylabel = "Respiratory signal"
         peaks_label = "End of inspiration"
         signal_label = "Respiratory signal"
-    elif modality in eda_strings:
+    elif modality == "electrodermal":
         # title = "EDA recording"
         ylabel = "EDA (uSiemens)"
         peaks_label = "SCR Peaks"
@@ -330,56 +330,49 @@ def plot_raw(
         return cols[0]
 
 
-def generate_plot(source, sub, ses, filename, modality):
+def generate_plot(data, info, modality):
     """
     Parameters
     ----------
-    source : str
-        The directory containing the processed signals.
-    sub : str
-        The id of the subject.
-    ses : str
-        The id of the session.
-    filename : str
-
+    data : pd.DataFrame
+        Dataframe containing the timeserie to plot.
+    info : dict
+        Dictionary containing the features of the timeserie.
     modality : list
         A list containing the biosignal modalities to plot.
         The options include "ECG", "PPG", "EDA", and "RSP".
     """
-    data = pd.read_csv(os.path.join(source, sub, ses, filename + ".tsv.gz"), sep="\t")
-    info = load_json(os.path.join(source, sub, ses, filename + ".json"))
-
     print(f"Plotting {modality} signal: begin")
     try:
         # Plot cleaned signal during MRI sequence
-        if modality == "RSP":
-            figure = plot_raw(
-                signal=data[f"{modality}_Clean"],
-                peaks=data[f"{modality}_Peaks"].astype(bool),
-                sfreq=info[modality]["sampling_rate"],
-                modality="resp",
+        if modality == "respiratory":
+            figure_signal = plot_raw(
+                signal=data[modality]["rsp_clean"],
+                peaks=data[modality]["rsp_peaks"].astype(bool),
+                sfreq=info[modality]["SamplingFrequency"],
+                modality=modality,
                 title=f"{modality} : Scanner on - Clean",
                 show_heart_rate=False,
                 show_artefacts=True,
             )
-        elif modality == "EDA":
-            figure = plot_raw(
-                signal=data["EDA_Clean"],
-                eda_scr=data["EDA_Phasic"],
-                eda_scl=data["EDA_Tonic"],
-                peaks=data["SCR_Peaks"],
-                onsets=data["SCR_Onsets"],
-                sfreq=info[modality]["sampling_rate"],
-                modality="eda",
+        elif modality == "electrodermal":
+            figure_signal = plot_raw(
+                signal=data[modality]["eda_clean"],
+                eda_scr=data[modality]["eda_phasic"],
+                eda_scl=data[modality]["eda_tonic"],
+                peaks=data[modality]["scr_peaks"],
+                onsets=data[modality]["scr_onsets"],
+                sfreq=info[modality]["SamplingFrequency"],
+                modality=modality,
                 title=f"{modality} : Scanner on - Clean",
                 show_heart_rate=False,
                 show_artefacts=True,
             )
-        elif modality in ["ECG", "PPG"]:
-            figure = plot_raw(
-                signal=data[f"{modality}_Clean"],
-                peaks=data[f"{modality}_Peaks_NK"].astype(bool),
-                sfreq=info[modality]["sampling_rate"],
+        elif modality in ["cardiac_ecg", "cardiac_ppg"]:
+            figure_signal = plot_raw(
+                signal=data[modality][f"{modality}_clean"],
+                peaks=data[modality][f"{modality}_peaks_nk"].astype(bool),
+                sfreq=info[modality]["SamplingFrequency"],
                 modality=modality.lower(),
                 title=f"{modality} : Scanner on - Clean",
                 show_heart_rate=True,
@@ -390,7 +383,7 @@ def generate_plot(source, sub, ses, filename, modality):
         print(f"Could not plot {modality} signal")
         traceback.print_exc()
 
-    return components(figure)
+    return components(figure_signal)
 
 
 def generate_raw_filtered_plots(outdir, sub, ses, modality):
@@ -443,8 +436,8 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
                 print(f"Plotting Raw signal with scanner on: {mod} begin")
                 figures.append(
                     plot_raw(
-                        signal=data[i][f"{mod}_Raw"],
-                        sfreq=info[i][mod]["sampling_rate"],
+                        signal=data[i][f"{mod}_raw"],
+                        sfreq=info[i][mod]["Sampling"],
                         modality=mod.lower(),
                         title=f"{mod} : Scanner on - Raw",
                         show_heart_rate=False,
@@ -456,13 +449,13 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
                 print(f"Plotting Raw signal with scanner on: {mod} done")
 
                 # Plot cleaned signal during MRI sequence
-                if mod == "RSP":
+                if mod == "respiratory":
                     print(f"Plotting Clean signal with scanner on: {mod} begin")
                     figures.append(
                         plot_raw(
-                            signal=data[i][f"{mod}_Clean"],
-                            peaks=data[i][f"{mod}_Peaks"].astype(bool),
-                            sfreq=info[i][mod]["sampling_rate"],
+                            signal=data[i][f"{mod}_clean"],
+                            peaks=data[i][f"{mod}_peaks"].astype(bool),
+                            sfreq=info[i][mod]["SamplingFrequency"],
                             modality="resp",
                             title=f"{mod} : Scanner on - Clean",
                             show_heart_rate=False,
@@ -472,16 +465,16 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
                     idx += 1
                     tmp += 1
                     print(f"Plotting Clean signal with scanner on: {mod} done")
-                elif mod == "EDA":
+                elif mod == "electrodermal":
                     print(f"Plotting Clean signal with scanner on: {mod} begin")
                     figures.append(
                         plot_raw(
-                            signal=data[i]["EDA_Clean"],
-                            eda_scr=data[i]["EDA_Phasic"],
-                            eda_scl=data[i]["EDA_Tonic"],
-                            peaks=data[i]["SCR_Peaks"],
-                            onsets=data[i]["SCR_Onsets"],
-                            sfreq=info[i][mod]["sampling_rate"],
+                            signal=data[i]["eda_clean"],
+                            eda_scr=data[i]["eda_phasic"],
+                            eda_scl=data[i]["eda_tonic"],
+                            peaks=data[i]["scr_peaks"],
+                            onsets=data[i]["scr_onsets"],
+                            sfreq=info[i][mod]["SamplingFrequency"],
                             modality="eda",
                             title=f"{mod} : Scanner on - Clean",
                             show_heart_rate=False,
@@ -491,13 +484,13 @@ def generate_raw_filtered_plots(outdir, sub, ses, modality):
                     idx += 1
                     tmp += 1
                     print(f"Plotting Clean signal with scanner on: {mod} done")
-                elif mod in ["ECG", "PPG"]:
+                elif mod in ["cardiac_ecg", "cardiac_ppg"]:
                     print(f"Plotting Clean signal with scanner on: {mod} begin")
                     figures.append(
                         plot_raw(
-                            signal=data[i][f"{mod}_Clean"],
-                            peaks=data[i][f"{mod}_Peaks_NK"].astype(bool),
-                            sfreq=info[i][mod]["sampling_rate"],
+                            signal=data[i][f"{mod}_clean"],
+                            peaks=data[i][f"{mod}_peaks_nk"].astype(bool),
+                            sfreq=info[i][mod]["SamplingFrequency"],
                             modality=mod.lower(),
                             title=f"{mod} : Scanner on - Clean",
                             show_heart_rate=True,
