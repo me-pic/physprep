@@ -1,5 +1,7 @@
-# Physprep workflow
+# PhysPrep workflow
 
+[![Static Badge](https://img.shields.io/badge/Apache--2.0-license?style=flat&label=license&color=green)](https://github.com/courtois-neuromod/physprep/blob/main/LICENSE)
+[![Documentation Status](https://readthedocs.org/projects/physprep/badge/?version=latest)](https://physprep.readthedocs.io/en/latest/?badge=latest)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 This standalone repository acts as use-case documentation for physiological data processing steps. The proposed workflow integrates community-based Python libraries such as [phys2bids](https://github.com/physiopy/phys2bids) and [neurokit2](https://github.com/neuropsychology/NeuroKit).
