@@ -6,14 +6,12 @@
 import os
 import sys
 
-from physprep import __copyright__, __packagename__
-
 sys.path.insert(0, os.path.abspath(".."))
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = __packagename__
-copyright = __copyright__
+project = "Physprep"
+copyright = "2023, Courtois NeuroMod team"
 author = "Marie-Eve Picard"
 
 # -- General configuration ---------------------------------------------------
@@ -35,13 +33,6 @@ exclude_patterns = []
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "sphinx_rtd_theme"
-html_context = {
-    "display_github": True,
-    "github_user": "me-pic",
-    "github_repo": "physprep",
-    "github_version": "docs/setup",
-    "conf_py_path": "https://github.com/me-pic/physprep/tree/main/docs/source",
-}
 html_static_path = ["_static"]
 
 # -- Options for myst_parser -------------------------------------------------
