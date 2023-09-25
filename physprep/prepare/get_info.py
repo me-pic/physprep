@@ -10,16 +10,53 @@ import logging
 import math
 import os
 
-import click
 import pandas as pd
 import pprintpp
-from list_sub import list_sub
 from neurokit2 import read_acqknowledge
+
+from physprep.prepare import list_sub
 
 LGR = logging.getLogger(__name__)
 
 
-def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
+def order_channels(acq_channels, metadata_physio):
+    """
+    Order channels in the acq file according to the metadata_physio file.
+
+    Parameters
+    ----------
+    acq_channels : list
+        List of channels in the acq file.
+    metadata_physio : dict
+        Dictionary containing the metadata_physio file.
+    """
+    ch_names = []
+    chsel = []
+    for idx, channel in enumerate(acq_channels):
+        found = False
+        for key in metadata_physio:
+            if channel == metadata_physio[key]["channel"]:
+                ch_names.append(key)
+                chsel.append(idx + 1)
+                found = True
+        if not found:
+            ch_names.append(channel)
+
+    if len(chsel) == 0:
+        raise ValueError(
+            "No correspondence between channels in the acq file and "
+            "channels defined in workflow configuration file."
+        )
+    if len(metadata_physio) != len(chsel):
+        raise ValueError(
+            "Some channels defined in the workflow configuration file "
+            "are not present in the acq file."
+        )
+
+    return ch_names, chsel
+
+
+def volume_counter(root, sub, metadata_physio, ses=None, tr=1.49, trigger_ch="TTL"):
     """
     Volume counting for each run in a session.
 
@@ -28,8 +65,10 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
     root : str
         Directory containing the biopac data.
         Example: "/home/user/dataset/sourcedata/physio".
-    subject : str
+    sub : str
         Name of path for a specific subject. Example: "sub-01".
+    metadata_physio : dict
+        Dictionary containing the metadata_physio file.
     ses : str
         Name of path for a specific session (optional workflow for specific experiment).
         Default to none.
@@ -140,48 +179,21 @@ def volume_counter(root, sub, ses=None, tr=1.49, trigger_ch="TTL"):
                 ses_runs[exp] = [runs]
             else:
                 ses_runs[exp].append(runs)
+
+    ch_names, chsel = order_channels(bio_df.columns, metadata_physio)
+
     LGR.info(f"Volumes for session :\n{ses_runs}")
-    return ses_runs, bio_df.columns
-
-
-@click.command()
-@click.argument("root", type=str)
-@click.argument("sub", type=str)
-@click.option("--ses", type=str, default=None, required=False)
-@click.option("--count_vol", type=bool, default=False, required=False)
-@click.option("--show", type=bool, default=True, required=False)
-@click.option("--save", type=str, default=None, required=False)
-@click.option("--tr", type=float, default=None, required=False)
-@click.option("--tr_channel", type=str, default=None, required=False)
-@click.option("--scanning_sheet", type=str)
-def call_get_info(
-    root,
-    sub,
-    ses=None,
-    count_vol=False,
-    show=True,
-    save=None,
-    tr=None,
-    tr_channel=None,
-    scanning_sheet=None,
-):
-    """
-    Call `get_info` function only if `get_info.py` is called as CLI
-
-    For parameters description, please refer to the documentation of the
-    `get_info` function
-    """
-    get_info(root, sub, ses, count_vol, show, save, tr, tr_channel, scanning_sheet)
+    return ses_runs, ch_names, chsel
 
 
 def get_info(
     root,
     sub,
+    metadata_physio,
     ses=None,
     count_vol=False,
     show=True,
     save=None,
-    tr=None,
     tr_channel=None,
     scanning_sheet=None,
 ):
@@ -211,10 +223,13 @@ def get_info(
                             └── file.acq
     Arguments
     ---------
-    root : str
+    root : str or pathlib.Path
         Root directory of dataset containing the data. Example: "/home/user/dataset/".
     sub : str
         Name of path for a specific subject. Example: "sub-01".
+    metadata_physio : dict
+        Dictionary containing metadata information about the physio data (output of the
+        `get_info` function).
     ses : str
         Name of path for a specific session. Example: "ses-001".
     count_vol : bool
@@ -223,14 +238,11 @@ def get_info(
     show : bool
         Specify if you want to print the dictionary.
         Default to True.
-    save : str
+    save : str or pathlib.Path
         Specify where you want to save the dictionary in json format.
         If not specified, the output will be saved where you run the script.
         Default to None.
-    tr : float
-        Value of the TR used in the MRI sequence.
-        Default to None.
-    trigger_ch : str
+    tr_channel : str
         Name of the trigger channel used on Acknowledge.
         Defaults to None.
 
@@ -346,9 +358,10 @@ def get_info(
                 else:
                     # count the triggers in physfile otherwise
                     try:
-                        vol_in_biopac, ch_names = volume_counter(
+                        vol_in_biopac, ch_names, chsel = volume_counter(
                             os.path.join(root, "sourcedata/physio/"),
                             sub,
+                            metadata_physio,
                             ses=exp,
                             tr=tr,
                             trigger_ch=tr_channel,
@@ -362,6 +375,7 @@ def get_info(
                             run_dict = vol_in_biopac
                         nb_expected_runs[exp]["recorded_triggers"] = run_dict
                         nb_expected_runs[exp]["ch_names"] = list(ch_names)
+                        nb_expected_runs[exp]["chsel"] = list(chsel)
 
                     # skip the session if we did not find the file
                     except KeyError:
@@ -382,13 +396,7 @@ def get_info(
     if save is not None:
         if os.path.exists(os.path.join(save, sub)) is False:
             os.mkdir(os.path.join(save, sub))
-        filename = f"{sub}_volumes_all-ses-runs.json"
+        filename = f"{sub}_sessions.json"
         with open(os.path.join(save, sub, filename), "w") as f:
             json.dump(nb_expected_runs, f, indent=4)
     return nb_expected_runs
-
-
-if __name__ == "__main__":
-    log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    logging.basicConfig(level=logging.INFO, format=log_fmt)
-    call_get_info()

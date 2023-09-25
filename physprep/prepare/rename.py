@@ -14,11 +14,9 @@ import pandas as pd
 @click.command()
 @click.argument("indir", type=click.Path(exists=True), required=True)
 @click.argument("sub", type=str, required=True)
-@click.option(
-    "--sessions",
-    type=str,
-)
-def co_register_physio(indir, sub, sessions=None):
+@click.option("--ses", type=str, required=False, default=None)
+@click.option("--min_volumes", type=int, required=False, default=350)
+def co_register_physio(indir, sub, ses=None, min_volumes=350):
     """
     Comply to BIDS and co-register functional acquisitions.
 
@@ -30,77 +28,72 @@ def co_register_physio(indir, sub, sessions=None):
         directory to save data and to retrieve acquisition info (`.json file`)
     subject : string
         name of path for a specific subject (e.g.'sub-03')
-    sessions : list
+    ses : list
         specific session numbers can be listed (e.g. ['ses-001', 'ses-002']
-    Returns:
-    --------
-    BIDS-compliant /func directory for physio files
+    min_volumes : int
+        Minimum number of  volumes expected for a run. If a run has less volumes than this
+        number, it will be removed. Default is 350.
     """
     logger = logging.getLogger(__name__)
     # fetch info
-    info = pd.read_json(f"{indir}{sub}/{sub}_volumes_all-ses-runs.json")
+    info = pd.read_json(os.path.join(indir, sub, f"{sub}_volumes_all-ses-runs.json"))
     # define sessions
-    if sessions is None:
-        sessions = info.columns
-    elif isinstance(sessions, list) is False:
-        sessions = [sessions]
+    if ses is None:
+        ses = info.columns
+    elif isinstance(ses, list) is False:
+        ses = [ses]
 
     # iterate through sessions
-    for ses in sessions:
-        logger.info(f"renaming files in session : {ses}")
+    for s in ses:
+        logger.info(f"renaming files in session : {s}")
 
         # list files in the session
-        tsv = glob.glob(f"{indir}{sub}/{ses}/*.tsv.gz")
+        tsv = glob.glob(os.path.join(indir, sub, s, "*.tsv.gz"))
         tsv.sort()
 
         if tsv is None or len(tsv) == 0:
-            print(f"no physio file for {ses}")
+            print(f"no physio file for {s}")
             continue
 
-        json = glob.glob(f"{indir}{sub}/{ses}/*.json")
+        json = glob.glob(os.path.join(indir, sub, s, "*.json"))
         json.sort()
 
-        log = glob.glob(f"{indir}{sub}/{ses}/code/conversion/*.log")
+        log = glob.glob(os.path.join(indir, sub, s, "code", "conversion", "*.log"))
         log.sort()
 
-        png = glob.glob(f"{indir}{sub}/{ses}/code/conversion/*.png")
-        png.sort()
-
         # sanitize list of triggers
-        triggers = list(info[ses]["recorded_triggers"].values())
+        triggers = list(info[s]["recorded_triggers"].values())
         triggers = list(np.concatenate(triggers).flat)
 
-        # remove padding trigger for videogames tasks
+        # remove padding trigger for videogames tasks; specific to neuromod data
         if any(game in indir for game in ["mario", "shinobi"]):
             triggers = [trigger - 1 if trigger > 200 else trigger for trigger in triggers]
 
-        if len(info[ses]["task"]) is not info[ses]["expected_runs"]:
+        if len(info[s]["task"]) is not info[s]["expected_runs"]:
             logger.info("Number of tasks does not match expected number of runs")
             continue
 
-        if info[ses]["recorded_triggers"].values is None:
+        if info[s]["recorded_triggers"].values is None:
             logger.info(
-                "No recorded triggers information - check physio files " f"for {ses}"
+                "No recorded triggers information - check physio files " f"for {s}"
             )
             continue
 
-        if len(info[ses]["task"]) == 0:
-            logger.info(f"No task name listed ; skipping {ses}")
+        if len(info[s]["task"]) == 0:
+            logger.info(f"No task name listed ; skipping {s}")
             continue
 
-        if len(info[ses]["task"]) == 1:
-            this_one = triggers.index(info[ses]["01"])
+        if len(info[s]["task"]) == 1:
+            this_one = triggers.index(info[s]["01"])
             to_be_del = list(range(0, len(triggers)))
             to_be_del.remove(this_one)
 
         # if input is normal, then check co-registration
         else:
             to_be_del = []
-
             # remove files that don't contain enough volumes
             for idx, volumes in enumerate(triggers):
-                # NOTE: this should not be hardcoded
-                if volumes < 350:
+                if volumes < min_volumes:
                     to_be_del.append(idx)
 
         # these can be safely removed
@@ -108,37 +101,34 @@ def co_register_physio(indir, sub, sessions=None):
             os.remove(tsv[idx])
             os.remove(json[idx])
             os.remove(log[idx])
-            os.remove(png[idx])
 
         # these are to be kept
         triggers = np.delete(triggers, to_be_del)
         tsv = np.delete(tsv, to_be_del)
         json = np.delete(json, to_be_del)
-        log = np.delete(log, to_be_del)
-        png = np.delete(png, to_be_del)
 
         # check if number of volumes matches neuroimaging JSON sidecar
         for idx, volumes in enumerate(triggers):
             i = f"{idx+1:02d}"
-            logger.info(info[ses][i])
-            filename_tsv = f"{sub}_{ses}_{info[ses]['task'][idx]}_physio.tsv.gz"
-            filename_json = f"{sub}_{ses}_{info[ses]['task'][idx]}_physio.json"
-            if volumes != info[ses][i]:
+            logger.info(info[s][i])
+            filename_tsv = f"{sub}_{s}_{info[s]['task'][idx]}_physio.tsv.gz"
+            filename_json = f"{sub}_{s}_{info[s]['task'][idx]}_physio.json"
+            if volumes != info[s][i]:
                 logger.info(
-                    f"Recorded triggers info for {ses} does not match with "
-                    f"BOLD sidecar ({volumes} != {info[ses][i]})\n"
-                    f"Skipping {ses}"
+                    f"Recorded triggers info for {s} does not match with "
+                    f"BOLD sidecar ({volumes} != {info[s][i]})\n"
+                    f"Skipping {s}"
                 )
                 break
 
             else:
                 os.rename(
                     tsv[idx],
-                    f"{indir}{sub}/{ses}/{filename_tsv}",
+                    os.path.join(indir, sub, s, filename_tsv),
                 )
                 os.rename(
                     json[idx],
-                    f"{indir}{sub}/{ses}/{filename_json}",
+                    os.path.join(indir, sub, s, filename_json),
                 )
 
 

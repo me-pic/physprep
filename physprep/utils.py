@@ -3,6 +3,19 @@
 import json
 import os
 import pickle
+import re
+from pathlib import Path
+
+import pandas as pd
+from pkg_resources import resource_filename
+
+WORKFLOW_STRATEGIES = ["neuromod"]
+PREPROCESSING_STRATEGIES = [
+    "neuromod_ecg",
+    "neuromod_eda",
+    "neuromod_ppg",
+    "neuromod_rsp",
+]
 
 
 def _check_filename(outdir, filename, extension=None, overwrite=False):
@@ -15,7 +28,7 @@ def _check_filename(outdir, filename, extension=None, overwrite=False):
     # Check if file already exist
     if os.path.exists(os.path.join(outdir, filename).strip()):
         if not overwrite:
-            raise IOError(
+            raise FileExistsError(
                 "Killing the script because the file already exist. "
                 "If you want to overwrite the file, set the `overwrite` "
                 "flag to `True`"
@@ -48,14 +61,7 @@ def _check_input_validity(option, valid_options, empty=True):
                 print(f"**Please enter a valid option: {', '.join(valid_options)}.")
                 return False
             else:
-                if option in [
-                    "resampling",
-                    "resample",
-                    "upsampling",
-                    "upsample",
-                    "downsampling",
-                    "downsample",
-                ]:
+                if option == "resampling":
                     option = "signal_resample"
                 return option
     if valid_options in [int, "odd"]:
@@ -63,7 +69,7 @@ def _check_input_validity(option, valid_options, empty=True):
             print("**Please enter a positive integer.")
             return False
         if valid_options == "odd":
-            if option % 2 != 0:
+            if int(option) % 2 == 0:
                 print("**Please enter an odd number.")
                 return False
             else:
@@ -139,22 +145,22 @@ def load_json(filename):
 
 def create_config_preprocessing(outdir, filename, overwrite=False):
     """
-    outdir: str, Path
+    Generate a configuration file for the preprocessing strategy based on the user inputs.
+
+    Parameters
+    ----------
+    outdir: str, pathlib.Path
+        Saving directory.
     filename: str
+        Saving filename.
     overwrite: bool
+        If `True`, overwrite the existing file with the specified `filename` in the
+        `outdir` directory. Default is False.
     """
     # Instantiate variables
     steps = []
     valid_filters = ["butterworth", "fir", "bessel", "savgol", "notch"]
-    valid_steps = [
-        "filtering",
-        "resampling",
-        "resample",
-        "upsampling",
-        "upsample",
-        "downsampling",
-        "downsample",
-    ]
+    valid_steps = ["filtering", "resampling"]
 
     filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
 
@@ -254,19 +260,40 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
             break
 
 
-def create_config_workflow(outdir, filename, overwrite=False):
+def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=False):
     """
-    outdir: str, Path
+    Generate a configuration file for the workflow strategy based on the user inputs.
+
+    Parameters
+    ----------
+    outdir: str, pathlib.Path
+        Saving directory.
+    dir_preprocessing: str, pathlib.Path
+        Directory of the preprocessing configuration files. If `None`, assumes that
+        the configuration files are located in the `outdir`. Default: `None`.
     filename: str
+        Saving filename.
     overwrite: bool
+        If `True`, overwrite the existing file with the specified `filename` in the
+        `outdir` directory. Default: False.
     """
     # Instantiate variables
     signals = {}
-    valid_signals = ["PPG", "ECG", "EDA", "RSP"]
+    valid_signals = [
+        "cardiac_ppg",
+        "cardiac_ecg",
+        "electrodermal",
+        "respiratory",
+        "trigger",
+    ]
     preprocessing_strategy = [
-        os.path.splitext(f)[0] for f in os.listdir("./data/preprocessing_strategy/")
+        os.path.splitext(f)[0]
+        for f in os.listdir("./physprep/data/preprocessing_strategy/")
     ]
     preprocessing_strategy.append("new")
+
+    if dir_preprocessing is None:
+        dir_preprocessing = outdir
 
     filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
 
@@ -278,64 +305,221 @@ def create_config_workflow(outdir, filename, overwrite=False):
                 f"processing of {', '.join(valid_signals)}. \nIf you do not want to add "
                 "another type of signal, just press enter.\n"
             )
-            signal = _check_input_validity(signal.upper(), valid_signals, empty=True)
+            signal = _check_input_validity(signal.lower(), valid_signals, empty=True)
 
         if signal not in ["", " "]:
             signals[signal] = {}
+            # Associate abrreviation to the signal type
+            if signal == "cardiac_ppg":
+                signals[signal] = {
+                    "id": "PPG",
+                    "Description": "continuous pulse measurement",
+                    "Units": "V",
+                }
+            elif signal == "cardiac_ecg":
+                signals[signal] = {
+                    "id": "ECG",
+                    "Description": "continuous electrocardiogram measurement",
+                    "Units": "mV",
+                }
+            elif signal == "electrodermal":
+                signals[signal] = {
+                    "id": "EDA",
+                    "Description": "continuous electrodermal measurement",
+                    "Units": "microsiemens",
+                }
+            elif signal == "respiratory":
+                signals[signal] = {
+                    "id": "RESP",
+                    "Description": "continuous breathing measurement",
+                    "Units": "cm H2O",
+                }
+            elif signal == "trigger":
+                signals[signal] = {
+                    "id": "TTL",
+                    "Description": "continuous measurement of the scanner trigger signal",
+                    "Units": "V",
+                }
+
+            # Ask for the channel name associated with the signal
             channel = input(
                 "\n Enter the name of the channel in your acq file associated with the "
                 f"{signal} signal: \n"
             )
-            signals[signal] = {"channel": channel}
+            signals[signal].update({"Channel": channel})
 
-            # Add preprocessing strategy to the workflow
-            while preprocessing is False:
-                preprocessing = input(
-                    "\n Enter the name of the preprocessing "
-                    f"strategy to clean the {signal} signal. Choose among the current "
-                    "configuration files by providing the name of the strategy, or "
-                    "create a new configuration file. To create a new configuration file "
-                    "type `new`. Otherwise, choose among those strategy: "
-                    f"{', '.join(preprocessing_strategy[:-1])}.\n"
-                )
-                preprocessing = _check_input_validity(
-                    preprocessing, preprocessing_strategy, empty=True
-                )
+            if signal != "trigger":
+                # Add preprocessing strategy to the workflow
+                while preprocessing is False:
+                    preprocessing = input(
+                        "\n Enter the name of the preprocessing "
+                        f"strategy to clean the {signal} signal. Choose among the "
+                        "current configuration files by providing the name of the "
+                        "strategy, \n or create a new configuration file. To create a "
+                        "new configuration file type `new`.\n Otherwise, choose among "
+                        f"those strategy: {', '.join(preprocessing_strategy[:-1])}.\n"
+                    )
+                    preprocessing = _check_input_validity(
+                        preprocessing, preprocessing_strategy, empty=True
+                    )
 
-            if preprocessing == "new":
-                filename_preprocessing = input(
-                    "\n Enter the name of the preprocessing "
-                    "strategy. The given name will be used as the name of the json file."
-                )
-                filename_preprocessing = _check_filename(
-                    outdir, filename_preprocessing, extension=".json", overwrite=overwrite
-                )
-                # Create the preprocessing configuration file
-                create_config_preprocessing(
-                    outdir, filename_preprocessing, overwrite=overwrite
-                )
-                # Add preprocessing config file directory to the workflow config file
-                signals[signal].update(
-                    {
-                        "preprocessing_strategy": os.path.join(
-                            outdir, filename_preprocessing
-                        )
-                    }
-                )
-            else:
-                filename_preprocessing = _check_filename(
-                    outdir, preprocessing, extension=".json", overwrite=overwrite
-                )
-                signals[signal].update(
-                    {
-                        "preprocessing_strategy": os.path.join(
-                            outdir, filename_preprocessing
-                        )
-                    }
-                )
+                if preprocessing == "new":
+                    filename_preprocessing = input(
+                        "\n Enter the name of the preprocessing "
+                        "strategy. The given name will be used as the name of the json "
+                        "file.\n"
+                    )
+                    filename_preprocessing = _check_filename(
+                        outdir,
+                        filename_preprocessing,
+                        extension=".json",
+                        overwrite=overwrite,
+                    )
+                    # Create the preprocessing configuration file
+                    create_config_preprocessing(
+                        outdir, filename_preprocessing, overwrite=overwrite
+                    )
+                    # Add preprocessing config file directory to the workflow config file
+                    signals[signal].update(
+                        {
+                            "preprocessing_strategy": os.path.join(
+                                dir_preprocessing, filename_preprocessing
+                            )
+                        }
+                    )
+                else:
+                    filename_preprocessing = _check_filename(
+                        outdir, preprocessing, extension=".json", overwrite=overwrite
+                    )
+                    signals[signal].update(
+                        {
+                            "preprocessing_strategy": os.path.join(
+                                dir_preprocessing, filename_preprocessing
+                            )
+                        }
+                    )
 
         else:
-            print("\n---Saving configuration file---")
-            with open(os.path.join(outdir, filename), "w") as f:
-                json.dump(signals, f, indent=4)
+            # Save the configuration file only if there is at least one signal
+            if bool(signals):
+                print("\n---Saving configuration file---")
+                with open(os.path.join(outdir, filename), "w") as f:
+                    json.dump(signals, f, indent=4)
             break
+
+
+def get_config(strategy_name, strategy="workflow"):
+    """
+    Get the strategy configuration file.
+
+    Parameters
+    ----------
+    strategy_name: str, pathlib.Path
+        Name of the workflow_strategy if using a preset or path to the configuration file
+        if using a custom workflow strategy.
+    strategy: str
+        Type of strategy to load. Choose among `workflow` or `preprocessing`. Default:
+        `workflow`.
+
+    Returns
+    -------
+    load_strategy: dict
+        Dictionary containing the strategy configuration.
+    """
+    if strategy == "workflow":
+        valid_strategies = WORKFLOW_STRATEGIES
+        preset_path = "workflow_strategy"
+    elif strategy == "preprocessing":
+        valid_strategies = PREPROCESSING_STRATEGIES
+        preset_path = "preprocessing_strategy"
+    else:
+        raise ValueError(
+            "The given strategy is not valid. Choose among `workflow` or `preprocessing`."
+        )
+
+    # Check if the given strategy is valid
+    if strategy_name in valid_strategies:
+        strategy_path = resource_filename(
+            "physprep", f"data/{preset_path}/{strategy_name}.json"
+        )
+    elif Path(strategy_name).exists():
+        strategy_path = Path(strategy_name)
+    else:
+        raise ValueError(
+            f"The given `strategy_name` {strategy_name} is not valid. "
+            f"Please choose among {', '.join(valid_strategies)} or enter a valid path"
+        )
+
+    load_strategy = load_json(strategy_path)
+    # Specific check for the workflow strategy
+    if strategy == "workflow":
+        if "trigger" not in load_strategy.keys():
+            raise ValueError(
+                "The workflow strategy configuration file must contain a key `trigger`."
+            )
+
+    return load_strategy
+
+
+def rename_in_bids(data):
+    """
+    Rename the columns/keys in BIDS format.
+
+    Parameters
+    ----------
+    data: dict or DataFrame
+        Dictionary or DataFrame containing the data.
+
+    Returns
+    -------
+    data: dict or DataFrame
+        Dictionary or DataFrame containing the data with the new key/column names.
+    """
+    # If the data is a DataFrame, rename the columns according to the snake_case
+    # convention
+    bids_names = {}
+    names = data.columns if isinstance(data, pd.DataFrame) else data
+    if isinstance(data, pd.DataFrame):
+        # Rename columns following BIDS convention for tabular files
+
+        for col in names:
+            col_snake = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", col)
+            # Deal with multiple consecutive uppercase letters
+            col_snake = re.sub("([a-z0-9])([A-Z])", r"\1_\2", col_snake).lower()
+            col_snake = col_snake.replace("__", "_")
+            bids_names.update({col: col_snake})
+
+    # If the data is a dictionary, rename the keys according to the CamelCase convention
+    elif isinstance(data, dict):
+        # Rename keys following BIDS convention for Key-value files
+        for k in names:
+            if _is_camel_case(k):
+                if k[0].lower() == k[0]:
+                    bids_names.update({k: k[0].upper() + k[1:]})
+                else:
+                    bids_names.update({k: k})
+            elif not _is_camel_case(k):
+                key_camel = k.split("_")
+                key_camel = "".join(map(str.capitalize, key_camel))
+                bids_names.update({k: key_camel})
+
+    # Rename columns/keys
+    if isinstance(data, pd.DataFrame):
+        data.rename(columns=bids_names, inplace=True)
+    elif isinstance(data, dict):
+        data = dict((bids_names[k], v) for (k, v) in data.items())
+
+    return data
+
+
+def _is_camel_case(input):
+    """
+    Helper function to check if the input is in CamelCase format.
+
+    input: str
+        Input string to check.
+    """
+    pattern = r"^[a-zA-Z][a-zA-Z0-9]*$"
+
+    # Use re.match to see if the entire string matches the pattern
+    return bool(re.match(pattern, input))

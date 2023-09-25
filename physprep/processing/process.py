@@ -3,260 +3,142 @@
 """
 Neuromod processing utilities.
 """
-import glob
-import multiprocessing
 
-# dependencies
-import os
 import pickle
-
-# signal utils
 import timeit
 import traceback
+from pathlib import Path
 
-import click
-import neurokit2 as nk
 import numpy as np
 import pandas as pd
-
-# home brewed cleaning utils
-from clean import (
-    neuromod_ecg_clean,
-    neuromod_eda_clean,
-    neuromod_ppg_clean,
-    neuromod_rsp_clean,
+from neurokit2 import (
+    ecg_peaks,
+    eda_process,
+    ppg_findpeaks,
+    rsp_process,
+    signal_fixpeaks,
+    signal_rate,
 )
-
-# high-level processing utils
-from neurokit2 import ecg_peaks, ppg_findpeaks, signal_fixpeaks, signal_rate
 from neurokit2.misc import as_vector
 from neurokit2.signal.signal_formatpeaks import _signal_from_indices
 from systole.correction import correct_peaks, correct_rr
 from systole.utils import input_conversion
-from utils import load_json
+
+from physprep.utils import load_json, rename_in_bids
 
 
-def process_session(args):
-    # Unpack arguments for parallel processing
-    source, sub, ses, outdir, multi_echo = args
-    multi_echo = bool(multi_echo)
-    neuromod_bio_process(source, sub, ses, outdir, False)
-
-
-# ==================================================================================
-# Processing pipeline
-# ==================================================================================
-
-
-# @click.command()
-# @click.argument("source", type=str)
-# @click.argument("sub", type=str)
-# @click.argument("ses", type=str)
-# @click.argument("outdir", type=str)
-# @click.argument("multi_echo", type=bool)
-def neuromod_bio_process(source, sub, ses, outdir, multi_echo):
+def features_extraction_workflow(
+    data, metadata, workflow_strategy, outdir=None, filename=None, save=True
+):
     """
-    Run processing pipeline on specified biosignals.
+    Extract features from physiological data.
 
     Parameters
     ----------
-    source : str
-        The main directory containing the segmented runs.
-    sub : str
-        The id of the subject.
-    ses : str
-        The id of the session.
-    outdir : str
-        The directory to save the outputs.
-    multi_echo : bool
-        Indicate if the multi-echo sequence was used or not.
-    """
-    # Check if `outdir` exists, otherwise create it
-
-    if not os.path.exists(os.path.join(outdir, sub, ses)):
-        os.makedirs(os.path.join(outdir, sub, ses))
-
-    # Load tsv files contained in source/sub/ses
-    data_tsv, data_json, filenames_tsv = load_segmented_runs(
-        source, sub, ses, outdir, remove_padding=True
-    )
-    sampling_rate = data_json["SamplingFrequency"]
-
-    # initialize returned objects
-    for idx, df in enumerate(data_tsv):
-        run = filenames_tsv[idx].split("_")[2]
-        print(f"---Processing biosignals for {sub} {ses}: {run}---")
-
-        bio_info = {}
-        bio_df = pd.DataFrame()
-
-        # initialize each signals
-        ppg_raw = df["PPG"]
-        rsp_raw = df["RSP"]
-        eda_raw = df["EDA"]
-        ecg_raw = df["ECG"]
-
-        # ppg
-        print("******PPG workflow: begin***")
-        start_time = timeit.default_timer()
-        ppg, ppg_info = ppg_process(ppg_raw, sampling_rate=sampling_rate)
-        bio_info["PPG"] = ppg_info
-        bio_df = pd.concat([bio_df, ppg], axis=1)
-        end_time = timeit.default_timer() - start_time
-        print(f"***PPG workflow: done in {end_time} sec***")
-
-        #  ecg
-        print("***ECG workflow: begin***")
-        start_time = timeit.default_timer()
-        ecg, ecg_info = ecg_process(ecg_raw, sampling_rate=sampling_rate, me=multi_echo)
-        bio_info["ECG"] = ecg_info
-        bio_df = pd.concat([bio_df, ecg], axis=1)
-        end_time = timeit.default_timer() - start_time
-        print(f"***ECG workflow: done in {end_time} sec***")
-
-        #  rsp
-        print("***Respiration workflow: begin***")
-        start_time = timeit.default_timer()
-        rsp, rsp_info = rsp_process(
-            rsp_raw, sampling_rate=sampling_rate, method="khodadad2018"
-        )
-        bio_info["RSP"] = rsp_info
-        bio_df = pd.concat([bio_df, rsp], axis=1)
-        end_time = timeit.default_timer() - start_time
-        print(f"***Respiration workflow: done in {end_time} sec***")
-
-        #  eda
-        print("***Electrodermal activity workflow: begin***")
-        start_time = timeit.default_timer()
-        eda, eda_info = eda_process(eda_raw, sampling_rate=sampling_rate)
-        bio_info["EDA"] = eda_info
-        bio_df = pd.concat([bio_df, eda], axis=1)
-        end_time = timeit.default_timer() - start_time
-        print(f"***Electrodermal activity workflow: done in {end_time} sec***")
-
-        # save outputs
-        print("***Saving processed biosignals: begin***")
-        start_time = timeit.default_timer()
-
-        bio_df.to_csv(
-            os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.tsv.gz"),
-            sep="\t",
-            index=False,
-        )
-        with open(
-            os.path.join(outdir, sub, ses, f"{filenames_tsv[idx]}.json"),
-            "wb",
-        ) as fp:
-            pickle.dump(bio_info, fp, protocol=4)
-            fp.close()
-        end_time = timeit.default_timer() - start_time
-        print(f"***Saving processed biosignals: done in {end_time} sec***")
-
-
-# ==================================================================================
-# Loading functions
-# ==================================================================================
-
-
-def load_segmented_runs(source, sub, ses, outdir, remove_padding=True):
-    """
-    Parameters
-    ----------
-    source : str
-        The main directory containing the segmented runs.
-    sub : str
-        The id of the subject.
-    ses : str
-        The id of the session.
-    outdir : str
-        The directory to save the start padding, only if `remove_padding`
-        is True.
-    remove_padding : bool
-        Indicate if the padding should be removed or not from the data.
-        If True, the signal included in the start padding is saved in outdir.
-        If no padding was used, `remove_padding`should be False.
+    data : DataFrame or dict
+        The physiological timeseries on which to extract features.
+    metadata : dict or pathlib.Path
+        The metadata associated with the cleaned physiological data, if data has been
+        cleaned. Otherwise, the metadata associated with the raw physiological data
+        (i.e., the outputted json file from Phys2Bids).
+    workflow_strategy : dict
+        Dictionary containing the content of the workflow strategy.
+    outdir : str or pathlib.Path
+        Path to the directory where the preprocessed physiological data will be saved.
+    filename : str or pathlib.Path
+        Name of the file to save the preprocessed physiological data.
+    save : bool
+        Specify if the preprocessed signals should be saved.
         Default to True.
-
-    Returns
-    -------
-    data_tsv : list
-        List containing dataframes with the raw signal for each run.
-    data_json : dict
-        Dictionary containing metadata.
-    filenames : list
-        List containing the filename for each segmented run without the extension.
     """
-    data_tsv, filenames = [], []
-    files_tsv = [f for f in os.listdir(os.path.join(source, sub, ses)) if "tsv.gz" in f]
-    files_tsv.sort()
-    # The sampling rate will be overwritten if there is a json file
-    # TODO: Change harded coded sampling rate to a variable from info file
-    data_json = {"SamplingFrequency": 10000, "Columns": []}
+    timeseries = {}
+    info_dict = {}
 
-    for tsv in files_tsv:
-        # Signals
-        filename = tsv.split(".")[0]
-        filenames.append(filename)
-        print(f"---Reading data for {sub} {ses}: {filename.split('_')[2]}---")
-        # Metadata
-        json_file = filename + ".json"
-        print("Reading json file")
-        data_json = load_json(os.path.join(source, sub, ses, json_file))
+    print("Extracting features from physiological data...\n")
+    # Load metadata
+    if isinstance(metadata, str) or isinstance(metadata, Path):
+        metadata = load_json(metadata)
 
-        # look at the info file to get the channels if unboundlocalerror
-        if data_json["Columns"] == []:
-            info = pd.read_json(
-                os.path.join(source, sub, f"{sub}_volumes_all-ses-runs.json")
+    # if data is a dataframe, convert to dict
+    if isinstance(data, pd.DataFrame):
+        data = data.to_dict(index="list")
+
+    # Extract features for each signal type in the `workflow_strategy`
+    for signal_type in workflow_strategy:
+        if signal_type != "trigger":
+            # Retrieve SamplingFrequency
+            sampling_rate = metadata[signal_type]["SamplingFrequency"]
+            # Extract features for each signal type
+            if signal_type in data.keys():
+                signal = data[signal_type]
+            elif workflow_strategy[signal_type]["id"] in data.columns:
+                signal = data[workflow_strategy[signal_type]["id"]]
+            else:
+                raise ValueError(f"Signal type {signal_type} not found in the data.")
+
+            signal = as_vector(signal[f"{signal_type}_clean"])
+            print(f"***{signal_type} features extraction: begin***\n")
+            start_time = timeit.default_timer()
+
+            if signal_type.lower() in ["ecg", "cardiac_ecg", "ppg", "cardiac_ppg"]:
+                timeserie, info = extract_cardiac(
+                    signal,
+                    sampling_rate=sampling_rate,
+                    data_type=signal_type,
+                )
+            elif signal_type.lower() in ["respiratory", "rsp", "resp", "breathing"]:
+                timeserie, info = extract_respiratory(signal, sampling_rate=sampling_rate)
+            elif signal_type.lower() in ["electrodermal", "eda"]:
+                timeserie, info = extract_electrodermal(
+                    signal, sampling_rate=sampling_rate
+                )
+
+            timeseries.update({signal_type: timeserie.to_dict("list")})
+            info_dict.update({signal_type: info})
+
+            end_time = timeit.default_timer() - start_time
+            print(f"***{signal_type} features extraction: done in {end_time} sec***\n")
+
+    # Save derivatives
+    if save:
+        print("Saving extracted features...\n")
+        # Save preprocessed signal
+        if outdir is not None:
+            outdir = Path(outdir)
+            outdir.mkdir(parents=True, exist_ok=True)
+        else:
+            print(
+                "WARNING! No output directory specified. Data will be saved in the "
+                f"current working directory: {Path.cwd()}\n"
             )
-            ch_list = [
-                "EDA"
-                if "EDA" in ch
-                else "ECG"
-                if "ECG" in ch
-                else "PPG"
-                if "PPG" in ch
-                else "TTL"
-                if "A 5" in ch or "TTL" in ch
-                else "RSP"
-                for ch in info[ses]["ch_names"]
-            ]
-            data_json["Columns"] = ch_list
-        print("Reading tsv file")
-        # Read signals
-        tmp_csv = pd.read_csv(
-            os.path.join(source, sub, ses, tsv),
-            sep="\t",
-            compression="gzip",
-            names=data_json["Columns"],
-        )
-        # Remove padding and save it for later
-        if remove_padding:
-            # Get triggers
-            trigger = tmp_csv[tmp_csv["TTL"] > 4]
-            # First trigger
-            start = list(trigger.index)[0]
-            # Last trigger
-            end = list(trigger.index)[-1]
-
-            data_tsv.append(tmp_csv[start:end].reset_index(drop=True))
-            tmp_csv[:start].to_csv(
-                os.path.join(outdir, sub, ses, f"{filename}_noseq.tsv.gz"),
+            outdir = Path.cwd()
+        # Save timeseries
+        for timeserie in timeseries:
+            name = timeserie.replace("_", "-")
+            filename_signal = filename.replace("physio", f"desc-features_{name}")
+            df_timeserie = pd.DataFrame(timeseries[timeserie])
+            df_timeserie.to_csv(
+                Path(outdir / filename_signal).with_suffix(".tsv.gz"),
                 sep="\t",
                 index=False,
+                compression="gzip",
             )
-        # make a list of the runs
-        else:
-            data_tsv.append(tmp_csv)
+            timeseries[timeserie] = df_timeserie
+            # Save info_dict
+            with open(Path(outdir, filename_signal).with_suffix(".json"), "wb") as f:
+                pickle.dump(info_dict[timeserie], f, protocol=4)
+                f.close()
+        print("Extracted features saved. \n")
 
-    return data_tsv, data_json, filenames
+    return timeseries, info_dict
 
 
 # ==================================================================================
-# Processing functions
+# Features extraction functions
 # ==================================================================================
 
 
-def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="PPG"):
+def extract_cardiac(signal, sampling_rate=1000, data_type="ppg"):
     """
     Process cardiac signal.
 
@@ -264,21 +146,18 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
 
     Parameters
     ----------
-    signal_raw : array
-        Raw PPG/ECG signal.
     signal_cleaned : array
         Cleaned PPG/ECG signal.
     sampling_rate : int
-        The sampling frequency of `signal_raw` (in Hz, i.e., samples/second).
-        Defaults to 10000.
+        The sampling frequency of `signal` (in Hz, i.e., samples/second).
+        Defaults to 1000.
     data_type : str
-        Precise the type of signal to be processed. The function currently
-        support PPG and ECG signal processing.
-        Default to 'PPG'.
+        Precise the type of signal to be processed (`ppg` or `ecg`).
+        Default to 'ppg'.
 
     Returns
     -------
-    signals : DataFrame
+    timeseries : pd.DataFrame
         A DataFrame containing the cleaned PPG/ECG signals.
         - the raw signal.
         - the cleaned signal.
@@ -287,234 +166,104 @@ def process_cardiac(signal_raw, signal_cleaned, sampling_rate=10000, data_type="
     info : dict
         Dictionary containing list of intervals between peaks.
     """
-    # Find peaks
-    print("Neurokit processing started")
-    if data_type in ["ecg", "ECG"]:
-        _, info = ecg_peaks(
-            ecg_cleaned=signal_cleaned,
-            sampling_rate=sampling_rate,
-            method="promac",
-            correct_artifacts=False,
-        )
-        info["ECG_Peaks"] = info["ECG_R_Peaks"]
-        info["ECG_Clean_Peaks_NK"] = nk.signal_fixpeaks(
-            peaks=info["ECG_Peaks"],
-            sampling_rate=sampling_rate,
-            interval_min=0.5,
-            interval_max=1.5,
-            method="neurokit",
-        )
-    elif data_type in ["ppg", "PPG"]:
-        info = ppg_findpeaks(
-            signal_cleaned, sampling_rate=sampling_rate, method="elgendi"
-        )
-        print("Neurokit found peaks")
-        info["PPG_Clean_Peaks_NK"] = signal_fixpeaks(
-            info["PPG_Peaks"],
-            sampling_rate=sampling_rate,
-            interval_min=0.5,
-            interval_max=1.5,
-            method="neurokit",
-        )
-        print("Neurokit fixed peaks")
-
-    else:
-        print("Please use a valid data type: 'ECG' or 'PPG'")
-
-    print("Formatting peaks into signal")
-    peak_list_nk = _signal_from_indices(
-        info[f"{data_type.upper()}_Peaks"], desired_length=len(signal_cleaned)
-    )
-    print("Formatting Peaks signal into RR timeseries")
-    # peak to intervals
-    rr = input_conversion(
-        info[f"{data_type.upper()}_Peaks"],
-        input_type="peaks_idx",
-        output_type="rr_ms",
-        sfreq=sampling_rate,
-    )
-
-    # correct beat detection
-    corrected, (nMissed, nExtra, nEctopic, nShort, nLong) = correct_rr(rr)
-    corrected_peaks = correct_peaks(peak_list_nk, n_iterations=4)
-    print("systole corrected RR and Peaks series")
-    # Compute rate based on peaks
-    rate = signal_rate(
-        info[f"{data_type.upper()}_Clean_Peaks_NK"],
-        sampling_rate=sampling_rate,
-        desired_length=len(signal_cleaned),
-    )
-
-    # sanitize info dict
-    info.update(
-        {
-            f"{data_type.upper()}_ectopic": nEctopic,
-            f"{data_type.upper()}_short": nShort,
-            f"{data_type.upper()}_long": nLong,
-            f"{data_type.upper()}_extra": nExtra,
-            f"{data_type.upper()}_missed": nMissed,
-            f"{data_type.upper()}_Clean_RR_Systole": corrected.tolist(),
-        }
-    )
-    # Prepare output
-    signals = pd.DataFrame(
-        {
-            f"{data_type.upper()}_Raw": signal_raw,
-            f"{data_type.upper()}_Clean": signal_cleaned,
-            f"{data_type.upper()}_Peaks_NK": peak_list_nk,
-            f"{data_type.upper()}_Peaks_Systole": corrected_peaks["clean_peaks"],
-            f"{data_type.upper()}_Rate": rate,
-        }
-    )
-
-    return signals, info
-
-
-def ppg_process(ppg_raw, sampling_rate=10000, downsampling_rate=1000):
-    """
-    Process PPG signal.
-
-    Custom processing function for neuromod PPG acquisition.
-
-    Parameters
-    ----------
-    ppg_raw : vector
-        The raw PPG channel.
-    sampling_rate : int
-        The sampling frequency of `ppg_raw` (in Hz, i.e., samples/second).
-        Default to 10000.
-    downsampling_rate : int
-        The sampling frequency to use to downsample the signals
-        (in Hz, i.e., samples/second). If None, the signals are not downsampled.
-        Default to 1000.
-
-    Returns
-    -------
-    signals : DataFrame
-        A DataFrame containing the cleaned ppg signals.
-        - *"PPG_Raw"*: the raw signal.
-        - *"PPG_Clean"*: the cleaned signal.
-        - *"PPG_Rate"*: the heart rate as measured based on PPG peaks.
-        - *"PPG_Peaks"*: the PPG peaks marked as "1" in a list of zeros.
-    info : dict
-        Dictionary containing list of intervals between peaks.
-    """
-    ppg_signal = as_vector(ppg_raw)
-
-    # Prepare signal for processing
-    print("Cleaning PPG")
-    ppg_signal, ppg_cleaned = neuromod_ppg_clean(
-        ppg_signal, sampling_rate=sampling_rate, downsampling=downsampling_rate
-    )
-    print("PPG Cleaned")
-    # Process clean signal
     try:
-        if downsampling_rate is None:
-            signals, info = process_cardiac(
-                ppg_signal,
-                ppg_cleaned,
+        # Find peaks
+        print("Neurokit processing started")
+        if data_type.lower() in ["ecg", "cardiac_ecg"]:
+            _, info = ecg_peaks(
+                ecg_cleaned=signal,
                 sampling_rate=sampling_rate,
-                data_type="PPG",
+                method="promac",
+                correct_artifacts=False,
             )
-            info["SamplingFrequency"] = sampling_rate
+            # Rename Peaks key
+            info["Peaks"] = info["ECG_R_Peaks"]
+            # Remove duplicated info
+            del info["ECG_R_Peaks"]
+            del info["sampling_rate"]
+            # Correct peaks
+            info["CleanPeaksNK"] = signal_fixpeaks(
+                peaks=info["Peaks"],
+                sampling_rate=sampling_rate,
+                interval_min=0.5,
+                interval_max=1.5,
+                method="neurokit",
+            )
+        elif data_type.lower() in ["ppg", "cardiac_ppg"]:
+            info = ppg_findpeaks(signal, sampling_rate=sampling_rate, method="elgendi")
+            info["Peaks"] = info["PPG_Peaks"]
+            # Rename Peaks key
+            del info["PPG_Peaks"]
+            print("Neurokit found peaks")
+            info["CleanPeaksNK"] = signal_fixpeaks(
+                info["Peaks"],
+                sampling_rate=sampling_rate,
+                interval_min=0.5,
+                interval_max=1.5,
+                method="neurokit",
+            )
+            print("Neurokit fixed peaks")
+
         else:
-            signals, info = process_cardiac(
-                ppg_signal,
-                ppg_cleaned,
-                sampling_rate=downsampling_rate,
-                data_type="PPG",
-            )
-            info["SamplingFrequency"] = downsampling_rate
+            raise ValueError("Please use a valid data type: 'ecg' or 'ppg'")
+
+        print("Formatting peaks into signal")
+        peak_list_nk = _signal_from_indices(info["Peaks"], desired_length=len(signal))
+        print("Formatting Peaks signal into RR timeseries")
+        # peak to intervals
+        rr = input_conversion(
+            info["Peaks"],
+            input_type="peaks_idx",
+            output_type="rr_ms",
+            sfreq=sampling_rate,
+        )
+
+        # correct beat detection
+        corrected, (nMissed, nExtra, nEctopic, nShort, nLong) = correct_rr(rr)
+        corrected_peaks = correct_peaks(peak_list_nk, n_iterations=4)
+        print("systole corrected RR and Peaks series")
+        # Compute rate based on peaks
+        rate = signal_rate(
+            info["CleanPeaksNK"],
+            sampling_rate=sampling_rate,
+            desired_length=len(signal),
+        )
+
+        # sanitize info dict
+        info.update(
+            {
+                "Ectopic": nEctopic,
+                "Short": nShort,
+                "Long": nLong,
+                "Extra": nExtra,
+                "Missed": nMissed,
+                "CleanRRSystole": corrected.tolist(),
+                "SamplingFrequency": sampling_rate,
+            }
+        )
+        # Prepare output
+        timeseries = pd.DataFrame(
+            {
+                f"{data_type.lower()}_clean": signal,
+                f"{data_type.lower()}_peaks_nk": peak_list_nk,
+                f"{data_type.lower()}_peaks_systole": corrected_peaks["clean_peaks"],
+                f"{data_type.lower()}_rate": rate,
+            }
+        )
+        # Renaming cols/keys
+        timeseries = rename_in_bids(timeseries)
+        info = rename_in_bids(info)
+
     except Exception:
-        print("ERROR in PPG processing procedure")
+        print(f"ERROR in {data_type} features extraction procedure")
         traceback.print_exc()
-        signals = pd.DataFrame({"PPG_Raw": ppg_signal, "PPG_Clean": ppg_cleaned})
+        timeseries = pd.DataFrame({f"{data_type.lower()}": signal})
         info = {"Processed": False}
 
-    return signals, info
+    return timeseries, info
 
 
-def ecg_process(
-    ecg_raw,
-    sampling_rate=10000,
-    downsampling_rate=1000,
-    method="bottenhorn",
-    me=True,
-):
-    """
-    Process ECG signal.
-
-    Custom processing for neuromod ECG acquisition.
-
-    Parameters
-    -----------
-    ecg_raw : vector
-        The raw ECG channel.
-    sampling_rate : int
-        The sampling frequency of `ecg_raw` (in Hz, i.e., samples/second).
-        Default to 10000.
-    downsampling_rate : int
-        The sampling frequency to use to downsample the signals
-        (in Hz, i.e., samples/second). If None, the signals are not downsampled.
-        Default to 1000.
-    method : str
-        The processing pipeline to apply.
-        Default to 'bottenhorn'.
-    mr : bool
-        True if MB-ME sequence was used. Otherwise, considered that the MB-SE
-        sequence was used.
-        Default to True.
-
-    Returns
-    -------
-    signals : DataFrame
-        A DataFrame containing the cleaned ecg signals.
-        - *"ECG_Raw"*: the raw signal.
-        - *"ECG_Clean"*: the cleaned signal.
-        - *"ECG_Rate"*: the heart rate as measured based on ECG peaks.
-    info : dict
-        Dictionary containing list of peaks.
-    """
-    ecg_signal = as_vector(ecg_raw)
-
-    # Prepare signal for processing
-    print("Cleaning ECG")
-    ecg_signal, ecg_cleaned = neuromod_ecg_clean(
-        ecg_signal,
-        sampling_rate=sampling_rate,
-        method=method,
-        me=me,
-        downsampling=downsampling_rate,
-    )
-    print("ECG Cleaned")
-    # Process clean signal
-    try:
-        if downsampling_rate is None:
-            signals, info = process_cardiac(
-                ecg_signal,
-                ecg_cleaned,
-                sampling_rate=sampling_rate,
-                data_type="ECG",
-            )
-            info["SamplingFrequency"] = sampling_rate
-        else:
-            signals, info = process_cardiac(
-                ecg_signal,
-                ecg_cleaned,
-                sampling_rate=downsampling_rate,
-                data_type="ECG",
-            )
-            info["SamplingFrequency"] = downsampling_rate
-    except Exception:
-        print("ERROR in ECG processing procedure")
-        traceback.print_exc()
-        signals = pd.DataFrame({"ECG_Raw": ecg_signal, "ECG_Clean": ecg_cleaned})
-        info = {"Processed": False}
-
-    return signals, info
-
-
-def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
+def extract_electrodermal(signal, sampling_rate=1000, method="neurokit"):
     """
     Process EDA signal.
 
@@ -522,19 +271,15 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
 
     Parameters
     -----------
-    eda_raw : vector
-        The raw EDA channel.
+    signal : vector
+        The EDA timeseries.
     sampling_rate : int
         The sampling frequency of `eda_raw` (in Hz, i.e., samples/second).
-        Default to 10000.
-    downsampling_rate : int
-        The sampling frequency to use to downsample the signals
-        (in Hz, i.e., samples/second). If None, the signals are not downsampled.
         Default to 1000.
 
     Returns
     -------
-    signals : DataFrame
+    timeseries : pd.DataFrame
         A DataFrame containing the cleaned eda signals.
         - *"EDA_Raw"*: the raw signal.
         - *"EDA_Clean"*: the clean signal.
@@ -543,62 +288,43 @@ def eda_process(eda_raw, sampling_rate=10000, downsampling_rate=1000):
     info : dict
         Dictionary containing a list of SCR peaks.
     """
-    eda_signal = as_vector(eda_raw)
-
-    # Prepare signal for processing
-    print("Cleaning EDA")
-    eda_signal, eda_cleaned = neuromod_eda_clean(
-        eda_signal, sampling_rate=sampling_rate, downsampling=downsampling_rate
-    )
-    print("EDA Cleaned")
-    # Process clean signal
     try:
-        if downsampling_rate is None:
-            signals, info = nk.eda_process(
-                eda_cleaned, sampling_rate=sampling_rate, method="neurokit"
-            )
-            info["SamplingFrequency"] = sampling_rate
-        else:
-            signals, info = nk.eda_process(
-                eda_cleaned, sampling_rate=downsampling_rate, method="neurokit"
-            )
-            info["SamplingFrequency"] = downsampling_rate
-        signals["EDA_Raw"] = eda_signal
+        timeseries, info = eda_process(signal, sampling_rate=sampling_rate, method=method)
+        info.update({"SamplingFrequency": sampling_rate})
+        # Remove duplicated info
+        del info["sampling_rate"]
+        # Renaming cols/keys
+        timeseries = rename_in_bids(timeseries)
+        info = rename_in_bids(info)
     except Exception:
-        print("ERROR in EDA processing procedure")
+        print("ERROR in EDA features extraction procedure")
         traceback.print_exc()
-        signals = pd.DataFrame({"EDA_Raw": eda_signal, "EDA_Clean": eda_cleaned})
+        timeseries = pd.DataFrame({"eda": signal})
         info = {"Processed": False}
 
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
             info[k] = info[k].tolist()
 
-    return signals, info
+    return timeseries, info
 
 
-def rsp_process(
-    rsp_raw, sampling_rate=10000, downsampling_rate=1000, method="khodadad2018"
-):
+def extract_respiratory(signal, sampling_rate=1000, method="khodadad2018"):
     """
     Parameters
     ----------
-    rsp_raw : vector
-        The raw RSP channel
+    signal : vector
+        The RESP timeseries.
     sampling_rate : int
         The sampling frequency of `eda_raw` (in Hz, i.e., samples/second).
         Default to 10000.
-    downsampling_rate : int
-        The sampling frequency to use to downsample the signals
-        (in Hz, i.e., samples/second). If None, the signals are not downsampled.
-        Default to 1000.
     method : str
         Method to use for processing.
         Default to 'khodadad2018'.
 
     Returns
     -------
-    signals : DataFrame
+    timeseries : pd.DataFrame
         A DataFrame containing the cleaned RSP signals.
     info : dict
         Dictionary containing a list of peaks and troughts.
@@ -613,61 +339,22 @@ def rsp_process(
     --------
     https://neuropsychology.github.io/NeuroKit/functions/rsp.html#preprocessing
     """
-    rsp_signal = as_vector(rsp_raw)
-
-    # Clean and filter respiratory signal
-    print("Cleaning RSP")
-    rsp_signal, rsp_cleaned = neuromod_rsp_clean(
-        rsp_signal, sampling_rate=sampling_rate, downsampling=downsampling_rate
-    )
-    # Process clean signal
-    print("Processing RSP")
     try:
-        if downsampling_rate is None:
-            signals, info = nk.rsp_process(
-                rsp_cleaned, sampling_rate=sampling_rate, method=method
-            )
-            info["SamplingFrequency"] = sampling_rate
-        else:
-            signals, info = nk.rsp_process(
-                rsp_cleaned, sampling_rate=downsampling_rate, method=method
-            )
-            info["SamplingFrequency"] = downsampling_rate
-        signals["RSP_Raw"] = rsp_signal
-        print("RSP Cleaned and processed")
+        timeseries, info = rsp_process(signal, sampling_rate=sampling_rate, method=method)
+        info.update({"SamplingFrequency": sampling_rate})
+        # Remove duplicated info
+        del info["sampling_rate"]
+        # Renaming cols/keys
+        timeseries = rename_in_bids(timeseries)
+        info = rename_in_bids(info)
     except Exception:
-        print("ERROR in RSP processing procedure")
+        print("ERROR in RESP features extraction procedure")
         traceback.print_exc()
-        signals = pd.DataFrame({"RSP_Raw": rsp_signal, "RSP_Clean": rsp_cleaned})
+        timeseries = pd.DataFrame({"resp": signal})
         info = {"Processed": False}
 
     for k in info.keys():
         if isinstance(info[k], np.ndarray):
             info[k] = info[k].tolist()
 
-    return signals, info
-
-
-@click.command()
-@click.argument("source", type=str)
-@click.argument("outdir", type=str)
-@click.argument("sub", type=str)
-@click.argument("multi_echo", type=bool)
-def parallel_neuromod_bio_process(source, sub, outdir, multi_echo):
-    num_cpus = multiprocessing.cpu_count()
-    num_cpus = round(num_cpus / 3)
-    pool = multiprocessing.Pool(processes=num_cpus)
-    sessions = [
-        os.path.basename(name) for name in glob.glob(os.path.join(source, sub, "ses-*"))
-    ]
-    print(sessions)
-    args = [(source, sub, ses, outdir, multi_echo) for ses in sorted(sessions)]
-    pool.map(process_session, args)
-
-    pool.close()
-    pool.join()
-
-
-if __name__ == "__main__":
-    # neuromod_bio_process()
-    parallel_neuromod_bio_process()
+    return timeseries, info
