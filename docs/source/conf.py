@@ -40,7 +40,7 @@ html_context = {
     "github_user": "me-pic",
     "github_repo": "physprep",
     "github_version": "docs/setup",
-    "conf_py_path": "https://github.com/me-pic/physprep/tree/main/docs/source",
+    "conf_py_path": "https://github.com/courtois-neuromod/physprep/tree/main/docs/source",
 }
 html_static_path = ["_static"]
 
