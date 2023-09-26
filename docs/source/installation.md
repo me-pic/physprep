@@ -2,10 +2,10 @@
 
 ## Cloning the project from Github
 
-1. Fork the repository from github and clone the project:
+1. Clone the project:
 
 ```bash
-git clone git@github.com:<your_username>/physprep.git
+git clone git@github.com:courtois-neuromod/physprep.git
 ```
 
 2. Create a virtual environment:

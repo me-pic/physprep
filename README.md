@@ -4,26 +4,24 @@
 [![Documentation Status](https://readthedocs.org/projects/physprep/badge/?version=latest)](https://physprep.readthedocs.io/en/latest/?badge=latest)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-This standalone repository acts as use-case documentation for physiological data processing steps. The proposed workflow integrates community-based Python libraries such as [phys2bids](https://github.com/physiopy/phys2bids) and [neurokit2](https://github.com/neuropsychology/NeuroKit).
+:construction: This project is under active development. :construction:
 
-The repo is separated in three main modules, and provides a setp-by-step tutorial for each of them:
+## Description
 
-`utils\`
-1. `list_sub.py`: list all the physiological files for a given subject (and a given session).
-2. `get_info.py`: retrieve physiological files information.
-3. `match_acq_bids.py`: match Acqknowledge files (.acq) with the fMRI Nifti files (.nii.gz).
+Peripheral biosignals are valuable for capturing fluctuations in cognitive and affective states, making it possible to characterize brain-body interactions in neuroimaging setup. The relevance of these measures when acquiring neuroimaging data and the subsequent increase in the amount of data processing highlight the importance of establishing reliable processing and reporting practices for biosignals acquired in magnetic resonance (MR) context, but a standardized head-to-tail workflow has yet to be proposed. Physprep is an open-source tool to prepare biosignals for analysis. This workflow presents itself as user-friendly and flexible by providing customization options through configuration files. The (pre-)processing of cardiac signals (ECG and PPG), electrodermal signals (EDA), and respiratory signals is currently supported.
 
-`processing\`
-1. `convert.py`: use [phys2bids](https://github.com/physiopy/phys2bids) to segment the acqknowledge files in runs following the BIDS format.
-2. `clean.py`: implement functions to filter the physiological signals, and to remove the artifacts induced by the MRI.
-3. `process.py`: build a processing pipeline based on `clean.py` functions.
+## Quick start
 
-`quality\`
-1. `report.py`: provide a summary of the quality of the processed signal.
-2. `time.py`: provide quantitative metrics computed on the time domain
-3. `frequency.py`: provide quantitative metrics computed on the frequency domain
+Clone the project and create a virtual environment !
+```
+git clone git@github.com:courtois-neuromod/physprep.git
 
-`visu\` :construction_worker:
+python3 -m venv <venv_name>
+source <venv_name>/bin/activate
 
-## Acqknowlegments
+cd physprep
+pip install .
+```
+
+## Acknowlegments
 Thanks to the generous data donation from a subject of the [Courtois-Neuromod project](https://www.cneuromod.ca/), research communities like [PhysioPy](https://physiopy.github.io/) will benefit from common data access to test and optimize their physio data preparation workflows, using [BIDS](https://bids-specification.readthedocs.io/en/stable/04-modality-specific-files/06-physiological-and-other-continuous-recordings.html) format.
