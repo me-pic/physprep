@@ -35,7 +35,7 @@ def order_channels(acq_channels, metadata_physio):
     for idx, channel in enumerate(acq_channels):
         found = False
         for key in metadata_physio:
-            if channel == metadata_physio[key]["channel"]:
+            if channel == metadata_physio[key]["Channel"]:
                 ch_names.append(key)
                 chsel.append(idx + 1)
                 found = True
