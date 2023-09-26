@@ -4,7 +4,7 @@
 [![Documentation Status](https://readthedocs.org/projects/physprep/badge/?version=latest)](https://physprep.readthedocs.io/en/latest/?badge=latest)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-:construction: This project is under active development. :construction:
+:construction: This project is under **active** development. :construction:
 
 ## Description
 
@@ -27,6 +27,6 @@ pip install .
 
 We want to give credits to the developers of the libraries on which Physprep mainly relies, namely:
 
-* [Phys2Bids](https://github.com/physiopy/phys2bids) and the [Physiopy community](https://physiopy.github.io/) :raised_hands:
-* [NeuroKit2](https://github.com/neuropsychology/NeuroKit) :sparkles:
-* [Systole](https://github.com/embodied-computation-group/systole) :anatomical_heart:
+:raised_hands:  [Phys2Bids](https://github.com/physiopy/phys2bids) and the [Physiopy community](https://physiopy.github.io/)
+:sparkles:  [NeuroKit2](https://github.com/neuropsychology/NeuroKit)
+:anatomical_heart:  [Systole](https://github.com/embodied-computation-group/systole)
