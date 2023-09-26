@@ -24,4 +24,9 @@ pip install .
 ```
 
 ## Acknowlegments
-Thanks to the generous data donation from a subject of the [Courtois-Neuromod project](https://www.cneuromod.ca/), research communities like [PhysioPy](https://physiopy.github.io/) will benefit from common data access to test and optimize their physio data preparation workflows, using [BIDS](https://bids-specification.readthedocs.io/en/stable/04-modality-specific-files/06-physiological-and-other-continuous-recordings.html) format.
+
+We want to give credits to the developers of the libraries on which Physprep mainly relies, namely:
+
+* [Phys2Bids](https://github.com/physiopy/phys2bids) and the [Physiopy community](https://physiopy.github.io/) :raised_hands:
+* [NeuroKit2](https://github.com/neuropsychology/NeuroKit) :sparkles:
+* [Systole](https://github.com/embodied-computation-group/systole) :anatomical_heart:
