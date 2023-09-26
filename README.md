@@ -27,6 +27,6 @@ pip install .
 
 We want to give credits to the developers of the libraries on which PhysPrep mainly relies, namely:
 
-    :raised_hands:  [Phys2Bids](https://github.com/physiopy/phys2bids) and the [Physiopy community](https://physiopy.github.io/) <br>
-    :sparkles:  [NeuroKit2](https://github.com/neuropsychology/NeuroKit) <br>
-    :anatomical_heart:  [Systole](https://github.com/embodied-computation-group/systole)
+&ensp; &nbsp; &nbsp; &nbsp; :raised_hands:  [Phys2Bids](https://github.com/physiopy/phys2bids) and the [Physiopy community](https://physiopy.github.io/) <br>
+&ensp; &nbsp; &nbsp; &nbsp; :sparkles:  [NeuroKit2](https://github.com/neuropsychology/NeuroKit) <br>
+&ensp; &nbsp; &nbsp; &nbsp; :anatomical_heart:  [Systole](https://github.com/embodied-computation-group/systole)
