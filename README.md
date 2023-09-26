@@ -28,5 +28,7 @@ pip install .
 We want to give credits to the developers of the libraries on which Physprep mainly relies, namely:
 
 :raised_hands:  [Phys2Bids](https://github.com/physiopy/phys2bids) and the [Physiopy community](https://physiopy.github.io/)
+
 :sparkles:  [NeuroKit2](https://github.com/neuropsychology/NeuroKit)
+
 :anatomical_heart:  [Systole](https://github.com/embodied-computation-group/systole)
