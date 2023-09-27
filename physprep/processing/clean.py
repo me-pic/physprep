@@ -192,7 +192,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
     for step in preprocessing:
         if step["step"] == "filtering":
             if step["parameters"]["method"] == "notch":
-                signal = _comb_band_stop(signal, sampling_rate, step["parameters"])
+                signal = comb_band_stop(signal, sampling_rate, step["parameters"])
             else:
                 signal = nk.signal_filter(
                     signal, sampling_rate=sampling_rate, **step["parameters"]
@@ -216,7 +216,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
     return raw, signal, sampling_rate
 
 
-def _comb_band_stop(data, sampling_rate, params):
+def comb_band_stop(data, sampling_rate, params):
     """
     Series of notch filters aligned with the scanner gradient's harmonics.
 
