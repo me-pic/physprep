@@ -192,7 +192,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
     for step in preprocessing:
         if step["step"] == "filtering":
             if step["parameters"]["method"] == "notch":
-                pass  # TODO: implement notch filtering
+                signal = _comb_band_stop(signal, sampling_rate, step["parameters"])
             else:
                 signal = nk.signal_filter(
                     signal, sampling_rate=sampling_rate, **step["parameters"]
@@ -216,159 +216,19 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
     return raw, signal, sampling_rate
 
 
-# =============================================================================
-# ECG internal : biopac recommendations
-# =============================================================================
-def _ecg_clean_biopac(ecg_signal, sampling_rate=10000.0, tr=1.49, slices=60, Q=100):
-    """
-    Single-band sequence gradient noise reduction.
-
-    This function is a reverse-engineered appropriation of BIOPAC's
-    application note 242. It only applies to signals polluted by single-band
-    (f)MRI sequence.
-
-    Parameters
-    ----------
-    ecg_signal : array
-        The ECG channel.
-    sampling_rate: float
-        The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
-        Default to 10000.
-    tr : int
-        The time Repetition of the MRI scanner.
-        Default to 1.49.
-    slices :
-        The number of volumes acquired in the tr period.
-        Default to 60.
-    Q : int
-        The filter quality factor.
-        Default to 100.
-
-    Returns
-    -------
-    ecg_clean : array
-        The cleaned ECG signal.
-
-    References
-    ----------
-    Biopac Systems, Inc. Application Notes: application note 242
-        ECG Signal Processing During fMRI
-        https://www.biopac.com/wp-content/uploads/app242x.pdf
-    """
-    # Setting scanner sequence parameters
-    nyquist = np.float64(sampling_rate / 2)
-    notches = {"slices": slices / tr, "tr": 1 / tr}
-    # remove baseline wandering
-    ecg_clean = nk.signal_filter(
-        ecg_signal,
-        sampling_rate=int(sampling_rate),
-        lowcut=2,
-    )
-    # Filtering at specific harmonics
-    ecg_clean = _comb_band_stop(notches, nyquist, ecg_clean, Q)
-    # bandpass filtering
-    ecg_clean = nk.signal_filter(
-        ecg_clean,
-        sampling_rate=sampling_rate,
-        lowcut=2,
-        highcut=20,
-        method="butter",
-        order=5,
-    )
-
-    return ecg_clean
-
-
-def _ecg_clean_bottenhorn(
-    ecg_signal,
-    sampling_rate=10000.0,
-    tr=1.49,
-    mb=4,
-    slices=60,
-    Q=100,
-    comb=False,
-):
-    """
-    Multiband sequence gradient noise reduction.
-
-    Parameters
-    ----------
-    ecg_signal : array
-        The ECG channel.
-    sampling_rate : float
-        The sampling frequency of `ecg_signal` (in Hz, i.e., samples/second).
-        Default to 10000.
-    tr : float
-        The time Repetition of the MRI scanner.
-        Default to 1.49.
-    mb : 4
-        The multiband acceleration factor.
-        Default to 4.
-    slices : int
-        The number of volumes acquired in the tr period.
-        Default to 60.
-    Q : int
-        The filter quality factor.
-        Default to 100.
-
-    Returns
-    -------
-    ecg_clean : array
-        The cleaned ECG signal.
-
-    References
-    ----------
-    Bottenhorn, K. L., Salo, T., Riedel, M. C., Sutherland, M. T.,
-        Robinson, J. L., Musser, E. D., & Laird, A. R. (2021).
-        Denoising physiological data collected during multi-band,
-        multi-echo EPI sequences. bioRxiv, 2021-04.
-        https://doi.org/10.1101/2021.04.01.437293
-
-    See also
-    --------
-    https://neuropsychology.github.io/NeuroKit/_modules/neurokit2/signal/signal_filter.html#signal_filter
-    """
-    # Setting scanner sequence parameters
-    nyquist = np.float64(sampling_rate / 2)
-    notches = {"slices": slices / mb / tr, "tr": 1 / tr}
-
-    # Remove low frequency artefacts: respiration & baseline wander using high
-    # pass butterworth filter (order=2)
-    print("... Applying high pass filter.")
-    ecg_clean = nk.signal_filter(
-        ecg_signal, sampling_rate=sampling_rate, lowcut=2, method="butter"
-    )
-    # Filtering at fundamental and specific harmonics per Biopac application
-    # note #265
-    if comb:
-        print("... Applying notch filter.")
-        ecg_clean = _comb_band_stop(notches, nyquist, ecg_clean, Q)
-    # Low pass filtering at 40Hz per Biopac application note #242
-    print("... Applying low pass filtering.")
-    ecg_clean = nk.signal_filter(ecg_clean, sampling_rate=sampling_rate, highcut=40)
-
-    return ecg_clean
-
-
-# =============================================================================
-# General functions
-# =============================================================================
-
-
-def _comb_band_stop(notches, nyquist, filtered, Q):
+def _comb_band_stop(data, sampling_rate, params):
     """
     Series of notch filters aligned with the scanner gradient's harmonics.
 
     Parameters
     ----------
-    notches : dict
-        Frequencies to use in the IIR notch filter.
-    nyquist : float
-        The Nyquist frequency.
-    filtered : array
-        Data to be filtered.
-    Q : int
-        The filter quality factor.
+    data : array
+        The signal to be filtered.
+    sampling_rate : float
+        The sampling frequency of `signal` (in Hz, i.e., samples/second).
+    params : dict
+        The parameters of the scanner sequence (i.e. `tr`, `slices` and `mb` if
+        `notch_method` is 'bottenhorn').
 
     Returns
     -------
@@ -380,17 +240,32 @@ def _comb_band_stop(notches, nyquist, filtered, Q):
     Biopac Systems, Inc. Application Notes: application note 242
         ECG Signal Processing During fMRI
         https://www.biopac.com/wp-content/uploads/app242x.pdf
+    Bottenhorn, K. L., Salo, T., Riedel, M. C., Sutherland, M. T.,
+        Robinson, J. L., Musser, E. D., & Laird, A. R. (2021).
+        Denoising physiological data collected during multi-band,
+        multi-echo EPI sequences. bioRxiv, 2021-04.
+        https://doi.org/10.1101/2021.04.01.437293
 
     See also
     --------
     https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.filtfilt.html
     https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.iirnotch.html
     """
+    # Setting scanner sequence parameters
+    nyquist = np.float64(sampling_rate / 2)
+    tr = params["tr"]
+    slices = params["slices"]
+    Q = params["Q"]
+    if params["notch_method"] == "biopac":
+        notches = {"slices": slices / tr, "tr": 1 / tr}
+    elif params["notch_method"] == "bottenhorn":
+        mb = params["mb"]
+        notches = {"slices": slices / mb / tr, "tr": 1 / tr}
     # band stopping each frequency specified with notches dict
     for notch in notches:
         for i in np.arange(1, int(nyquist / notches[notch])):
             f0 = notches[notch] * i
             w0 = f0 / nyquist
             b, a = signal.iirnotch(w0, Q)
-            filtered = signal.filtfilt(b, a, filtered)
-    return filtered
+            data = signal.filtfilt(b, a, data)
+    return data
