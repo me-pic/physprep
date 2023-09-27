@@ -77,7 +77,7 @@ An helper function is provided in the `utils` module to create a customized work
 configuration file:
 
 ```python
-from utils import create_config_workflow
+from physprep.utils import create_config_workflow
 
 # Check the function documentation
 help(create_config_workflow)
@@ -115,7 +115,7 @@ Users also have the possibility to create their own preprocessing configuration 
 the `create_config_preprocessing` function from the utils module:
 
 ```python
-from utils import create_config_preprocessing
+from physprep.utils import create_config_preprocessing
 
 # Check the function documentation
 help(create_config_preprocessing)
