@@ -4,12 +4,8 @@
 Neuromod cleaning utilities.
 """
 
-import pickle
-from pathlib import Path
-
 import neurokit2 as nk
 import numpy as np
-import pandas as pd
 from scipy import signal
 
 from physprep import utils
@@ -46,6 +42,7 @@ def preprocessing_workflow(
 
     # Iterate over content of `workflow_strategy`
     for signal_type in workflow_strategy:
+        print(f"Preprocessing {signal_type}...\n")
         if signal_type != "trigger":
             if "preprocessing_strategy" in workflow_strategy[
                 signal_type
@@ -92,31 +89,9 @@ def preprocessing_workflow(
 
     if save:
         print("Saving preprocessed signals...\n")
-        # Save preprocessed signal
-        if outdir is not None:
-            outdir = Path(outdir)
-            outdir.mkdir(parents=True, exist_ok=True)
-        else:
-            print(
-                "WARNING! No output directory specified. Data will be saved in the "
-                f"current working directory: {Path.cwd()}"
-            )
-            outdir = Path.cwd()
-        for clean_signal in clean_signals:
-            name = clean_signal.replace("_", "-")
-            filename_signal = filename.replace("physio", f"desc-preproc_{name}")
-            df_signal = pd.DataFrame(clean_signals[clean_signal])
-            df_signal.to_csv(
-                Path(outdir / filename_signal).with_suffix(".tsv.gz"),
-                sep="\t",
-                index=False,
-                compression="gzip",
-            )
-
-            # Save metadata on filtered signals
-            with open(Path(outdir / filename_signal).with_suffix(".json"), "wb") as f:
-                pickle.dump(metadata_derivatives[clean_signal], f, protocol=4)
-                f.close()
+        utils.save_processing(
+            outdir, filename, "desc-preproc", clean_signals, metadata_derivatives
+        )
         print("Preprocessed signals saved.\n")
 
         return clean_signals, metadata_derivatives
@@ -190,6 +165,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
     preprocessing = utils.get_config(preprocessing_strategy, strategy="preprocessing")
     # Iterate over preprocessing steps as defined in the configuration file
     for step in preprocessing:
+        print(f"   Applying {step['step']}\n")
         if step["step"] == "filtering":
             if step["parameters"]["method"] == "notch":
                 signal = comb_band_stop(signal, sampling_rate, step["parameters"])
@@ -212,6 +188,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
                 "preprocessing strategy is properly defined. For more "
                 "details, please refer to the Physprep documentation."
             )
+        print(f"   {step} done !\n")
 
     return raw, signal, sampling_rate
 

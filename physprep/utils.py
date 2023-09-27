@@ -143,6 +143,47 @@ def load_json(filename):
     return data
 
 
+def save_processing(outdir, filename, descriptor, timeseries, info):
+    """
+    outdir: str or pathlib.Path
+        Path to the directory where the preprocessed physiological data will be saved.
+    filename: str
+        Filename to use to save the output
+    descriptor; str
+        Descriptor that will be used for filename
+    timeseries: dict
+        Dictionary containing the timeseries for each signal.
+    info: dict
+        Dictionary containing the info for each signal
+    """
+    # Save preprocessed signal
+    if outdir is not None:
+        outdir = Path(outdir)
+        outdir.mkdir(parents=True, exist_ok=True)
+    else:
+        print(
+            "WARNING! No output directory specified. Data will be saved in the "
+            f"current working directory: {Path.cwd()}\n"
+        )
+        outdir = Path.cwd()
+    # Iterating through signal types
+    for timeserie in timeseries:
+        name = timeserie.replace("_", "-")
+        filename_signal = filename.replace("physio", f"{descriptor}_{name}")
+        df_timeseries = pd.DataFrame(timeseries[timeserie])
+        # Save timeseries
+        df_timeseries.to_csv(
+            Path(outdir / filename_signal).with_suffix(".tsv.gz"),
+            sep="\t",
+            index=False,
+            compression="gzip",
+        )
+        # Save info
+        with open(Path(outdir, filename_signal).with_suffix(".json"), "wb") as f:
+            pickle.dump(info[timeserie], f, protocol=4)
+            f.close()
+
+
 def create_config_preprocessing(outdir, filename, overwrite=False):
     """
     Generate a configuration file for the preprocessing strategy based on the user inputs.

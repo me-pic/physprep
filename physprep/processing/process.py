@@ -4,7 +4,6 @@
 Neuromod processing utilities.
 """
 
-import pickle
 import timeit
 import traceback
 from pathlib import Path
@@ -24,7 +23,7 @@ from neurokit2.signal.signal_formatpeaks import _signal_from_indices
 from systole.correction import correct_peaks, correct_rr
 from systole.utils import input_conversion
 
-from physprep.utils import load_json, rename_in_bids
+from physprep.utils import load_json, rename_in_bids, save_processing
 
 
 def features_extraction_workflow(
@@ -50,6 +49,11 @@ def features_extraction_workflow(
     save : bool
         Specify if the preprocessed signals should be saved.
         Default to True.
+
+    Returns
+    -------
+    timeseries
+    info_dict
     """
     timeseries = {}
     info_dict = {}
@@ -77,7 +81,7 @@ def features_extraction_workflow(
                 raise ValueError(f"Signal type {signal_type} not found in the data.")
 
             signal = as_vector(signal[f"{signal_type}_clean"])
-            print(f"***{signal_type} features extraction: begin***\n")
+            print(f"Extracting features for {signal_type}...\n")
             start_time = timeit.default_timer()
 
             if signal_type.lower() in ["ecg", "cardiac_ecg", "ppg", "cardiac_ppg"]:
@@ -96,38 +100,16 @@ def features_extraction_workflow(
             timeseries.update({signal_type: timeserie.to_dict("list")})
             info_dict.update({signal_type: info})
 
-            end_time = timeit.default_timer() - start_time
-            print(f"***{signal_type} features extraction: done in {end_time} sec***\n")
+            end_time = np.round(timeit.default_timer() - start_time, 2)
+            print(f"{signal_type} features extraction: done in {end_time} sec***\n")
 
     # Save derivatives
     if save:
         print("Saving extracted features...\n")
-        # Save preprocessed signal
-        if outdir is not None:
-            outdir = Path(outdir)
-            outdir.mkdir(parents=True, exist_ok=True)
-        else:
-            print(
-                "WARNING! No output directory specified. Data will be saved in the "
-                f"current working directory: {Path.cwd()}\n"
-            )
-            outdir = Path.cwd()
+        save_processing(outdir, filename, "desc-features", timeseries, info_dict)
         # Save timeseries
         for timeserie in timeseries:
-            name = timeserie.replace("_", "-")
-            filename_signal = filename.replace("physio", f"desc-features_{name}")
-            df_timeserie = pd.DataFrame(timeseries[timeserie])
-            df_timeserie.to_csv(
-                Path(outdir / filename_signal).with_suffix(".tsv.gz"),
-                sep="\t",
-                index=False,
-                compression="gzip",
-            )
-            timeseries[timeserie] = df_timeserie
-            # Save info_dict
-            with open(Path(outdir, filename_signal).with_suffix(".json"), "wb") as f:
-                pickle.dump(info_dict[timeserie], f, protocol=4)
-                f.close()
+            timeseries[timeserie] = pd.DataFrame(timeseries[timeserie])
         print("Extracted features saved. \n")
 
     return timeseries, info_dict
