@@ -1,7 +1,46 @@
 # Usage Notes
 
 ```bash
-usage: physprep [-h]
+usage: physprep [--help] [--workflow_strategy WORKFLOW_STRATEGY] [--indir_bids INDIR_BIDS] [--sub SUB]
+                [--ses SES] [--indir_raw_physio INDIR_RAW_PHYSIO] [--skip_match_acq_bids]
+                [--skip_convert] [--padding PADDING]
+
+Preprocess raw physiological data acquired in MRI, extract features, and
+generate quality report.
+
+Required:
+  workflow strategy        Name of the workflow_strategy if using a preset.
+                           It is also possible to use a custom file by
+                           providing the path to a JSON file containing
+                           workflow strategy. In that case, please check
+                           Physprep documentation to make sure your file is
+                           properly formatted.
+  indir_bids               Path to the directory containing the BIDS-like
+                           dataset.
+  sub                      Subject label.
+
+Options:
+  --ses TEXT               Session label.
+  --indir_raw_physio PATH  Path to the directory containing the raw
+                           physiological data. Specify if raw
+                           physiological data is not in the BIDS
+                           directory. For more details, about the BIDS
+                           data structure, please refer to the
+                           documentation.
+  --skip_match_acq_bids    If specified, the workflow will not match the
+                           acq files with the bold files. If acq files are
+                           already organized properly, this flag can be
+                           specified. For more details, see the
+                           documentation of the mathc_acq_bids.py script.
+  --skip_convert           If specified, the workflow will not convert the
+                           physiological data recordings in BIDS format.
+                           This implies that the data is already segmented
+                           in runs, organized in a BIDS-like structure
+                           (i.e., one tsv.gz and one json file per run),
+                           and named following the BIDS recommandations.
+  --padding INTEGER        Time (in seconds) of padding to add at the
+                           beginning and end of each run. Default to 9.
+  --help                   Show this message and exit.
 ```
 
 ## Using configuration files
