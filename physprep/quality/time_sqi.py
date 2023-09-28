@@ -10,6 +10,14 @@ from scipy.stats import kurtosis, skew
 # Signal Quality Indices
 # ==================================================================================
 
+MAPPING_METRICS = {
+    "Mean": np.mean,
+    "SD": np.std,
+    "Median": np.median,
+    "Min": np.min,
+    "Max": np.max,
+}
+
 
 def sqi_cardiac_overview(info):
     """
@@ -36,18 +44,22 @@ def sqi_cardiac_overview(info):
         https://doi.org/10.21105/joss.03832
     """
     summary = {}
-
     # Descriptive indices on overall signal
-    summary["Ectopic"] = info["Ectopic"]
-    summary["Missed"] = info["Missed"]
-    summary["Extra"] = info["Extra"]
-    summary["Long"] = info["Long"]
-    summary["Short"] = info["Short"]
+    overview_metrics = ["Ectopic", "Missed", "Extra", "Long", "Short"]
+
+    for metric in overview_metrics:
+        if metric in info.keys():
+            summary.update({metric: info[metric]})
+        else:
+            print(
+                f"Warning: {metric} not found in the `info` dictionary. This metric "
+                "will thus not be reported."
+            )
 
     return summary
 
 
-def sqi_eda_overview(info, feature_quality="ScrOnsets", threshold=0):
+def sqi_eda_overview(feature_quality, threshold=0):
     """
     Report SQI on the overall processed EDA signal.
 
@@ -66,7 +78,7 @@ def sqi_eda_overview(info, feature_quality="ScrOnsets", threshold=0):
         Dictionary containing sqi values.
     """
     summary = {}
-    summary["Quality"] = threshold_sqi(len(info[feature_quality]), threshold, operator.gt)
+    summary["Quality"] = threshold_sqi(feature_quality, threshold, operator.gt)
 
     return summary
 
@@ -122,44 +134,17 @@ def sqi_cardiac(
         max_index = len(info[peaks])
 
     # Descriptive indices on NN intervals
-    summary["Mean_NN_intervals (ms)"] = np.round(
-        np.mean(info["CleanRRSystole"][min_index:max_index]), 4
-    )
-    summary["Median_NN_intervals (ms)"] = np.round(
-        np.median(info["CleanRRSystole"][min_index:max_index]),
-        4,
-    )
-    summary["SD_NN_intervals (ms)"] = np.round(
-        np.std(info["CleanRRSystole"][min_index:max_index], ddof=1),
-        4,
-    )
-    summary["Min_NN_intervals (ms)"] = np.round(
-        np.min(info["CleanRRSystole"][min_index:max_index]), 4
-    )
-    summary["Max_NN_intervals (ms)"] = np.round(
-        np.max(info["CleanRRSystole"][min_index:max_index]), 4
-    )
+    for metric in MAPPING_METRICS:
+        summary[f"{metric}_NN_intervals (ms)"] = np.round(
+            MAPPING_METRICS[metric](info["CleanRRSystole"][min_index:max_index]), 4
+        )
+
     # Descriptive indices on heart rate
-    summary["Mean_HR (bpm)"] = metrics_hr_sqi(
-        info["CleanRRSystole"][min_index:max_index],
-        metric="mean",
-    )
-    summary["Median_HR (bpm)"] = metrics_hr_sqi(
-        info["CleanRRSystole"][min_index:max_index],
-        metric="median",
-    )
-    summary["SD_HR (bpm)"] = metrics_hr_sqi(
-        info["CleanRRSystole"][min_index:max_index],
-        metric="std",
-    )
-    summary["Min_HR (bpm)"] = metrics_hr_sqi(
-        info["CleanRRSystole"][min_index:max_index],
-        metric="min",
-    )
-    summary["Max_HR (bpm)"] = metrics_hr_sqi(
-        info["CleanRRSystole"][min_index:max_index],
-        metric="max",
-    )
+    for metric in MAPPING_METRICS:
+        summary[f"{metric}_HR (bpm)"] = metrics_hr_sqi(
+            info["CleanRRSystole"][min_index:max_index],
+            metric=metric.lower(),
+        )
     # Descriptive indices on overall signal
     summary["Skewness"] = np.round(kurtosis(signal_cardiac), 4)
     summary["Kurtosis"] = np.round(skew(signal_cardiac), 4)
@@ -220,64 +205,34 @@ def sqi_eda(signal_eda, info, window=None):
     else:
         min_index = 0
         max_index = len(info["ScrPeaks"])
-
-    # Descriptive indices on overall signal
-    # summary["Minimal_range"] = minimal_range_sqi(
-    #    signal_eda["EDA_Clean"], threshold=0.05
-    # )
-    # summary["RAC"] = rac_sqi(signal_eda["EDA_Clean"], threshold=0.2, duration=2)
-    summary["Mean_EDA"] = np.round(np.mean(signal_eda["eda_clean"]), 4)
-    summary["Median_EDA"] = np.round(np.median(signal_eda["eda_clean"]), 4)
-    summary["SD_EDA"] = np.round(np.std(signal_eda["eda_clean"]), 4)
-    summary["Min_EDA"] = np.round(np.min(signal_eda["eda_clean"]), 4)
-    summary["Max_EDA"] = np.round(np.max(signal_eda["eda_clean"]), 4)
+    # Description indices on EDA
+    for metric in MAPPING_METRICS:
+        summary[f"{metric}_EDA"] = np.round(
+            MAPPING_METRICS[metric](signal_eda["eda_clean"]), 4
+        )
     # Descriptive indices on SCL
-    summary["Mean_SCL"] = np.round(np.mean(signal_eda["eda_tonic"]), 4)
-    summary["SD_SCL"] = np.round(np.std(signal_eda["eda_tonic"]), 4)
-    summary["Median_SCL"] = np.round(np.median(signal_eda["eda_tonic"]), 4)
-    summary["Min_SCL"] = np.round(np.min(signal_eda["eda_tonic"]), 4)
-    summary["Max_SCL"] = np.round(np.max(signal_eda["eda_tonic"]), 4)
+    for metric in MAPPING_METRICS:
+        summary[f"{metric}_SCL"] = np.round(
+            MAPPING_METRICS[metric](signal_eda["eda_tonic"]), 4
+        )
     # Descriptive indices on SCR
-    summary["Mean_SCR"] = np.round(np.mean(signal_eda["eda_phasic"]), 4)
-    summary["SD_SCR"] = np.round(np.std(signal_eda["eda_phasic"]), 4)
-    summary["Median_SCR"] = np.round(np.median(signal_eda["eda_phasic"]), 4)
-    summary["Min_SCR"] = np.round(np.min(signal_eda["eda_phasic"]), 4)
-    summary["Max_SCR"] = np.round(np.max(signal_eda["eda_phasic"]), 4)
+    for metric in MAPPING_METRICS:
+        summary[f"{metric}_SCR"] = np.round(
+            MAPPING_METRICS[metric](signal_eda["eda_phasic"]), 4
+        )
     # Descriptive indices on SCR
     if min_index != max_index and max_index != 0:
         summary["Number_of_detected_peaks"] = len(info["ScrPeaks"][min_index:max_index])
         # Descriptive indices on SCR rise time
-        summary["Mean_rise_time"] = np.round(
-            np.mean(info["ScrRisetime"][min_index:max_index]), 4
-        )
-        summary["SD_rise_time"] = np.round(
-            np.std(info["ScrRisetime"][min_index:max_index]), 4
-        )
-        summary["Median_rise_time"] = np.round(
-            np.median(info["ScrRisetime"][min_index:max_index]), 4
-        )
-        summary["Min_rise_time"] = np.round(
-            np.min(info["ScrRisetime"][min_index:max_index]), 4
-        )
-        summary["Max_rise_time"] = np.round(
-            np.max(info["ScrRisetime"][min_index:max_index]), 4
-        )
+        for metric in MAPPING_METRICS:
+            summary[f"{metric}_rise_time"] = np.round(
+                MAPPING_METRICS[metric](info["ScrRisetime"][min_index:max_index]), 4
+            )
         # Descriptive indices on SCR Recovery
-        summary["Mean_recovery_time"] = np.round(
-            np.mean(info["ScrRecoverytime"][min_index:max_index]), 4
-        )
-        summary["SD_recovery_time"] = np.round(
-            np.std(info["ScrRecoverytime"][min_index:max_index]), 4
-        )
-        summary["Median_recovery_time"] = np.round(
-            np.median(info["ScrRecoverytime"][min_index:max_index]), 4
-        )
-        summary["Min_recovery_time"] = np.round(
-            np.min(info["ScrRecoverytime"][min_index:max_index]), 4
-        )
-        summary["Max_recovery_time"] = np.round(
-            np.max(info["ScrRecoverytime"][min_index:max_index]), 4
-        )
+        for metric in MAPPING_METRICS:
+            summary[f"{metric}_recovery_time"] = np.round(
+                MAPPING_METRICS[metric](info["ScrRecoverytime"][min_index:max_index]), 4
+            )
     else:
         summary["Number_of_detected_peaks"] = 0
         summary["Mean_rise_time"] = np.nan
@@ -372,7 +327,7 @@ def metrics_hr_sqi(intervals, metric="mean"):
         metric_rr = np.round(np.mean(bpm), 4)
     elif metric == "median":
         metric_rr = np.round(np.median(bpm), 4)
-    elif metric == "std":
+    elif metric == "sd":
         metric_rr = np.round(np.std(bpm), 4)
     elif metric == "min":
         metric_rr = np.round(np.min(bpm), 4)

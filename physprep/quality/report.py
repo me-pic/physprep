@@ -61,7 +61,9 @@ def computing_sqi(
             print(f"***Computing quality metrics for {modality} signal***")
             try:
                 if modality in ["cardiac_ppg", "cardiac_ecg"]:
-                    summary[modality] = sqi_cardiac_overview(extracted_features[modality])
+                    summary[modality] = {
+                        "Overview": sqi_cardiac_overview(extracted_features[modality])
+                    }
                     summary[modality].update(
                         sqi_cardiac(
                             timeseries[f"{modality}_clean"],
@@ -69,11 +71,17 @@ def computing_sqi(
                         )
                     )
                 if modality == "electrodermal":
-                    summary[modality] = sqi_eda(
-                        timeseries[modality],
-                        extracted_features[modality],
+                    summary[modality] = {
+                        "Overview": sqi_eda_overview(
+                            len(extracted_features[modality]["ScrPeaks"])
+                        )
+                    }
+                    summary[modality].update(
+                        sqi_eda(
+                            timeseries[modality],
+                            extracted_features[modality],
+                        )
                     )
-                    summary[modality] = sqi_eda_overview(extracted_features[modality])
                 if modality == "respiratory":
                     summary[modality] = sqi_rsp(timeseries[modality])
             except Exception:
@@ -148,10 +156,12 @@ def computing_sqi(
                     }
                     summary[modality].update(summary_ecg)
                 elif modality == "electrodermal":
-                    summary[modality] = summary_eda
-                    summary[modality].update(
-                        {"Overview": sqi_eda_overview(extracted_features["EDA"])}
-                    )
+                    summary[modality] = {
+                        "Overview": sqi_eda_overview(
+                            len(extracted_features[modality]["ScrPeaks"])
+                        )
+                    }
+                    summary[modality].update(summary_eda)
                 elif modality == "respiratory":
                     summary[modality] = summary_rsp
 
@@ -231,10 +241,12 @@ def computing_sqi(
                     }
                     summary[modality].update(summary_ecg)
                 elif modality == "electrodermal":
-                    summary[modality] = summary_eda
-                    summary[modality].update(
-                        {"Overview": sqi_eda_overview(extracted_features[modality])}
-                    )
+                    summary[modality] = {
+                        "Overview": sqi_eda_overview(
+                            len(extracted_features[modality]["ScrPeaks"])
+                        )
+                    }
+                    summary[modality].update(summary_eda)
                 elif modality == "respiratory":
                     summary[modality] = summary_rsp
             except Exception:
@@ -331,7 +343,7 @@ def generate_report(workflow, summary, data, info, derivatives, filename, window
     html_report += generate_summary(workflow, filename)
     for k in summary.keys():
         html_report += f"""
-        <h1>{k} Signal</h1>
+        <h1>{k.capitalize()} signal</h1>
         """
         if window:
             if "Overview" in list(summary[k].keys()):

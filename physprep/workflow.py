@@ -89,9 +89,6 @@ def main(
 
         Path to the directory containing the BIDS-like dataset.
 
-    outdir : str or pathlib.Path
-        Path to the directory where the processed physiological data will be saved.
-
     sub : str
 
         Subject label.
