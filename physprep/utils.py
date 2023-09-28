@@ -143,6 +143,47 @@ def load_json(filename):
     return data
 
 
+def save_processing(outdir, filename, descriptor, timeseries, info):
+    """
+    outdir: str or pathlib.Path
+        Path to the directory where the preprocessed physiological data will be saved.
+    filename: str
+        Filename to use to save the output
+    descriptor; str
+        Descriptor that will be used for filename
+    timeseries: dict
+        Dictionary containing the timeseries for each signal.
+    info: dict
+        Dictionary containing the info for each signal
+    """
+    # Save preprocessed signal
+    if outdir is not None:
+        outdir = Path(outdir)
+        outdir.mkdir(parents=True, exist_ok=True)
+    else:
+        print(
+            "WARNING! No output directory specified. Data will be saved in the "
+            f"current working directory: {Path.cwd()}\n"
+        )
+        outdir = Path.cwd()
+    # Iterating through signal types
+    for timeserie in timeseries:
+        name = timeserie.replace("_", "-")
+        filename_signal = filename.replace("physio", f"{descriptor}_{name}")
+        df_timeseries = pd.DataFrame(timeseries[timeserie])
+        # Save timeseries
+        df_timeseries.to_csv(
+            Path(outdir / filename_signal).with_suffix(".tsv.gz"),
+            sep="\t",
+            index=False,
+            compression="gzip",
+        )
+        # Save info
+        with open(Path(outdir, filename_signal).with_suffix(".json"), "wb") as f:
+            pickle.dump(info[timeserie], f, protocol=4)
+            f.close()
+
+
 def create_config_preprocessing(outdir, filename, overwrite=False):
     """
     Generate a configuration file for the preprocessing strategy based on the user inputs.
@@ -160,6 +201,7 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
     # Instantiate variables
     steps = []
     valid_filters = ["butterworth", "fir", "bessel", "savgol", "notch"]
+    valid_noth_method = ["biopac", "bottenhorn"]
     valid_steps = ["filtering", "resampling"]
 
     filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
@@ -175,7 +217,13 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
         if step not in ["", " "]:
             method = (
                 lowcut
-            ) = highcut = order = desired_sampling_rate = cutoff = ref = False
+            ) = (
+                highcut
+            ) = (
+                order
+            ) = (
+                desired_sampling_rate
+            ) = cutoff = ref = notch_method = Q = tr = slices = mb = False
             tmp["step"] = step
             if step in ["filtering", "filter"]:
                 while method is False:
@@ -187,8 +235,38 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
                         method.lower(), valid_filters
                     )
                 if method == "notch":
-                    Q = input("\n Enter the quality factor for the notch filter. \n")
-                    tmp_params["Q"] = _check_input_validity(Q, [int, float])
+                    while Q is False:
+                        Q = input("\n Enter the quality factor for the notch filter. \n")
+                        Q = _check_input_validity(Q, [int, float])
+                        tmp_params["Q"] = Q
+                    while notch_method is False:
+                        notch_method = input(
+                            "\n Enter the notch filter method among the following:  "
+                            "biopac, bottenhorn.\n "
+                        )
+                        notch_method = _check_input_validity(
+                            notch_method, valid_noth_method
+                        )
+                        tmp_params["notch_method"] = notch_method
+                    while tr is False:
+                        tr = input("\n Enter the tr used to acquired the fMRI data. \n")
+                        tr = _check_input_validity(tr, [int, float])
+                        tmp_params["tr"] = tr
+                    while slices is False:
+                        slices = input(
+                            "\n Enter the number of slices used to acquired the fMRI "
+                            "data.\n "
+                        )
+                        slices = _check_input_validity(slices, int)
+                        tmp_params["slices"] = slices
+                    if notch_method == "bottenhorn":
+                        while mb is False:
+                            mb = input(
+                                "\n Enter the multi-band acceleration factor used to "
+                                "acquired the fMRI data.\n "
+                            )
+                            mb = _check_input_validity(mb, int)
+                            tmp_params["mb"] = mb
                 if method in ["butterworth", "fir", "bessel"]:
                     while cutoff is False:
                         while lowcut is False:
@@ -226,14 +304,15 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
                         order = input(
                             "\n Enter the filter order. Must be a positive " "integer.\n"
                         )
-                        tmp_params["order"] = _check_input_validity(order, int)
+                        order = _check_input_validity(order, int)
+                        tmp_params["order"] = order
                 if method == "savgol":
                     window_size = input(
                         "\n Enter the length of the filter window. Must be an odd "
                         "integer.\n"
                     )
-                    tmp_params["window_size"] = _check_input_validity(window_size, "odd")
-
+                    window_size = _check_input_validity(window_size, "odd")
+                    tmp_params["window_size"] = window_size
             if step == "signal_resample":
                 while desired_sampling_rate is False:
                     desired_sampling_rate = input(

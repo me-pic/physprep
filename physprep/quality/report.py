@@ -343,7 +343,7 @@ def generate_report(workflow, summary, data, info, derivatives, filename, window
     html_report += generate_summary(workflow, filename)
     for k in summary.keys():
         html_report += f"""
-        <h1>{k} Signal</h1>
+        <h1>{k.capitalize()} signal</h1>
         """
         if window:
             if "Overview" in list(summary[k].keys()):

@@ -327,7 +327,7 @@ def metrics_hr_sqi(intervals, metric="mean"):
         metric_rr = np.round(np.mean(bpm), 4)
     elif metric == "median":
         metric_rr = np.round(np.median(bpm), 4)
-    elif metric == "std":
+    elif metric == "sd":
         metric_rr = np.round(np.std(bpm), 4)
     elif metric == "min":
         metric_rr = np.round(np.min(bpm), 4)

@@ -11,7 +11,11 @@
         "step": "filtering",
         "parameters": {
             "method": "notch",
-            "Q": 100
+            "Q": 100,
+            "notch_method": "bottenhorn",
+            "tr": 1.49,
+            "slices": 60,
+            "mb": 4
         },
         "reference": {
             "authors": "Bottenhorn, K. L., Salo, T., Riedel, M. C., Sutherland, M. T., Robinson, J. L., Musser, E. D., & Laird, A. R.",
