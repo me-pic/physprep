@@ -1,2 +1,2 @@
-Clean and resample the signals
-------------------------------
+Put those data in BIDS
+----------------------
