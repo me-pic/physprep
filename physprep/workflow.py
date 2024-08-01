@@ -8,7 +8,7 @@ report.
 from pathlib import Path
 
 import click
-import pandas as pd
+from bids import BIDSLayout
 
 from physprep import utils
 from physprep.prepare import convert, get_info, match_acq_bids, rename
@@ -25,8 +25,24 @@ from physprep.quality import report
     "indir_bids",
     type=click.Path(),
 )
-@click.argument("sub", type=str)
-@click.option("--ses", type=str, default=None, required=False, help="Session label.")
+@click.argument(
+    "--sub", 
+    type=str, 
+    default=None, 
+    required=False, 
+    help="Subject id. Use only to process the data of that specific subject. "
+    "For example: if you specify --sub sub-01, only sub-01 data will be processed.",
+)
+@click.option(
+    "--ses", 
+    type=str, 
+    default=None, 
+    required=False, 
+    help="Session label. Use only to process the data of that specific session. "
+    "For example: if you specify --ses ses-001, only data from ses-001 will be "
+    "processed. If specify, but --sub not specified, data from the specified "
+    "session (e.g. ses-001) across all subjects will be processed.",
+)
 @click.option(
     "--indir_raw_physio",
     type=click.Path(),
@@ -60,7 +76,7 @@ from physprep.quality import report
 def main(
     workflow_strategy,
     indir_bids,
-    sub,
+    sub=None,
     ses=None,
     indir_raw_physio=None,
     skip_match_acq_bids=False,
@@ -122,30 +138,30 @@ def main(
     # Check if directories exist
     indir_bids = Path(indir_bids)
     if not indir_bids.exists():
-        raise FileNotFoundError(f"{indir_bids} does not exist.")
+        raise FileNotFoundError(f'{indir_bids} does not exist.')
     if indir_raw_physio is not None:
         indir_raw_physio = Path(indir_raw_physio)
         if not indir_raw_physio.exists():
-            raise FileNotFoundError(f"{indir_raw_physio} does not exist.")
+            raise FileNotFoundError(f'{indir_raw_physio} does not exist.')
 
     if ses is not None and not isinstance(ses, list):
         ls_ses = [ses]
     elif ses is None:
-        ls_ses = sorted(Path(indir_bids / sub).glob("ses-*"))
+        ls_ses = sorted(Path(indir_bids / sub).glob('ses-*'))
         # If multiple ses-* subdirectory in sub
         if len(ls_ses) != 0:
             ses = ls_ses
 
     # Create output directories
-    raw_dir = indir_bids / "sourcedata" / sub
+    raw_dir = indir_bids / 'sourcedata' / sub
     raw_dir.mkdir(parents=True, exist_ok=True)
     segmented_dir = indir_bids / sub
     segmented_dir.mkdir(parents=True, exist_ok=True)
-    derivatives_dir = indir_bids / "derivatives" / "physprep" / sub
+    derivatives_dir = indir_bids / 'derivatives' / 'physprep' / sub
     derivatives_dir.mkdir(parents=True, exist_ok=True)
 
     # Get workflow info as defined in the configuration file `workflow_strategy`
-    workflow = utils.get_config(workflow_strategy, strategy="workflow")
+    workflow = utils.get_config(workflow_strategy, strategy='workflow')
 
     # Match acq files with bold files if specified
     if not skip_match_acq_bids:
@@ -157,8 +173,8 @@ def main(
             sub,
             ses,
             count_vol=True,
-            save=indir_bids / "sourcedata",
-            tr_channel=workflow["trigger"]["channel"],
+            save=indir_bids / 'sourcedata',
+            tr_channel=workflow['trigger']['channel'],
         )
         # Convert physiological data to BIDS format with phys2bids
         # Session-level
@@ -173,90 +189,56 @@ def main(
         rename.co_register_physio(segmented_dir, sub, ses=ses)
 
     # Clean & process physiological data
-    if len(ls_ses) >= 1:
-        for s in ls_ses:
-            runs = sorted(s.glob("func/*_physio.*"))
-            # Remove duplicated elements in runs with same filename but different
-            # extension
-            runs = list(set([run.parent / run.stem for run in runs]))
-            # Need to run it twice because of the tsv.gz extension
-            runs = list(set([run.parent / run.stem for run in runs]))
-            runs.sort()
+    ## Change to iterate through files and not sessions + files by using BIDSLayout:
+    layout = BIDSLayout(indir_bids)
+    ## Defines parameters to get the physio files
+    info_layout = {'extension': 'tsv.gz', 'suffix': 'physio', 'return_type': 'filename'}
+    if sub is not None : info_layout['subject'] = sub.split('-')[-1]
+    if ses is not None : info_layout['session'] = ses.split('-')[-1]
+    ## Get directory for files containing physio timeseries
+    files = layout.get(**info_layout)
+    # Make sure `files` is not an empty list
+    if len(files) == 0 : raise FileNotFoundError('No files found. Please make sure you specified the correct directory, and if applicable the correct values for `sub` and/or `ses`.')
 
-            for run in runs:
-                filename = run.stem
-                print(f"\nLoading {filename}...\n")
-                # Load data
-                metadata = utils.load_json(run.with_suffix(".json"))
-                data = pd.read_csv(
-                    run.with_suffix(".tsv.gz"), sep="\t", names=metadata["Columns"]
-                )
-                print("Data loaded.\n")
-                print("Preprocessing data...\n")
-                # Preprocess data
-                preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
-                    data, metadata, workflow, Path(derivatives_dir / s.stem), filename
-                )
-                print("Preprocessing done.\n")
-                print("Extracting features...\n")
-                # Extract features
-                timeseries, features = process.features_extraction_workflow(
-                    preprocessed_signals,
-                    metadata_derivatives,
-                    workflow,
-                    Path(derivatives_dir / s.stem),
-                    filename,
-                )
-                print("Features extracted.\n")
-                print("Generating quality report...\n")
-                # Generate quality report
-                report.computing_sqi(
-                    workflow,
-                    timeseries,
-                    features,
-                    Path(derivatives_dir / s.stem),
-                    filename,
-                )
-                print("Quality report generated.\n")
-    else:
-        runs = sorted(segmented_dir.glob("func/*_physio.*"))
-        # Remove duplicated elements in runs with same filename but different
-        # extension
-        runs = list(set([run.parent / run.stem for run in runs]))
-        # Need to run it twice because of the tsv.gz extension
-        runs = list(set([run.parent / run.stem for run in runs]))
-        runs.sort()
-        for run in runs:
-            filename = run.stem
-            print(f"\nLoading {filename}...\n")
-            # Load data
-            metadata = utils.load_json(run.with_suffix(".json"))
-            data = pd.read_csv(
-                run.with_suffix(".tsv.gz"), sep="\t", names=metadata["Columns"]
-            )
-            print("Data loaded.\n")
-            print("Preprocessing data...\n")
-            # Preprocess data
-            preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
-                data, metadata, workflow, derivatives_dir, filename
-            )
-            print("Preprocessing done.\n")
-            print("Extracting features...\n")
-            # Extract features
-            timeseries, features = process.features_extraction_workflow(
-                preprocessed_signals,
-                metadata_derivatives,
-                workflow,
-                derivatives_dir,
-                filename,
-            )
-            print("Features extracted.\n")
-            print("Generating quality report...\n")
-            # Generate quality report
-            report.computing_sqi(
-                workflow, timeseries, features, derivatives_dir, filename
-            )
-            print("Quality report generated.\n")
+    for file in files:
+        filename = file.filename.replace('.tsv.gz', '')
+        #Load metada
+        metadata = file.get_metadata()
+        if not bool(metadata): raise FileNotFoundError(f'No metadata file associated with {file}.')
+        # Load data
+        print(f'\nLoading {file}...\n')
+        data = file.get_df()
+        print('Data loaded.\n')
+
+        # TODO make sure derivatives_dir does not break if sessions
+        # Preprocess data
+        print('Preprocessing data...\n')
+        preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
+            data, metadata, workflow, derivatives_dir, filename
+        )
+        print("Preprocessing done.\n")
+        
+        # Extract features
+        print("Extracting features...\n")
+        timeseries, features = process.features_extraction_workflow(
+            preprocessed_signals,
+            metadata_derivatives,
+            workflow,
+            derivatives_dir,
+            filename,
+        )
+        print("Features extracted.\n")
+
+        # Generate quality report
+        print("Generating quality report...\n")
+        report.computing_sqi(
+            workflow,
+            timeseries,
+            features,
+            derivatives_dir,
+            filename,
+        )
+        print("Quality report generated.\n")
 
 
 if __name__ == "__main__":

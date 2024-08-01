@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 
 import pandas as pd
+from bids.layout import parse_file_entities
 from pkg_resources import resource_filename
 
 WORKFLOW_STRATEGIES = ["neuromod"]
@@ -166,6 +167,11 @@ def save_processing(outdir, filename, descriptor, timeseries, info):
             f"current working directory: {Path.cwd()}\n"
         )
         outdir = Path.cwd()
+    # TODO Get bids entities from filename
+    ###bids_entities = parse_file_entities(filename)
+    ## Add desc entity to dict
+    ###bids_entities['desc'] = descriptor
+
     # Iterating through signal types
     for timeserie in timeseries:
         name = timeserie.replace("_", "-")
