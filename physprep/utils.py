@@ -168,7 +168,7 @@ def save_processing(outdir, filename, descriptor, timeseries, info):
         )
         outdir = Path.cwd()
     # TODO Get bids entities from filename
-    ###bids_entities = parse_file_entities(filename)
+    ###bids_entities = parse_file_entities(f'/{filename}')
     ## Add desc entity to dict
     ###bids_entities['desc'] = descriptor
 
