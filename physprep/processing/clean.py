@@ -11,9 +11,7 @@ from scipy import signal
 from physprep import utils
 
 
-def preprocessing_workflow(
-    data, metadata, workflow_strategy, outdir=None, filename=None, save=True
-):
+def preprocessing_workflow(data, metadata, workflow_strategy):
     """
     Apply the preprocessing workflow to a physiological recordings.
 
@@ -87,14 +85,7 @@ def preprocessing_workflow(
                     "The preprocessing step will be skipped."
                 )
 
-    if save:
-        print("Saving preprocessed signals...\n")
-        utils.save_processing(
-            outdir, filename, "desc-preproc", clean_signals, metadata_derivatives
-        )
-        print("Preprocessed signals saved.\n")
-
-        return clean_signals, metadata_derivatives
+    return clean_signals, metadata_derivatives
 
 
 def remove_padding(data, start_time=None, end_time=None, trigger_threshold=None):

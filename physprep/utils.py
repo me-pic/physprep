@@ -4,10 +4,14 @@ import json
 import os
 import pickle
 import re
+import shutil
 from pathlib import Path
 
 import pandas as pd
+import warnings
+from bids import BIDSLayout
 from bids.layout import parse_file_entities
+from bids.exceptions import BIDSValidationError
 from pkg_resources import resource_filename
 
 WORKFLOW_STRATEGIES = ["neuromod"]
@@ -116,6 +120,18 @@ def _create_ref():
 
     return ref
 
+
+def _check_bids_validity(path):
+    # Check if path is a BIDS dataset, otherwise create a `dataset_description.json` file
+    # Reference: https://github.com/bids-standard/bids-starter-kit/blob/main/pythonCode/createBIDS_dataset_description_json.py
+    try:
+        layout = BIDSLayout(path)
+    except BIDSValidationError:
+        warnings.warn(f'Because {path} is not a BIDS dataset, an empty `dataset_description.json` file will be created at the root. MAKE SURE TO FILL THAT FILE AFTERWARD !')
+        shutil.copy('../data/boilerplates/dataset_description.json', f'{path}/dataset_description.json') #TODO: need to fix directory
+        layout = BIDSLayout(path)
+    return layout
+        
 
 def load_json(filename):
     """

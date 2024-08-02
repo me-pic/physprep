@@ -139,6 +139,9 @@ def main(
     indir_bids = Path(indir_bids)
     if not indir_bids.exists():
         raise FileNotFoundError(f'{indir_bids} does not exist.')
+    # Check if indir_bids is already a bids dataset
+    layout = utils._check_bids_validity(indir_bids)
+
     if indir_raw_physio is not None:
         indir_raw_physio = Path(indir_raw_physio)
         if not indir_raw_physio.exists():
@@ -190,7 +193,6 @@ def main(
 
     # Clean & process physiological data
     ## Change to iterate through files and not sessions + files by using BIDSLayout:
-    layout = BIDSLayout(indir_bids)
     ## Defines parameters to get the physio files
     info_layout = {'extension': 'tsv.gz', 'suffix': 'physio', 'return_type': 'filename'}
     if sub is not None : info_layout['subject'] = sub.split('-')[-1]
@@ -214,7 +216,11 @@ def main(
         # Preprocess data
         print('Preprocessing data...\n')
         preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
-            data, metadata, workflow, derivatives_dir, filename
+            data, metadata, workflow
+        )
+        print("Saving preprocessed signals...\n")
+        utils.save_processing(
+            derivatives_dir, filename, "preproc", preprocessed_signals, metadata_derivatives
         )
         print("Preprocessing done.\n")
         
