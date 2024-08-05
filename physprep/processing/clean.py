@@ -179,7 +179,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
                 "preprocessing strategy is properly defined. For more "
                 "details, please refer to the Physprep documentation."
             )
-        print(f"   {step} done !\n")
+        print(f"   step: {step['step']}, parameters: {step['parameters']} done !\n")
 
     return raw, signal, sampling_rate
 

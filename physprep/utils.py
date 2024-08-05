@@ -121,6 +121,28 @@ def _create_ref():
 
     return ref
 
+def _check_sub_validity(sub, bids_sub):
+    # Make sure the input does not contain the entity `sub`
+    if isinstance(sub, list):
+        sub = [s.replace('sub-', '') for s in sub]
+    # Get the common elements between the specified subjects in `sub`, and the ones founds in`bids_sub`
+    valid_sub = list(set(sub).intersection(bids_sub))
+    invalid_sub = list(set(sub) - set(valid_sub))
+    warnings.warn(f'The following subject were specified in `sub`, but were not found in {bids_sub}: {invalid_sub}. \n Only {valid_sub} will be preprocessed')
+
+    return valid_sub
+
+def _check_ses_validity(ses, bids_ses):
+    # Make sure the input does not contain the entity `ses`
+    if isinstance(ses, list):
+        ses = [s.replace('ses-', '') for s in ses]
+    # Get the common elements between the specified subjects in `ses`, and the ones founds in`bids_ses`
+    valid_ses = list(set(ses).intersection(bids_ses))
+    invalid_ses = list(set(ses) - set(valid_ses))
+    warnings.warn(f'The following sessions were specified in `ses`, but were not found in {bids_ses}: {invalid_ses}. \n Only {valid_ses} will be preprocessed')
+    
+    return valid_ses
+
 
 def _check_bids_validity(path):
     # Check if path is a BIDS dataset, otherwise create a `dataset_description.json` file
@@ -164,7 +186,7 @@ def load_json(filename):
     return data
 
 
-def save_processing(outdir, filename, descriptor, timeseries, info):
+def save_processing(outdir, filename, descriptor, data, metadata):
     """
     outdir: str or pathlib.Path
         Path to the directory where the preprocessed physiological data will be saved.
@@ -182,15 +204,44 @@ def save_processing(outdir, filename, descriptor, timeseries, info):
         outdir = Path(outdir)
         outdir.mkdir(parents=True, exist_ok=True)
     else:
-        print(
-            "WARNING! No output directory specified. Data will be saved in the "
+        warnings.warn(
+            "No output directory specified. Data will be saved in the "
             f"current working directory: {Path.cwd()}\n"
         )
         outdir = Path.cwd()
-    # TODO Get bids entities from filename
-    ###bids_entities = parse_file_entities(f'/{filename}')
+    # Get bids entities from filename
+    bids_entities = parse_file_entities(f'/{filename}')
     ## Add desc entity to dict
-    ###bids_entities['desc'] = descriptor
+    bids_entities['desc'] = descriptor
+
+    # Separate modalities given their SamplingFrequency
+    # All modalities with the same SamplingFrequency will be saved together
+    modalities = [*metadata]
+    sf = {metadata[modalities[0]]['SamplingFrequency']: [modalities[0]]}
+    freq = [*sf]
+    for modality in modalities[1:]:
+        for f in freq:
+            if metadata[modality]['SamplingFrequency'] == f:
+                same =True
+                sf[f].append(modality)
+            else:
+                same=False
+        if not same:
+            sf[metadata[modality]['SamplingFrequency']] = modality
+
+    freq = [*sf]
+    if len(freq) == 1:
+        # Same SamplingFrequency for everything. Only one file will be created
+        cols = [data[modality] for modality in sf[freq[0]]]
+        df = pd.DataFrame({key: value for col in cols for key, value in col.items()})
+        # TODO: add filename reconstructed from the bids entities
+        df.to_csv(sep='\t', index=False, compression='gzip')
+    else:
+        # TODO: Save derivatives with different SamplingFrequency in different files
+        print()
+
+
+
 
     # Iterating through signal types
     for timeserie in timeseries:

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import click
 from bids import BIDSLayout
+from bids.layout import parse_file_entities
 
 from physprep import utils
 from physprep.prepare import convert, get_info, match_acq_bids, rename
@@ -25,7 +26,7 @@ from physprep.quality import report
     "indir_bids",
     type=click.Path(),
 )
-@click.argument(
+@click.option(
     "--sub", 
     type=str, 
     default=None, 
@@ -50,6 +51,12 @@ from physprep.quality import report
     help="Path to the directory containing the raw physiological data. Specify if raw "
     "physiological data is not in the BIDS directory. For more details, about the BIDS "
     "data structure, please refer to the documentation.",
+)
+@click.option(
+    "--outdir_bids",
+    type=click.Path(),
+    default=None,
+    help="Path to the derivatives directory."
 )
 @click.option(
     "--skip_match_acq_bids",
@@ -79,6 +86,7 @@ def main(
     sub=None,
     ses=None,
     indir_raw_physio=None,
+    outdir_bids=None,
     skip_match_acq_bids=False,
     skip_convert=False,
     padding=9,
@@ -107,11 +115,11 @@ def main(
 
     sub : str
 
-        Subject label.
+        Subject id. E.g. '01'
 
     ses : str, optional
 
-        Session label, by default `None`.
+        Session id, by default `None`.
 
     indir_raw_physio : str or pathlib.Path
 
@@ -147,6 +155,8 @@ def main(
         if not indir_raw_physio.exists():
             raise FileNotFoundError(f'{indir_raw_physio} does not exist.')
 
+    ls_ses = layout.get_sessions()
+    """
     if ses is not None and not isinstance(ses, list):
         ls_ses = [ses]
     elif ses is None:
@@ -154,20 +164,21 @@ def main(
         # If multiple ses-* subdirectory in sub
         if len(ls_ses) != 0:
             ses = ls_ses
-
+    """
     # Create output directories
-    raw_dir = indir_bids / 'sourcedata' / sub
-    raw_dir.mkdir(parents=True, exist_ok=True)
+    """
     segmented_dir = indir_bids / sub
     segmented_dir.mkdir(parents=True, exist_ok=True)
     derivatives_dir = indir_bids / 'derivatives' / 'physprep' / sub
     derivatives_dir.mkdir(parents=True, exist_ok=True)
-
+    """
     # Get workflow info as defined in the configuration file `workflow_strategy`
     workflow = utils.get_config(workflow_strategy, strategy='workflow')
-
+    """
     # Match acq files with bold files if specified
     if not skip_match_acq_bids:
+        raw_dir = indir_bids / 'sourcedata' / sub
+        raw_dir.mkdir(parents=True, exist_ok=True)
         match_acq_bids(indir_bids, indir_raw_physio)
     if not skip_convert:
         # Get information about the physiological recordings
@@ -190,13 +201,13 @@ def main(
             convert.convert(raw_dir, segmented_dir, sub, info=info_sessions, pad=padding)
         # Rename physiological data to BIDS format
         rename.co_register_physio(segmented_dir, sub, ses=ses)
-
+    """
     # Clean & process physiological data
     ## Change to iterate through files and not sessions + files by using BIDSLayout:
     ## Defines parameters to get the physio files
-    info_layout = {'extension': 'tsv.gz', 'suffix': 'physio', 'return_type': 'filename'}
-    if sub is not None : info_layout['subject'] = sub.split('-')[-1]
-    if ses is not None : info_layout['session'] = ses.split('-')[-1]
+    info_layout = {'extension': 'tsv.gz', 'suffix': 'physio'}
+    if sub is not None : info_layout['subject'] = utils._check_sub_validity(sub, layout.get_subjects())
+    if ses is not None : info_layout['session'] = utils._check_ses_validity(ses, layout.get_sessions())
     ## Get directory for files containing physio timeseries
     files = layout.get(**info_layout)
     # Make sure `files` is not an empty list
@@ -218,9 +229,10 @@ def main(
         preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
             data, metadata, workflow
         )
+        breakpoint()
         print("Saving preprocessed signals...\n")
         utils.save_processing(
-            derivatives_dir, filename, "preproc", preprocessed_signals, metadata_derivatives
+            outdir_bids, filename, "preproc", preprocessed_signals, metadata_derivatives
         )
         print("Preprocessing done.\n")
         
@@ -230,7 +242,7 @@ def main(
             preprocessed_signals,
             metadata_derivatives,
             workflow,
-            derivatives_dir,
+            outdir_bids,
             filename,
         )
         print("Features extracted.\n")
@@ -241,7 +253,7 @@ def main(
             workflow,
             timeseries,
             features,
-            derivatives_dir,
+            outdir_bids,
             filename,
         )
         print("Quality report generated.\n")
