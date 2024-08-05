@@ -5,6 +5,7 @@ import os
 import pickle
 import re
 import shutil
+import pkgutil
 from pathlib import Path
 
 import pandas as pd
@@ -128,7 +129,10 @@ def _check_bids_validity(path):
         layout = BIDSLayout(path)
     except BIDSValidationError:
         warnings.warn(f'Because {path} is not a BIDS dataset, an empty `dataset_description.json` file will be created at the root. MAKE SURE TO FILL THAT FILE AFTERWARD !')
-        shutil.copy('../data/boilerplates/dataset_description.json', f'{path}/dataset_description.json') #TODO: need to fix directory
+        descrip = pkgutil.get_data(__name__, 'data/boilerplates/dataset_description.json')
+        with open(f'{path}/dataset_description.json', "w") as f:
+            json.dump(json.loads(descrip.decode()), f, indent=4)
+        f.close()
         layout = BIDSLayout(path)
     return layout
         

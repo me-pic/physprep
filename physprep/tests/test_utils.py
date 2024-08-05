@@ -112,15 +112,15 @@ def test_rename_in_bids():
 
 def test_check_bids_validity():
     # Create temporary fake bids dataset
-    tmp_bids_dataset = '../data/bids_test'
-    os.mkdir(tmp_bids_dataset)
+    tmp_bids_dataset = 'data/bids_test'
+    os.makedirs(tmp_bids_dataset)
     with open(os.path.join(tmp_bids_dataset, "dataset_description.json"), "w") as f:
         json.dump({}, f, indent=4)
     layout_bids_dataset = utils._check_bids_validity(tmp_bids_dataset)
     assert type(layout_bids_dataset) == BIDSLayout
     # Create temporary fake non-bids dataset
-    tmp_dataset = '../data/test'
-    os.mkdir(tmp_dataset)
+    tmp_dataset = 'data/test'
+    os.makedirs(tmp_dataset)
     layout_dataset = utils._check_bids_validity(tmp_dataset)
     assert os.path.isfile(os.path.join(tmp_dataset, 'dataset_description.json'))
     assert type(layout_dataset) == BIDSLayout
