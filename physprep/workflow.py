@@ -214,7 +214,6 @@ def main(
     if len(files) == 0 : raise FileNotFoundError('No files found. Please make sure you specified the correct directory, and if applicable the correct values for `sub` and/or `ses`.')
 
     for file in files:
-        filename = file.filename.replace('.tsv.gz', '')
         #Load metada
         metadata = file.get_metadata()
         if not bool(metadata): raise FileNotFoundError(f'No metadata file associated with {file}.')
@@ -223,16 +222,14 @@ def main(
         data = file.get_df()
         print('Data loaded.\n')
 
-        # TODO make sure derivatives_dir does not break if sessions
         # Preprocess data
         print('Preprocessing data...\n')
         preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
             data, metadata, workflow
         )
-        breakpoint()
         print("Saving preprocessed signals...\n")
         utils.save_processing(
-            outdir_bids, filename, "preproc", preprocessed_signals, metadata_derivatives
+            outdir_bids, file.get_entities(), "preproc", preprocessed_signals, metadata_derivatives
         )
         print("Preprocessing done.\n")
         
