@@ -11,7 +11,7 @@ from pathlib import Path
 import pandas as pd
 import warnings
 from bids import BIDSLayout
-from bids.layout import parse_file_entities
+from bids.layout import parse_file_entities, BIDSFile
 from bids.exceptions import BIDSValidationError
 from pkg_resources import resource_filename
 
@@ -144,18 +144,21 @@ def _check_ses_validity(ses, bids_ses):
     return valid_ses
 
 
-def _check_bids_validity(path):
+def _check_bids_validity(path, is_derivative=False):
     # Check if path is a BIDS dataset, otherwise create a `dataset_description.json` file
     # Reference: https://github.com/bids-standard/bids-starter-kit/blob/main/pythonCode/createBIDS_dataset_description_json.py
     try:
-        layout = BIDSLayout(path)
+        layout = BIDSLayout(path, is_derivative=is_derivative)
     except BIDSValidationError:
         warnings.warn(f'Because {path} is not a BIDS dataset, an empty `dataset_description.json` file will be created at the root. MAKE SURE TO FILL THAT FILE AFTERWARD !')
-        descrip = pkgutil.get_data(__name__, 'data/boilerplates/dataset_description.json')
+        if is_derivative:
+            descrip = pkgutil.get_data(__name__, 'data/boilerplates/dataset_description_derivatives.json')
+        else:
+            descrip = pkgutil.get_data(__name__, 'data/boilerplates/dataset_description.json')
         with open(f'{path}/dataset_description.json', "w") as f:
             json.dump(json.loads(descrip.decode()), f, indent=4)
         f.close()
-        layout = BIDSLayout(path)
+        layout = BIDSLayout(path, is_derivative=is_derivative)
     return layout
         
 
@@ -186,7 +189,7 @@ def load_json(filename):
     return data
 
 
-def save_processing(outdir, filename, descriptor, data, metadata):
+def save_processing(outdir, bids_entities, descriptor, data, metadata):
     """
     outdir: str or pathlib.Path
         Path to the directory where the preprocessed physiological data will be saved.
@@ -209,56 +212,39 @@ def save_processing(outdir, filename, descriptor, data, metadata):
             f"current working directory: {Path.cwd()}\n"
         )
         outdir = Path.cwd()
-    # Get bids entities from filename
-    bids_entities = parse_file_entities(f'/{filename}')
-    ## Add desc entity to dict
+
+    # Define BIDS layout for derivatives dataset
+    layout_deriv = _check_bids_validity(outdir, is_derivative=True)
+    # Add desc entity to dict
     bids_entities['desc'] = descriptor
+    # Define pattern to build path for derivatives
+    deriv_pattern = 'sub-{subject}[/ses-{session}]/{datatype}/sub-{subject}[_ses-{session}][_task-{task}][_run-{run}][_recording-{recording}][_desc-{desc}]_{suffix}.{extension}'
 
     # Separate modalities given their SamplingFrequency
     # All modalities with the same SamplingFrequency will be saved together
     modalities = [*metadata]
     sf = {metadata[modalities[0]]['SamplingFrequency']: [modalities[0]]}
-    freq = [*sf]
     for modality in modalities[1:]:
-        for f in freq:
+        for f in [*sf]:
             if metadata[modality]['SamplingFrequency'] == f:
                 same =True
                 sf[f].append(modality)
             else:
                 same=False
         if not same:
-            sf[metadata[modality]['SamplingFrequency']] = modality
+            sf[metadata[modality]['SamplingFrequency']] = [modality]
 
-    freq = [*sf]
-    if len(freq) == 1:
-        # Same SamplingFrequency for everything. Only one file will be created
-        cols = [data[modality] for modality in sf[freq[0]]]
+    # Save derivatives with different SamplingFrequency in different files
+    for f in [*sf]:
+        cols = [data[modality] for modality in sf[f]]
         df = pd.DataFrame({key: value for col in cols for key, value in col.items()})
-        # TODO: add filename reconstructed from the bids entities
-        df.to_csv(sep='\t', index=False, compression='gzip')
-    else:
-        # TODO: Save derivatives with different SamplingFrequency in different files
-        print()
-
-
-
-
-    # Iterating through signal types
-    for timeserie in timeseries:
-        name = timeserie.replace("_", "-")
-        filename_signal = filename.replace("physio", f"{descriptor}_{name}")
-        df_timeseries = pd.DataFrame(timeseries[timeserie])
-        # Save timeseries
-        df_timeseries.to_csv(
-            Path(outdir / filename_signal).with_suffix(".tsv.gz"),
-            sep="\t",
-            index=False,
-            compression="gzip",
-        )
-        # Save info
-        with open(Path(outdir, filename_signal).with_suffix(".json"), "wb") as f:
-            pickle.dump(info[timeserie], f, protocol=4)
-            f.close()
+        if len([*sf]) > 1:
+            bids_entities['recording'] = f'{f}Hz'
+        filename = layout_deriv.build_path(bids_entities, deriv_pattern, validate=False)
+        # Make sure directory exists
+        Path(BIDSFile(filename).dirname).mkdir(parents=True, exist_ok=True)
+        # Save data
+        df.to_csv(filename, sep='\t', index=False, compression='gzip')
 
 
 def create_config_preprocessing(outdir, filename, overwrite=False):
