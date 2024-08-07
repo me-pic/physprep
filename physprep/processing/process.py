@@ -27,7 +27,7 @@ from physprep.utils import load_json, rename_in_bids, save_processing
 
 
 def features_extraction_workflow(
-    data, metadata, workflow_strategy, outdir=None, filename=None, save=True
+    data, metadata, workflow_strategy, outdir=None, save=True
 ):
     """
     Extract features from physiological data.
@@ -102,19 +102,19 @@ def features_extraction_workflow(
 
             end_time = np.round(timeit.default_timer() - start_time, 2)
             print(f"{signal_type} features extraction: done in {end_time} sec***\n")
-
+    """
     # Save derivatives
     if save:
-        print("Saving extracted features...\n")
-        save_processing(outdir, filename, "desc-features", timeseries, info_dict)
+        print('Saving extracted features...\n')
+        save_processing(outdir, filename, 'desc-features', timeseries, info_dict)
         # Save timeseries
         for timeserie in timeseries:
             timeseries[timeserie] = pd.DataFrame(timeseries[timeserie])
-        print("Extracted features saved. \n")
-
+        print('Extracted features saved. \n')
+    """
     return timeseries, info_dict
 
-
+    
 # ==================================================================================
 # Features extraction functions
 # ==================================================================================
@@ -340,3 +340,11 @@ def extract_respiratory(signal, sampling_rate=1000, method="khodadad2018"):
             info[k] = info[k].tolist()
 
     return timeseries, info
+
+
+def convert_2_events():
+    return
+
+
+def convert_2_timeseries():
+    return

@@ -239,8 +239,7 @@ def main(
             preprocessed_signals,
             metadata_derivatives,
             workflow,
-            outdir_bids,
-            filename,
+            outdir_bids
         )
         print("Features extracted.\n")
 
