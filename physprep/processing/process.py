@@ -85,15 +85,15 @@ def features_extraction_workflow(
             start_time = timeit.default_timer()
 
             if signal_type.lower() in ["ecg", "cardiac_ecg", "ppg", "cardiac_ppg"]:
-                timeserie, info = extract_cardiac(
+                timeserie, info = extract_cardiac_peaks(
                     signal,
                     sampling_rate=sampling_rate,
                     data_type=signal_type,
                 )
             elif signal_type.lower() in ["respiratory", "rsp", "resp", "breathing"]:
-                timeserie, info = extract_respiratory(signal, sampling_rate=sampling_rate)
+                timeserie, info = extract_respiratory_peaks(signal, sampling_rate=sampling_rate)
             elif signal_type.lower() in ["electrodermal", "eda"]:
-                timeserie, info = extract_electrodermal(
+                timeserie, info = extract_electrodermal_peaks(
                     signal, sampling_rate=sampling_rate
                 )
 
@@ -102,6 +102,7 @@ def features_extraction_workflow(
 
             end_time = np.round(timeit.default_timer() - start_time, 2)
             print(f"{signal_type} features extraction: done in {end_time} sec***\n")
+    events = convert_2_events(info_dict)
     """
     # Save derivatives
     if save:
@@ -112,7 +113,7 @@ def features_extraction_workflow(
             timeseries[timeserie] = pd.DataFrame(timeseries[timeserie])
         print('Extracted features saved. \n')
     """
-    return timeseries, info_dict
+    return timeseries, info_dict, events
 
     
 # ==================================================================================
@@ -120,7 +121,7 @@ def features_extraction_workflow(
 # ==================================================================================
 
 
-def extract_cardiac(signal, sampling_rate=1000, data_type="ppg"):
+def extract_cardiac_peaks(signal, sampling_rate=1000, data_type="ppg"):
     """
     Process cardiac signal.
 
@@ -158,83 +159,55 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="ppg"):
                 method="promac",
                 correct_artifacts=False,
             )
-            # Rename Peaks key
-            info["Peaks"] = info["ECG_R_Peaks"]
-            # Remove duplicated info
-            del info["ECG_R_Peaks"]
-            del info["sampling_rate"]
             # Correct peaks
             info["CleanPeaksNK"] = signal_fixpeaks(
-                peaks=info["Peaks"],
+                peaks=info["ECG_R_Peaks"],
                 sampling_rate=sampling_rate,
                 interval_min=0.5,
                 interval_max=1.5,
                 method="neurokit",
             )
+            info = {
+                'r_peak': info['ECG_R_Peaks'],
+                'r_peak_corrected': info['CleanPeaksNK'],
+                'SamplingFrequency': sampling_rate
+            }
+            print("Formatting peaks into signal")
+            peak_list = _signal_from_indices(info['r_peak'], desired_length=len(signal))
+            peak_list_corrected = _signal_from_indices(info['r_peak_corrected'], desired_length=len(signal))
         elif data_type.lower() in ["ppg", "cardiac_ppg"]:
             info = ppg_findpeaks(signal, sampling_rate=sampling_rate, method="elgendi")
-            info["Peaks"] = info["PPG_Peaks"]
             # Rename Peaks key
-            del info["PPG_Peaks"]
             print("Neurokit found peaks")
             info["CleanPeaksNK"] = signal_fixpeaks(
-                info["Peaks"],
+                info["PPG_Peaks"],
                 sampling_rate=sampling_rate,
                 interval_min=0.5,
                 interval_max=1.5,
                 method="neurokit",
             )
             print("Neurokit fixed peaks")
-
+            info = {
+                'systolic_peak': info['PPG_Peaks'],
+                'systolic_peak_corrected': info['CleanPeaksNK'],
+                'SamplingFrequency': sampling_rate
+            }
+            print("Formatting peaks into signal")
+            peak_list = _signal_from_indices(info['systolic_peak'], desired_length=len(signal))
+            peak_list_corrected = _signal_from_indices(info['systolic_peak_corrected'], desired_length=len(signal))
         else:
             raise ValueError("Please use a valid data type: 'ecg' or 'ppg'")
-
-        print("Formatting peaks into signal")
-        peak_list_nk = _signal_from_indices(info["Peaks"], desired_length=len(signal))
-        print("Formatting Peaks signal into RR timeseries")
-        # peak to intervals
-        rr = input_conversion(
-            info["Peaks"],
-            input_type="peaks_idx",
-            output_type="rr_ms",
-            sfreq=sampling_rate,
-        )
-
-        # correct beat detection
-        corrected, (nMissed, nExtra, nEctopic, nShort, nLong) = correct_rr(rr)
-        corrected_peaks = correct_peaks(peak_list_nk, n_iterations=4)
-        print("systole corrected RR and Peaks series")
-        # Compute rate based on peaks
-        rate = signal_rate(
-            info["CleanPeaksNK"],
-            sampling_rate=sampling_rate,
-            desired_length=len(signal),
-        )
-
-        # sanitize info dict
-        info.update(
-            {
-                "Ectopic": nEctopic,
-                "Short": nShort,
-                "Long": nLong,
-                "Extra": nExtra,
-                "Missed": nMissed,
-                "CleanRRSystole": corrected.tolist(),
-                "SamplingFrequency": sampling_rate,
-            }
-        )
+        
         # Prepare output
         timeseries = pd.DataFrame(
             {
                 f"{data_type.lower()}_clean": signal,
-                f"{data_type.lower()}_peaks_nk": peak_list_nk,
-                f"{data_type.lower()}_peaks_systole": corrected_peaks["clean_peaks"],
-                f"{data_type.lower()}_rate": rate,
+                f"{data_type.lower()}_peaks": peak_list,
+                f"{data_type.lower()}_peaks_corrected": peak_list_corrected
             }
         )
         # Renaming cols/keys
         timeseries = rename_in_bids(timeseries)
-        info = rename_in_bids(info)
 
     except Exception:
         print(f"ERROR in {data_type} features extraction procedure")
@@ -245,7 +218,7 @@ def extract_cardiac(signal, sampling_rate=1000, data_type="ppg"):
     return timeseries, info
 
 
-def extract_electrodermal(signal, sampling_rate=1000, method="neurokit"):
+def extract_electrodermal_peaks(signal, sampling_rate=1000, method="neurokit"):
     """
     Process EDA signal.
 
@@ -272,12 +245,14 @@ def extract_electrodermal(signal, sampling_rate=1000, method="neurokit"):
     """
     try:
         timeseries, info = eda_process(signal, sampling_rate=sampling_rate, method=method)
-        info.update({"SamplingFrequency": sampling_rate})
-        # Remove duplicated info
-        del info["sampling_rate"]
-        # Renaming cols/keys
+        # Renaming cols
+        info = {
+            'scr_onset': info['SCR_Onsets'],
+            'scr_peak': info['SCR_Peaks'],
+            'scr_recovery': info['SCR_Recovery'],
+            'SamplingFrequency': sampling_rate
+        }
         timeseries = rename_in_bids(timeseries)
-        info = rename_in_bids(info)
     except Exception:
         print("ERROR in EDA features extraction procedure")
         traceback.print_exc()
@@ -291,7 +266,7 @@ def extract_electrodermal(signal, sampling_rate=1000, method="neurokit"):
     return timeseries, info
 
 
-def extract_respiratory(signal, sampling_rate=1000, method="khodadad2018"):
+def extract_respiratory_peaks(signal, sampling_rate=1000, method="khodadad2018"):
     """
     Parameters
     ----------
@@ -323,12 +298,13 @@ def extract_respiratory(signal, sampling_rate=1000, method="khodadad2018"):
     """
     try:
         timeseries, info = rsp_process(signal, sampling_rate=sampling_rate, method=method)
-        info.update({"SamplingFrequency": sampling_rate})
-        # Remove duplicated info
-        del info["sampling_rate"]
         # Renaming cols/keys
+        info = {
+            'inhale_max': info['RSP_Peaks'],
+            'exhale_max': info['RSP_Troughs'],
+            'SamplingFrequency': sampling_rate
+        }
         timeseries = rename_in_bids(timeseries)
-        info = rename_in_bids(info)
     except Exception:
         print("ERROR in RESP features extraction procedure")
         traceback.print_exc()
@@ -342,9 +318,27 @@ def extract_respiratory(signal, sampling_rate=1000, method="khodadad2018"):
     return timeseries, info
 
 
-def convert_2_events():
-    return
+def convert_2_events(features):
+    # Load json dictionnary containing non continuous data
+    modalities = list(features.keys())
+    duration = 0
+    row=0
+    df_events = pd.DataFrame(columns=['onset', 'duration', 'trial_type', 'channel'])
+    for modality in modalities:
+        sf = features[modality]['SamplingFrequency']
+        entities = list(features[modality].keys())
+        entities.remove('SamplingFrequency')
+        for entity in entities:
+            list_value = features[modality][entity]
+            if type(list_value) is int:
+                list_value = [list_value]
+            elif type(list_value) is np.ndarray:
+                list_value = list_value.tolist()
+            list_value = [value for value in list_value if str(value) != 'nan']
+                
+            for idx in list_value:
+                df_events.loc[row] = pd.Series({'onset':idx/sf, 'duration':duration, 'trial_type': entity, 'channel': modality})
+                row += 1
+                        
 
-
-def convert_2_timeseries():
-    return
+    return df_events.sort_values(('onset'), ignore_index=True)

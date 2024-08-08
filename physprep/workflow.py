@@ -235,14 +235,17 @@ def main(
         
         # Extract features
         print("Extracting features...\n")
-        timeseries, features = process.features_extraction_workflow(
+        timeseries, features, events = process.features_extraction_workflow(
             preprocessed_signals,
             metadata_derivatives,
             workflow,
             outdir_bids
         )
-        print("Features extracted.\n")
-
+        print("Saving extracted features...\n")
+        utils.save_features(
+            outdir_bids, file.get_entities(), events
+        )
+        print("Features extraction done.\n")
         # Generate quality report
         print("Generating quality report...\n")
         report.computing_sqi(
@@ -250,7 +253,7 @@ def main(
             timeseries,
             features,
             outdir_bids,
-            filename,
+            file.filename,
         )
         print("Quality report generated.\n")
 

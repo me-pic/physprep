@@ -57,25 +57,33 @@ def preprocessing_workflow(data, metadata, workflow_strategy):
                 else:
                     raise ValueError(f"Signal type {signal_type} not found in the data.")
                 # Apply the preprocessing strategy
-                raw, clean, sampling_rate = preprocess_signal(
+                raw, clean, components, sampling_rate = preprocess_signal(
                     raw,
                     workflow_strategy[signal_type]["preprocessing_strategy"],
                     sampling_rate=metadata["SamplingFrequency"],
                 )
-                clean_signals.update(
-                    {
-                        signal_type: {
-                            f"{signal_type}_raw": raw,
-                            f"{signal_type}_clean": clean,
+                processed = {f'{signal_type}_raw': raw, f'{signal_type}_clean': clean}
+                col = [f'{signal_type}_raw', f'{signal_type}_clean']
+
+                if components is not None:
+                    processed.update(
+                        {
+                            'electrodermal_tonic': np.array(components['EDA_Tonic']),
+                            'electrodermal_phasic': np.array(components['EDA_Phasic']),
                         }
-                    }
+                    )
+                    col = [*col, ['electrodermal_tonic', 'electrodermal_phasic']]
+                
+                clean_signals.update(
+                    {signal_type: processed}
                 )
+
                 metadata_derivatives.update(
                     {
                         signal_type: {
                             "StartTime": data["time"].loc[0],
                             "SamplingFrequency": sampling_rate,
-                            "Columns": [f"{signal_type}_raw", f"{signal_type}_clean"],
+                            "Columns": col,
                         }
                     }
                 )
@@ -152,6 +160,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
         The cleaned physiological signal.
     """
     raw = signal
+    components = None
     # Retrieve preprocessing steps
     preprocessing = utils.get_config(preprocessing_strategy, strategy="preprocessing")
     # Iterate over preprocessing steps as defined in the configuration file
@@ -173,6 +182,9 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
                 raw, sampling_rate=sampling_rate, **step["parameters"]
             )
             sampling_rate = step["parameters"]["desired_sampling_rate"]
+        elif step["step"] == "phasic":
+            # This step is only to extract phasic and tonic components from EDA signal
+            components = nk.eda_phasic(signal, sampling_rate=sampling_rate, **step["parameters"])
         else:
             raise ValueError(
                 f"Unknown preprocessing step: {step['step']}. Make sure the "
@@ -181,7 +193,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
             )
         print(f"   step: {step['step']}, parameters: {step['parameters']} done !\n")
 
-    return raw, signal, sampling_rate
+    return raw, signal, components, sampling_rate
 
 
 def comb_band_stop(data, sampling_rate, params):

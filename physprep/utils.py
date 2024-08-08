@@ -247,6 +247,19 @@ def save_processing(outdir, bids_entities, descriptor, data, metadata):
         df.to_csv(filename, sep='\t', index=False, compression='gzip')
 
 
+def save_features(outdir, bids_entities, events):
+    # Get BIDS layout
+    layout_deriv = _check_bids_validity(outdir, is_derivative=True)
+    # Define pattern
+    deriv_pattern = 'sub-{subject}[/ses-{session}]/{datatype}/sub-{subject}[_ses-{session}][_task-{task}][_run-{run}][_recording-{recording}]_desc-physio_events.tsv'
+    # Build path
+    filename = layout_deriv.build_path(bids_entities, deriv_pattern, validate=False)
+    # Make sure directory exists
+    Path(BIDSFile(filename).dirname).mkdir(parents=True, exist_ok=True)
+    # Save data
+    events.to_csv(filename, sep='\t', index=False)
+
+
 def create_config_preprocessing(outdir, filename, overwrite=False):
     """
     Generate a configuration file for the preprocessing strategy based on the user inputs.
