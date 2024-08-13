@@ -246,6 +246,7 @@ def main(
             outdir_bids, file.get_entities(), events
         )
         print("Features extraction done.\n")
+        """
         # Generate quality report
         print("Generating quality report...\n")
         report.computing_sqi(
@@ -256,7 +257,7 @@ def main(
             file.filename,
         )
         print("Quality report generated.\n")
-
+        """
 
 if __name__ == "__main__":
     main()
