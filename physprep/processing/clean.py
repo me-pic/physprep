@@ -165,7 +165,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
     preprocessing = utils.get_config(preprocessing_strategy, strategy="preprocessing")
     # Iterate over preprocessing steps as defined in the configuration file
     for step in preprocessing:
-        print(f"   Applying {step['step']}\n")
+        print(f"...Applying {step['step']}\n")
         if step["step"] == "filtering":
             if step["parameters"]["method"] == "notch":
                 signal = comb_band_stop(signal, sampling_rate, step["parameters"])
