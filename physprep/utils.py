@@ -122,9 +122,9 @@ def _create_ref():
     return ref
 
 def _check_sub_validity(sub, bids_sub):
-    # Make sure the input does not contain the entity `sub`
-    if isinstance(sub, list):
-        sub = [s.replace('sub-', '') for s in sub]
+    # Make sure sub is a list
+    if isinstance(sub, str):
+        sub=[sub]
     # Get the common elements between the specified subjects in `sub`, and the ones founds in`bids_sub`
     valid_sub = list(set(sub).intersection(bids_sub))
     invalid_sub = list(set(sub) - set(valid_sub))
@@ -133,9 +133,9 @@ def _check_sub_validity(sub, bids_sub):
     return valid_sub
 
 def _check_ses_validity(ses, bids_ses):
-    # Make sure the input does not contain the entity `ses`
-    if isinstance(ses, list):
-        ses = [s.replace('ses-', '') for s in ses]
+    # Make sure sub is a list
+    if isinstance(ses, str):
+        ses=[ses]
     # Get the common elements between the specified subjects in `ses`, and the ones founds in`bids_ses`
     valid_ses = list(set(ses).intersection(bids_ses))
     invalid_ses = list(set(ses) - set(valid_ses))
@@ -148,7 +148,7 @@ def _check_bids_validity(path, is_derivative=False):
     # Check if path is a BIDS dataset, otherwise create a `dataset_description.json` file
     # Reference: https://github.com/bids-standard/bids-starter-kit/blob/main/pythonCode/createBIDS_dataset_description_json.py
     try:
-        layout = BIDSLayout(path, is_derivative=is_derivative)
+        layout = BIDSLayout(path, validate=False, is_derivative=is_derivative)
     except BIDSValidationError:
         warnings.warn(f'Because {path} is not a BIDS dataset, an empty `dataset_description.json` file will be created at the root. MAKE SURE TO FILL THAT FILE AFTERWARD !')
         if is_derivative:
@@ -158,7 +158,8 @@ def _check_bids_validity(path, is_derivative=False):
         with open(f'{path}/dataset_description.json', "w") as f:
             json.dump(json.loads(descrip.decode()), f, indent=4)
         f.close()
-        layout = BIDSLayout(path, is_derivative=is_derivative)
+        layout = BIDSLayout(path, validate=False, is_derivative=is_derivative)
+
     return layout
         
 
@@ -189,18 +190,20 @@ def load_json(filename):
     return data
 
 
-def save_processing(outdir, bids_entities, descriptor, data, metadata):
+def save_processing(outdir, bids_entities, descriptor, data, metadata, save_raw=False):
     """
     outdir: str or pathlib.Path
         Path to the directory where the preprocessed physiological data will be saved.
-    filename: str
-        Filename to use to save the output
+    bids_entities: str
+        BIDS entities to use for saving data
     descriptor; str
         Descriptor that will be used for filename
-    timeseries: dict
+    data: dict
         Dictionary containing the timeseries for each signal.
-    info: dict
-        Dictionary containing the info for each signal
+    metadata: dict
+        Dictionary containing the metadata for each signal
+    save_raw: bool
+        If True, save the raw timeseries. Otherwise, only save the processed timeseries
     """
     # Save preprocessed signal
     if outdir is not None:
@@ -238,6 +241,10 @@ def save_processing(outdir, bids_entities, descriptor, data, metadata):
     for f in [*sf]:
         cols = [data[modality] for modality in sf[f]]
         df = pd.DataFrame({key: value for col in cols for key, value in col.items()})
+        if not save_raw:
+            to_keep = [col for col in df.columns if 'raw' not in col]
+            df = df[to_keep]
+
         if len([*sf]) > 1:
             bids_entities['recording'] = f'{f}Hz'
         filename = layout_deriv.build_path(bids_entities, deriv_pattern, validate=False)
