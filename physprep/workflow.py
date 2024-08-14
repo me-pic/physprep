@@ -8,13 +8,11 @@ report.
 from pathlib import Path
 
 import click
-from bids import BIDSLayout
-from bids.layout import parse_file_entities
 
 from physprep import utils
 from physprep.prepare import convert, get_info, match_acq_bids, rename
 from physprep.processing import clean, process
-from physprep.quality import report
+from physprep.quality import report, qa
 
 
 @click.command()
@@ -27,20 +25,20 @@ from physprep.quality import report
     type=click.Path(),
 )
 @click.option(
-    "--sub", 
-    type=str, 
-    default=None, 
-    required=False, 
+    "--sub",
+    type=str,
+    default=None,
+    required=False,
     help="Subject id. Use only to process the data of that specific subject. "
-    "For example: if you specify --sub sub-01, only sub-01 data will be processed.",
+    "For example: if you specify --sub 01, only sub-01 data will be processed.",
 )
 @click.option(
-    "--ses", 
-    type=str, 
-    default=None, 
-    required=False, 
+    "--ses",
+    type=str,
+    default=None,
+    required=False,
     help="Session label. Use only to process the data of that specific session. "
-    "For example: if you specify --ses ses-001, only data from ses-001 will be "
+    "For example: if you specify --ses 001, only data from ses-001 will be "
     "processed. If specify, but --sub not specified, data from the specified "
     "session (e.g. ses-001) across all subjects will be processed.",
 )
@@ -56,7 +54,7 @@ from physprep.quality import report
     "--outdir_bids",
     type=click.Path(),
     default=None,
-    help="Path to the derivatives directory."
+    help="Path to the derivatives directory.",
 )
 @click.option(
     "--skip_match_acq_bids",
@@ -80,6 +78,11 @@ from physprep.quality import report
     help="Time (in seconds) of padding to add at the beginning and end of each run. "
     "Default to 9.",
 )
+@click.option(
+    "--save_report",
+    is_flag=True,
+    help="If specified, an quality report will be generated and saved for each run.",
+)
 def main(
     workflow_strategy,
     indir_bids,
@@ -90,7 +93,7 @@ def main(
     skip_match_acq_bids=False,
     skip_convert=False,
     padding=9,
-    n_jobs=None,
+    save_report=False,
 ):
     """Physprep workflow.
 
@@ -141,19 +144,24 @@ def main(
         Time (in seconds) of padding to add at the beginning and end of each run. This
         parameter is used if `skip_convert` is set to False. See Phys2BIDS documentation
         for more details. By default, 9.
+
+    save_report : bool, optional
+
+        If specified, an quality report will be generated and saved for each run.
+
     """
     # Set up directories
     # Check if directories exist
     indir_bids = Path(indir_bids)
     if not indir_bids.exists():
-        raise FileNotFoundError(f'{indir_bids} does not exist.')
+        raise FileNotFoundError(f"{indir_bids} does not exist.")
     # Check if indir_bids is already a bids dataset
     layout = utils._check_bids_validity(indir_bids)
 
     if indir_raw_physio is not None:
         indir_raw_physio = Path(indir_raw_physio)
         if not indir_raw_physio.exists():
-            raise FileNotFoundError(f'{indir_raw_physio} does not exist.')
+            raise FileNotFoundError(f"{indir_raw_physio} does not exist.")
 
     ls_ses = layout.get_sessions()
     """
@@ -173,7 +181,7 @@ def main(
     derivatives_dir.mkdir(parents=True, exist_ok=True)
     """
     # Get workflow info as defined in the configuration file `workflow_strategy`
-    workflow = utils.get_config(workflow_strategy, strategy='workflow')
+    workflow = utils.get_config(workflow_strategy, strategy="workflow")
     """
     # Match acq files with bold files if specified
     if not skip_match_acq_bids:
@@ -203,61 +211,74 @@ def main(
         rename.co_register_physio(segmented_dir, sub, ses=ses)
     """
     # Clean & process physiological data
-    ## Change to iterate through files and not sessions + files by using BIDSLayout:
-    ## Defines parameters to get the physio files
-    info_layout = {'extension': 'tsv.gz', 'suffix': 'physio'}
-    if sub is not None : info_layout['subject'] = utils._check_sub_validity(sub, layout.get_subjects())
-    if ses is not None : info_layout['session'] = utils._check_ses_validity(ses, layout.get_sessions())
-    ## Get directory for files containing physio timeseries
+    # Change to iterate through files and not sessions + files by using BIDSLayout:
+    # Defines parameters to get the physio files
+    info_layout = {"extension": "tsv.gz", "suffix": "physio"}
+    if sub is not None:
+        info_layout["subject"] = utils._check_sub_validity(sub, layout.get_subjects())
+    if ses is not None:
+        info_layout["session"] = utils._check_ses_validity(ses, layout.get_sessions())
+    # Get directory for files containing physio timeseries
     files = layout.get(**info_layout)
     # Make sure `files` is not an empty list
-    if len(files) == 0 : raise FileNotFoundError('No files found. Please make sure you specified the correct directory, and if applicable the correct values for `sub` and/or `ses`.')
+    if len(files) == 0:
+        raise FileNotFoundError(
+            "No files found. Please make sure you specified the correct directory, "
+            "and if applicable the correct values for `sub` and/or `ses`."
+        )
 
     for file in files:
-        #Load metada
+        # Load metada
         metadata = file.get_metadata()
-        if not bool(metadata): raise FileNotFoundError(f'No metadata file associated with {file}.')
+        if not bool(metadata):
+            raise FileNotFoundError(f"No metadata file associated with {file}.")
         # Load data
-        print(f'\nLoading {file}...\n')
+        print(f"\nLoading {file}...\n")
         data = file.get_df()
-        print('Data loaded.\n')
+        print("Data loaded.\n")
 
         # Preprocess data
-        print('Preprocessing data...\n')
+        print("Preprocessing data...\n")
         preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
             data, metadata, workflow
         )
         print("Saving preprocessed signals...\n")
         utils.save_processing(
-            outdir_bids, file.get_entities(), "preproc", preprocessed_signals, metadata_derivatives
-        )
-        print("Preprocessing done.\n")
-        
-        # Extract features
-        print("Extracting features...\n")
-        timeseries, features, events = process.features_extraction_workflow(
+            outdir_bids,
+            file.get_entities(),
+            "preproc",
             preprocessed_signals,
             metadata_derivatives,
-            workflow,
-            outdir_bids
+        )
+        print("Preprocessing done.\n")
+
+        # Extract features
+        print("Extracting features...\n")
+        features, events = process.features_extraction_workflow(
+            preprocessed_signals, metadata_derivatives, workflow
         )
         print("Saving extracted features...\n")
-        utils.save_features(
-            outdir_bids, file.get_entities(), events
-        )
+        utils.save_features(outdir_bids, file.get_entities(), events)
         print("Features extraction done.\n")
-        """
+
         # Generate quality report
-        print("Generating quality report...\n")
-        report.computing_sqi(
+        print("Assessing quality of the data...\n")
+        qa_signals = qa.computing_sqi(
             workflow,
             timeseries,
-            features,
-            outdir_bids,
-            file.filename,
+            features
         )
-        print("Quality report generated.\n")
-        """
+        print("Data quality assessed.\n")
+
+        if save_report:
+            print("Generating QC report... \n")
+            report.generate_report(
+                qa_signals
+            )
+            print("QC report generated. \n")
+
+
+
 
 if __name__ == "__main__":
     main()
