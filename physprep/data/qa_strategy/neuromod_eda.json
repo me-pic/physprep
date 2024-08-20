@@ -102,5 +102,10 @@
     {
         "metric": "Max",
         "feature": "Recovery_time"
+    },
+    {
+        "metric": "Quality",
+        "feature": "signal",
+        "method": "bottcher"
     }
 ]

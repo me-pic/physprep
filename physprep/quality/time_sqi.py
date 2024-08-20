@@ -5,6 +5,7 @@ import operator
 
 import numpy as np
 from scipy.stats import kurtosis, skew
+from biosppy.quality import eda_sqi_bottcher
 
 # ==================================================================================
 # Signal Quality Indices
@@ -173,7 +174,7 @@ def sqi_cardiac(
     return summary
 
 
-def sqi_eda(signal_eda, info, window=None):
+def sqi_eda(signal_eda, info, sampling_rate=10000, window=None):
     """
     Extract SQI for EDA processed signal.
 
@@ -245,6 +246,11 @@ def sqi_eda(signal_eda, info, window=None):
         summary["Median_recovery_time"] = np.nan
         summary["Min_recovery_time"] = np.nan
         summary["Max_recovery_time"] = np.nan
+    
+    if eda_sqi_bottcher(x=np.array(signal_eda["eda_clean"]), sampling_rate=sampling_rate) == 1:
+        summary['Quality'] = "Acceptable"
+    else:
+        summary['Quality'] = "Not acceptable"
 
     return summary
 
