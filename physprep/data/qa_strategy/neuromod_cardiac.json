@@ -1,0 +1,55 @@
+[
+    {
+        "metric": "Mean",
+        "feature": "NN_intervals"
+    },
+    {
+        "metric": "Median",
+        "feature": "NN_intervals"
+    },
+    {
+        "metric": "SD",
+        "feature": "NN_intervals"
+    },
+    {
+        "metric": "Min",
+        "feature": "NN_intervals"
+    },
+    {
+        "metric": "Max",
+        "feature": "NN_intervals"
+    },
+    {
+        "metric": "Mean",
+        "feature": "HR"
+    },
+    {
+        "metric": "Median",
+        "feature": "HR"
+    },
+    {
+        "metric": "SD",
+        "feature": "HR"
+    },
+    {
+        "metric": "Min",
+        "feature": "HR"
+    },
+    {
+        "metric": "Max",
+        "feature": "HR"
+    },
+    {
+        "metric": "Skewness",
+        "feature": "signal"
+    },
+    {
+        "metric": "Kurtosis",
+        "feature": "signal"
+    },
+    {
+        "metric": "Quality",
+        "feature": "NN_Intervals",
+        "threshold": {"Mean": "[600, 1200]", "SD": "<300"}
+    }
+]

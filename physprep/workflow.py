@@ -273,7 +273,11 @@ def main(
         if save_report:
             print("Generating QC report... \n")
             report.generate_report(
-                qa_signals
+                workflow,
+                qa_signals,
+                preprocessed_signals,
+                features,
+                outdir_bids
             )
             print("QC report generated. \n")
 
