@@ -6,7 +6,7 @@ Neuromod cleaning utilities.
 
 import neurokit2 as nk
 import numpy as np
-from scipy import signal
+from scipy import signal, ndimage
 
 from physprep import utils
 
@@ -169,6 +169,8 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
         if step["step"] == "filtering":
             if step["parameters"]["method"] == "notch":
                 signal = comb_band_stop(signal, sampling_rate, step["parameters"])
+            elif step["parameters"]["method"] == "median":
+                signal = median_filter(signal, step["parameters"])
             else:
                 signal = nk.signal_filter(
                     signal, sampling_rate=sampling_rate, **step["parameters"]
@@ -249,3 +251,34 @@ def comb_band_stop(data, sampling_rate, params):
             b, a = signal.iirnotch(w0, Q)
             data = signal.filtfilt(b, a, data)
     return data
+
+
+def median_filter(data, params):
+    """
+    Series of notch filters aligned with the scanner gradient's harmonics.
+
+    Parameters
+    ----------
+    data : array
+        The signal to be filtered.
+    params : dict
+        The parameters for the median filtering (i.e. `window_size`).
+
+    Returns
+    -------
+    filtered : array
+        The filtered signal.
+
+    References
+    ----------
+    Privratsky, A. A., Bush, K. A., Bach, D. R., Hahn, E. M., & Cisler, J. M. (2020). 
+        Filtering and model-based analysis independently improve skin-conductance response 
+        measures in the fMRI environment: Validation in a sample of women with PTSD. 
+        International Journal of Psychophysiology, 158, 86-95.
+        https://doi.org/10.1016/j.ijpsycho.2020.09.015
+
+    See also
+    --------
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.median_filter.html
+    """
+    return ndimage.median_filter(data, size=params['window_size'])
