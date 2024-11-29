@@ -49,7 +49,7 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
     logger.info(f"Reading fetcher in:\n{os.path.join(root, sub)}")
     if info is None:
         fetcher = f"{sub}_sessions.json"
-        info = utils.load_json(os.path.join(root, sub, fetcher))
+        info = utils.load_json(os.path.join(save, sub, fetcher))
     # define sessions
     if ses is None:
         ses = sorted(list(info.keys()))
@@ -77,7 +77,7 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
             logger.info(f"Empty session : {col}")
             continue
             # Define ch_name and trigger idx
-        if info[col]["ch_names"] is None and ch_names is not None:
+        if "ch_names" not in info[col] is None and ch_names is not None:
             logger.info(
                 "Warning: your info file does not have channel names, "
                 "the values that will be use are the following:\n "
@@ -87,7 +87,7 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
             info[col]["ch_names"] = ch_names
             chtrig = 4
         elif (
-            info[col]["ch_names"] is None
+            "ch_names" not in info[col]
             and ch_names is None
             or isinstance(info[col]["recorded_triggers"], str)
         ):
@@ -97,7 +97,7 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
             )
             continue
         else:
-            chtrig = info[col]["ch_names"].index("TTL") + 1
+            chtrig = info[col]["ch_names"].index("trigger") + 1
 
         # Iterate through files in each session and run phys2bids
         filename = info[col]["in_file"]

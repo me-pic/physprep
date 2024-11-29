@@ -14,7 +14,8 @@ import pandas as pd
 import pprintpp
 from neurokit2 import read_acqknowledge
 
-from physprep.prepare import list_sub
+from physprep.utils import load_json
+from physprep.prepare.list_sub import list_sub
 
 LGR = logging.getLogger(__name__)
 
@@ -89,6 +90,10 @@ def volume_counter(root, sub, metadata_physio, ses=None, tr=1.49, trigger_ch="TT
     # Check directory
     if os.path.exists(root) is False:
         raise ValueError("Couldn't find the following directory: ", root)
+
+    # Load metadata_physio
+    if isinstance(metadata_physio, os.PathLike) or isinstance(metadata_physio, str):
+        metadata_physio = load_json(metadata_physio)
 
     # List the files that have to be counted
     if ses == "files":
