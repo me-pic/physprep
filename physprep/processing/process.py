@@ -93,7 +93,7 @@ def features_extraction_workflow(
             end_time = np.round(timeit.default_timer() - start_time, 2)
             print(f"{signal_type} features extraction: done in {end_time} sec***\n")
 
-    events = convert_2_events(features)
+    events = convert_2_events(features, metadata)
 
     return features, events
 
@@ -281,16 +281,15 @@ def extract_respiratory_peaks(signal, sampling_rate=1000, method="khodadad2018")
     return info
 
 
-def convert_2_events(features):
+def convert_2_events(features, metadata):
     # Load json dictionnary containing non continuous data
     modalities = list(features.keys())
     duration = 0
     row=0
     df_events = pd.DataFrame(columns=['onset', 'duration', 'trial_type', 'channel'])
     for modality in modalities:
-        sf = features[modality]['SamplingFrequency']
+        sf = metadata[modality]['SamplingFrequency']
         entities = list(features[modality].keys())
-        entities.remove('SamplingFrequency')
         for entity in entities:
             list_value = features[modality][entity]
             if type(list_value) is int:

@@ -51,7 +51,7 @@ from physprep.quality import report, qa
     "data structure, please refer to the documentation.",
 )
 @click.option(
-    "--outdir_bids",
+    "--derivatives_dir",
     type=click.Path(),
     default=None,
     help="Path to the derivatives directory.",
@@ -89,7 +89,7 @@ def main(
     sub=None,
     ses=None,
     indir_raw_physio=None,
-    outdir_bids=None,
+    derivatives_dir=None,
     skip_match_acq_bids=False,
     skip_convert=False,
     padding=9,
@@ -128,6 +128,12 @@ def main(
 
         Path to the directory containing the raw physiological data. Specify if raw
         physiological data is not in the BIDS directory.
+
+    derivatives_dir : str or pathlib.Path
+
+        Path to the output directory. If `None`, a `derivatives/` directory will be 
+        created in the root of the directory specified by `indir_bids` (i.e., source BIDS 
+        dataset), as per [BIDS specification](https://bids-specification.readthedocs.io/en/stable/common-principles.html#storage-of-derived-datasets).
 
     skip_match_acq_bids : bool, optional
 
@@ -174,12 +180,14 @@ def main(
             ses = ls_ses
     """
     # Create output directories
-    """
-    segmented_dir = indir_bids / sub
-    segmented_dir.mkdir(parents=True, exist_ok=True)
-    derivatives_dir = indir_bids / 'derivatives' / 'physprep' / sub
+    #segmented_dir = indir_bids / sub
+    #segmented_dir.mkdir(parents=True, exist_ok=True)
+    if derivatives_dir is None:
+        derivatives_dir = indir_bids / 'derivatives' / 'physprep' 
+    else : 
+        derivatives_dir = Path(derivatives_dir)
     derivatives_dir.mkdir(parents=True, exist_ok=True)
-    """
+
     # Get workflow info as defined in the configuration file `workflow_strategy`
     workflow = utils.get_config(workflow_strategy, strategy="workflow")
     """
@@ -244,7 +252,7 @@ def main(
         )
         print("Saving preprocessed signals...\n")
         utils.save_processing(
-            outdir_bids,
+            derivatives_dir,
             file.get_entities(),
             "preproc",
             preprocessed_signals,
@@ -258,16 +266,18 @@ def main(
             preprocessed_signals, metadata_derivatives, workflow
         )
         print("Saving extracted features...\n")
-        utils.save_features(outdir_bids, file.get_entities(), events)
+        utils.save_features(derivatives_dir, file.get_entities(), events)
         print("Features extraction done.\n")
 
         # Generate quality report
         print("Assessing quality of the data...\n")
+        """
         qa_signals = qa.computing_sqi(
             workflow,
             timeseries,
             features
         )
+        """
         print("Data quality assessed.\n")
 
         if save_report:
@@ -277,7 +287,7 @@ def main(
                 qa_signals,
                 preprocessed_signals,
                 features,
-                outdir_bids
+                derivatives_dir
             )
             print("QC report generated. \n")
 

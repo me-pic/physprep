@@ -1,5 +1,11 @@
 [
     {
+        "step": "signal_resample",
+        "parameters": {
+            "desired_sampling_rate": 1000
+        }
+    },
+    {
         "step": "filtering",
         "parameters": {
             "method": "butterworth",
@@ -20,9 +26,25 @@
         }
     },
     {
-        "step": "signal_resample",
+        "step": "filtering",
         "parameters": {
-            "desired_sampling_rate": 1000
+            "method": "notch",
+            "Q": 100,
+            "notch_method": "bottenhorn",
+            "tr": 1.49,
+            "slices": 60,
+            "mb": 4
+        },
+        "reference": {
+            "authors": "Bottenhorn, K. L., Salo, T., Riedel, M. C., Sutherland, M. T., Robinson, J. L., Musser, E. D., & Laird, A. R.",
+            "year": "2021",
+            "title": "Denoising physiological data collected during multi-band, multi-echo EPI sequences",
+            "journal": "bioRxiv",
+            "volume": "",
+            "issue": "",
+            "page": "",
+            "doi": "10.1101/2021.04.01.437293",
+            "url": "https://doi.org/10.1101/2021.04.01.437293"
         }
     }
 ]

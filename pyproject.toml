@@ -23,6 +23,7 @@ bioread = "3.0.1"
 ipython = "8.15.0"
 pywavelets = "1.4.1"
 pybids = "^0.16.0"
+biosppy = "2.2.2"
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"
