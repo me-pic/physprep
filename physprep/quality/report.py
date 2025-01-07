@@ -51,7 +51,15 @@ def generate_summary(workflow, filename):
     return html_report
 
 
-def generate_report(workflow, summary, data, info, derivatives, filename, window=False):
+def generate_report(workflow, summary, data, info, derivatives, bids_entities, window=False):
+    # Add desc entity to dict
+    bids_entities['desc'] = 'qareport'
+    bids_entities['extension'] = 'html'
+    # Define pattern to build path for derivatives
+    deriv_pattern = 'sub-{subject}[/ses-{session}]/{datatype}/sub-{subject}[_ses-{session}][_task-{task}][_run-{run}][_recording-{recording}][_desc-{desc}]_{suffix}.{extension}'
+    # Create filename
+    filename = layout_deriv.build_path(bids_entities, deriv_pattern, validate=False)
+
     # Generate the report in HTML format
     html_report = """
     <!DOCTYPE html>

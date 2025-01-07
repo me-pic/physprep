@@ -39,7 +39,7 @@ def features_extraction_workflow(
     metadata : dict or pathlib.Path
         The metadata associated with the cleaned physiological data, if data has been
         cleaned. Otherwise, the metadata associated with the raw physiological data
-        (i.e., the outputted json file from Phys2Bids).
+        (i.e., the outputed json file from Phys2Bids).
     workflow_strategy : dict
         Dictionary containing the content of the workflow strategy.
 
@@ -57,21 +57,21 @@ def features_extraction_workflow(
     # if data is a dataframe, convert to dict
     if isinstance(data, pd.DataFrame):
         data = data.to_dict(index="list")
-
+    
     # Extract features for each signal type in the `workflow_strategy`
-    for signal_type in workflow_strategy:
+    for idx, signal_type in enumerate(workflow_strategy):
         if signal_type != "trigger":
             # Retrieve SamplingFrequency
-            sampling_rate = metadata[signal_type]["SamplingFrequency"]
-            # Extract features for each signal type
-            if signal_type in data.keys():
-                signal = data[signal_type]
-            elif workflow_strategy[signal_type]["id"] in data.columns:
-                signal = data[workflow_strategy[signal_type]["id"]]
+            if isinstance(metadata["SamplingFrequency"], list):
+                sampling_rate = metadata["SamplingFrequency"][idx]
             else:
+                sampling_rate = metadata["SamplingFrequency"]
+
+            # Extract features for each signal type
+            if signal_type not in '\t'.join(data.keys()):
                 raise ValueError(f"Signal type {signal_type} not found in the data.")
 
-            signal = as_vector(signal[f"{signal_type}_clean"])
+            signal = as_vector(data[f"{signal_type}_clean"])
             print(f"Extracting features for {signal_type}...\n")
             start_time = timeit.default_timer()
 
@@ -83,7 +83,7 @@ def features_extraction_workflow(
                 )
             elif signal_type.lower() in ["respiratory", "rsp", "resp", "breathing"]:
                 info = extract_respiratory_peaks(signal, sampling_rate=sampling_rate)
-            elif signal_type.lower() in ["electrodermal", "eda"]:
+            elif signal_type.lower() in ["electrodermal", "eda", "gsr"]:
                 info = extract_electrodermal_peaks(
                     signal, sampling_rate=sampling_rate
                 )
@@ -288,7 +288,11 @@ def convert_2_events(features, metadata):
     row=0
     df_events = pd.DataFrame(columns=['onset', 'duration', 'trial_type', 'channel'])
     for modality in modalities:
-        sf = metadata[modality]['SamplingFrequency']
+        if isinstance(metadata["SamplingFrequency"], list):
+            sampling_rate = metadata["SamplingFrequency"][idx]
+        else:
+            sampling_rate = metadata["SamplingFrequency"]
+
         entities = list(features[modality].keys())
         for entity in entities:
             list_value = features[modality][entity]
@@ -299,7 +303,12 @@ def convert_2_events(features, metadata):
             list_value = [value for value in list_value if str(value) != 'nan']
                 
             for idx in list_value:
-                df_events.loc[row] = pd.Series({'onset':idx/sf, 'duration':duration, 'trial_type': entity, 'channel': modality})
+                df_events.loc[row] = pd.Series({
+                    'onset':idx/sampling_rate, 
+                    'duration':duration, 
+                    'trial_type': entity, 
+                    'channel': modality
+                    })
                 row += 1
                         
 

@@ -102,66 +102,42 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
         # Iterate through files in each session and run phys2bids
         filename = info[col]["in_file"]
         logger.info(f"Converting : {col}")
-        if isinstance(filename, list):
-            filename.sort()
-            for i in range(len(filename)):
-                phys2bids(
-                    filename[i],
-                    info=False,
-                    indir=indir,
-                    outdir=os.path.join(save, sub, col),
-                    heur_file=None,
-                    sub=sub[-2:],
-                    ses=ses_id,
-                    chtrig=chtrig,
-                    chsel=info[col]["chsel"],
-                    num_timepoints_expected=info[col]["recorded_triggers"][f"run-0{i+1}"],
-                    tr=info[col]["tr"],
-                    thr=4,
-                    pad=pad,
-                    ch_name=info[col]["ch_names"],
-                    yml="",
-                    debug=True,
-                    quiet=False,
-                )
-        else:
-            try:
-                phys2bids(
-                    filename,
-                    info=False,
-                    indir=os.path.join(root, "physio", sub, col),
-                    outdir=os.path.join(save, sub, col),
-                    heur_file=None,
-                    sub=sub[-2:],
-                    ses=ses_id[-3:],
-                    chtrig=chtrig,
-                    chsel=info[col]["chsel"],
-                    num_timepoints_expected=info[col]["recorded_triggers"]["run-01"],
-                    tr=info[col]["tr"],
-                    thr=4,
-                    pad=pad,
-                    ch_name=info[col]["ch_names"],
-                    yml="",
-                    debug=False,
-                    quiet=False,
-                )
-            except AttributeError:
+        if info[col]['tr'] is not False:
+            if isinstance(filename, list):
                 filename.sort()
                 for i in range(len(filename)):
-                    print(i)
                     phys2bids(
                         filename[i],
                         info=False,
-                        indir=os.path.join(root, sub, col),
+                        indir=indir,
+                        outdir=os.path.join(save, sub, col),
+                        heur_file=None,
+                        sub=sub[-2:],
+                        ses=ses_id,
+                        chtrig=chtrig,
+                        chsel=info[col]["chsel"],
+                        num_timepoints_expected=info[col]["recorded_triggers"][f"run-0{i+1}"],
+                        tr=info[col]["tr"],
+                        thr=4,
+                        pad=pad,
+                        ch_name=info[col]["ch_names"],
+                        yml="",
+                        debug=True,
+                        quiet=False,
+                    )
+            else:
+                try:
+                    phys2bids(
+                        filename,
+                        info=False,
+                        indir=os.path.join(root, "physio", sub, col),
                         outdir=os.path.join(save, sub, col),
                         heur_file=None,
                         sub=sub[-2:],
                         ses=ses_id[-3:],
                         chtrig=chtrig,
                         chsel=info[col]["chsel"],
-                        num_timepoints_expected=info[col]["recorded_triggers"][
-                            f"run-0{i+1}"
-                        ],
+                        num_timepoints_expected=info[col]["recorded_triggers"]["run-01"],
                         tr=info[col]["tr"],
                         thr=4,
                         pad=pad,
@@ -170,9 +146,41 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
                         debug=False,
                         quiet=False,
                     )
+                except AttributeError:
+                    filename.sort()
+                    for i in range(len(filename)):
+                        print(i)
+                        phys2bids(
+                            filename[i],
+                            info=False,
+                            indir=os.path.join(root, sub, col),
+                            outdir=os.path.join(save, sub, col),
+                            heur_file=None,
+                            sub=sub[-2:],
+                            ses=ses_id[-3:],
+                            chtrig=chtrig,
+                            chsel=info[col]["chsel"],
+                            num_timepoints_expected=info[col]["recorded_triggers"][
+                                f"run-0{i+1}"
+                            ],
+                            tr=info[col]["tr"],
+                            thr=4,
+                            pad=pad,
+                            ch_name=info[col]["ch_names"],
+                            yml="",
+                            debug=False,
+                            quiet=False,
+                        )
 
-            except TypeError:
-                print(f"No input file for {col}")
-                continue
+                except TypeError:
+                    print(f"No input file for {col}")
+                    continue
+        else:
+            # Call convert other
+            continue
         gc.collect()
         print("~" * 30)
+
+
+def convert_other(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False, pad=0):
+    return

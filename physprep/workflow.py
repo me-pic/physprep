@@ -72,6 +72,12 @@ from physprep.quality import report, qa
     "following the BIDS recommandations.",
 )
 @click.option(
+    "--heur",
+    type=str,
+    help="File needed to convert raw data into BIDS format. For more details, check the "
+    "phys2bids documentation.",
+)
+@click.option(
     "--padding",
     type=int,
     default=9,
@@ -92,6 +98,7 @@ def main(
     derivatives_dir=None,
     skip_match_acq_bids=False,
     skip_convert=False,
+    heur = None,
     padding=9,
     save_report=False,
 ):
@@ -116,13 +123,13 @@ def main(
 
         Path to the directory containing the BIDS-like dataset.
 
-    sub : str
+    sub : str, optional
 
         Subject id. E.g. '01'
 
     ses : str, optional
 
-        Session id, by default `None`.
+        Session id, by default `None`. E.g. '001'
 
     indir_raw_physio : str or pathlib.Path
 
@@ -144,6 +151,11 @@ def main(
 
         If specified, the workflow will not convert the physiological data recordings
         in BIDS format.
+
+    heur : str, optional
+
+        File needed to convert raw data into BIDS format. For more details, check the
+        phys2bids documentation.
 
     padding : int, optional
 
@@ -271,14 +283,15 @@ def main(
 
         # Generate quality report
         print("Assessing quality of the data...\n")
-        """
         qa_signals = qa.computing_sqi(
             workflow,
-            timeseries,
-            features
+            preprocessed_signals,
+            features,
+            metadata_derivatives
         )
-        """
         print("Data quality assessed.\n")
+
+        breakpoint()
 
         if save_report:
             print("Generating QC report... \n")
@@ -287,7 +300,8 @@ def main(
                 qa_signals,
                 preprocessed_signals,
                 features,
-                derivatives_dir
+                derivatives_dir,
+                file.get_entities()
             )
             print("QC report generated. \n")
 

@@ -22,6 +22,11 @@ PREPROCESSING_STRATEGIES = [
     "neuromod_ppg",
     "neuromod_rsp",
 ]
+QA_STRATEGIES = [
+    "neuromod_cardiac",
+    "neuromod_eda",
+    "neuromod_rsp"
+]
 
 
 def _check_filename(outdir, filename, extension=None, overwrite=False):
@@ -128,7 +133,8 @@ def _check_sub_validity(sub, bids_sub):
     # Get the common elements between the specified subjects in `sub`, and the ones founds in`bids_sub`
     valid_sub = list(set(sub).intersection(bids_sub))
     invalid_sub = list(set(sub) - set(valid_sub))
-    warnings.warn(f'The following subject were specified in `sub`, but were not found in {bids_sub}: {invalid_sub}. \n Only {valid_sub} will be preprocessed')
+    if len(invalid_sub) > 0:
+        warnings.warn(f'The following subject were specified in `sub`, but were not found in {bids_sub}: {invalid_sub}. \n Only {valid_sub} will be preprocessed')
 
     return valid_sub
 
@@ -139,7 +145,8 @@ def _check_ses_validity(ses, bids_ses):
     # Get the common elements between the specified subjects in `ses`, and the ones founds in`bids_ses`
     valid_ses = list(set(ses).intersection(bids_ses))
     invalid_ses = list(set(ses) - set(valid_ses))
-    warnings.warn(f'The following sessions were specified in `ses`, but were not found in {bids_ses}: {invalid_ses}. \n Only {valid_ses} will be preprocessed')
+    if len(invalid_ses) > 0:
+        warnings.warn(f'The following sessions were specified in `ses`, but were not found in {bids_ses}: {invalid_ses}. \n Only {valid_ses} will be preprocessed')
     
     return valid_ses
 
@@ -226,33 +233,37 @@ def save_processing(outdir, bids_entities, descriptor, data, metadata, save_raw=
     # Separate modalities given their SamplingFrequency
     # All modalities with the same SamplingFrequency will be saved together
     modalities = [*metadata]
-    sf = {metadata[modalities[0]]['SamplingFrequency']: [modalities[0]]}
-    for modality in modalities[1:]:
-        for f in [*sf]:
-            if metadata[modality]['SamplingFrequency'] == f:
-                same =True
-                sf[f].append(modality)
-            else:
-                same=False
-        if not same:
-            sf[metadata[modality]['SamplingFrequency']] = [modality]
 
-    # Save derivatives with different SamplingFrequency in different files
-    for f in [*sf]:
-        cols = [data[modality] for modality in sf[f]]
-        df = pd.DataFrame({key: value for col in cols for key, value in col.items()})
-        if not save_raw:
-            to_keep = [col for col in df.columns if 'raw' not in col]
-            df = df[to_keep]
+    if not save_raw:
+        to_keep = [col for col in data.keys() if 'raw' not in col]
+    else:
+        to_keep = [col for col in data.keys()]
 
-        if len([*sf]) > 1:
+    if isinstance(metadata['SamplingFrequency'], list):
+        unique_sf = list(set(metadata['SamplingFrequency']))
+        # Save derivatives with different SamplingFrequency in different files
+        for f in unique_sf:
+            get_idx = [i for i, s in enumerate(metadata['SamplingFrequency']) if s == f]
+            cols = [metadata['Columns'][i] for i in get_idx if metadata['Columns'][i] in to_keep]
+
+            df = pd.DataFrame({col: data[col] for col in cols})
+
             bids_entities['recording'] = f'{f}Hz'
+
+            filename = layout_deriv.build_path(bids_entities, deriv_pattern, validate=False)
+            # Make sure directory exists
+            Path(BIDSFile(filename).dirname).mkdir(parents=True, exist_ok=True)
+            # Save data
+            df.to_csv(filename, sep='\t', index=False, compression='gzip')
+    else:
+        df = pd.DataFrame({col: data[col] for col in to_keep})
+
         filename = layout_deriv.build_path(bids_entities, deriv_pattern, validate=False)
         # Make sure directory exists
         Path(BIDSFile(filename).dirname).mkdir(parents=True, exist_ok=True)
         # Save data
         df.to_csv(filename, sep='\t', index=False, compression='gzip')
-
+        
 
 def save_features(outdir, bids_entities, events):
     # Get BIDS layout
@@ -594,6 +605,9 @@ def get_config(strategy_name, strategy="workflow"):
     elif strategy == "preprocessing":
         valid_strategies = PREPROCESSING_STRATEGIES
         preset_path = "preprocessing_strategy"
+    elif strategy == "qa":
+        valid_strategies = QA_STRATEGIES
+        preset_path = "qa_strategy"
     else:
         raise ValueError(
             "The given strategy is not valid. Choose among `workflow` or `preprocessing`."

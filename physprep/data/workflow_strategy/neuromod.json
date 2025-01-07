@@ -1,5 +1,5 @@
 {
-    "cardiac_ppg": {
+    "ppg": {
         "id": "PPG",
         "Description": "continuous pulse measurement",
         "Units": "V",
@@ -7,7 +7,7 @@
         "preprocessing_strategy": "neuromod_ppg",
         "qa_strategy": "neuromod_cardiac"
     },
-    "cardiac_ecg": {
+    "ecg": {
         "id": "ECG",
         "Description": "continuous electrocardiogram measurement",
         "Units": "mV",
@@ -15,7 +15,7 @@
         "preprocessing_strategy": "neuromod_ecg",
         "qa_strategy": "neuromod_cardiac"
     },
-    "electrodermal": {
+    "eda": {
         "id": "EDA",
         "Description": "continuous electrodermal measurement",
         "Units": "microsiemens",
@@ -23,7 +23,7 @@
         "preprocessing_strategy": "neuromod_eda",
         "qa_strategy": "neuromod_eda"
     },
-    "respiratory": {
+    "rsp": {
         "id": "RSP",
         "Description": "continuous breathing measurement",
         "Units": "cm H2O",

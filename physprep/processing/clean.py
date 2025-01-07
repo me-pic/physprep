@@ -3,7 +3,6 @@
 """
 Neuromod cleaning utilities.
 """
-
 import neurokit2 as nk
 import numpy as np
 from scipy import signal, ndimage
@@ -33,6 +32,8 @@ def preprocessing_workflow(data, metadata, workflow_strategy):
     """
     clean_signals = {}
     metadata_derivatives = {}
+    col = []
+    sf = []
 
     # Remove padding in data if any
     if metadata["StartTime"] > 2e-3:
@@ -62,36 +63,45 @@ def preprocessing_workflow(data, metadata, workflow_strategy):
                     workflow_strategy[signal_type]["preprocessing_strategy"],
                     sampling_rate=metadata["SamplingFrequency"],
                 )
-                processed = {f'{signal_type}_raw': raw, f'{signal_type}_clean': clean}
-                col = [f'{signal_type}_raw', f'{signal_type}_clean']
+
+                sf = [*sf, sampling_rate, sampling_rate]
+
+                clean_signals.update(
+                    {f'{signal_type}_raw': raw}
+                )
+                clean_signals.update(
+                    {f'{signal_type}_clean': clean}
+                )
+
+                col = [*col, f'{signal_type}_raw', f'{signal_type}_clean']
 
                 if components is not None:
-                    processed.update(
-                        {
-                            'electrodermal_tonic': np.array(components['EDA_Tonic']),
-                            'electrodermal_phasic': np.array(components['EDA_Phasic']),
-                        }
+                    clean_signals.update(
+                        {f'{signal_type}_tonic': np.array(components['EDA_Tonic'])}
                     )
-                    col = [*col, ['electrodermal_tonic', 'electrodermal_phasic']]
-                
-                clean_signals.update(
-                    {signal_type: processed}
-                )
+                    clean_signals.update(
+                        {f'{signal_type}_phasic': np.array(components['EDA_Phasic'])}
+                    )
 
-                metadata_derivatives.update(
-                    {
-                        signal_type: {
-                            "StartTime": data["time"].loc[0],
-                            "SamplingFrequency": sampling_rate,
-                            "Columns": col,
-                        }
-                    }
-                )
+                    col = [*col, 'electrodermal_tonic', 'electrodermal_phasic']
+                
             else:
                 print(
                     f"No preprocessing strategy specified for {signal_type}. "
                     "The preprocessing step will be skipped."
                 )
+
+    # Checking if there are different sampling frequencies
+    if  all(f == sf[0] for f in sf):
+        sf = sf[0]
+
+    metadata_derivatives.update(
+        {
+            "StartTime": data["time"].loc[0],
+            "SamplingFrequency": sf,
+            "Columns": col,
+        }
+    )
 
     return clean_signals, metadata_derivatives
 
