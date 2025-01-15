@@ -38,7 +38,7 @@ def computing_sqi(
         cleaned. Otherwise, the metadata associated with the raw physiological data
         (i.e., the outputed json file from Phys2Bids).
     """
-    summary, summary_tmp = ({}, {})
+    summary, summary_tmp, summary_short = ({}, {}, {})
 
     if isinstance(metadata, str) or isinstance(metadata, Path):
         metadata = load_json(metadata)
@@ -49,13 +49,16 @@ def computing_sqi(
         else:
             sampling_rate = metadata["SamplingFrequency"]
 
+        # Get data
+        timeseries_data = timeseries[modality+"_clean"]if modality+"_clean" in timeseries.keys() else timeseries[modality]
+
         # Get sliding
         workflow_qa = utils.get_config(workflow[modality]['qa_strategy'], strategy="qa")
         sliding = [step["sliding"] for step in workflow_qa if "sliding" in step.keys()]
 
         if not sliding:
             # If sliding not specified, consider the timeserie as one big window
-            sliding = {'duration': len(timeseries[modality+"_clean"])/sampling_rate, 'step': 0}
+            sliding = {'duration': len(timeseries_data)/sampling_rate, 'step': 0}
         else:
             sliding = sliding[0]
 
@@ -66,18 +69,18 @@ def computing_sqi(
         step_samples = int(
             sliding["step"] * sampling_rate
         )
-        if sliding['duration'] == len(timeseries[modality+"_clean"])/sampling_rate:
+        if sliding['duration'] == len(timeseries_data)/sampling_rate:
             num_windows = 1
         elif sliding['step'] == 0:
-            num_windows = int(len(timeseries[modality+"_clean"]) / window_samples)
+            num_windows = int(len(timeseries_data) / window_samples)
         else:
             num_windows = (
-                int((len(timeseries[modality+"_clean"]) - window_samples) / step_samples) + 1
+                int((len(timeseries_data) - window_samples) / step_samples) + 1
             )
 
         print(f"***Computing quality metrics for {modality} signal***")
         for i in range(num_windows):
-            if sliding['duration'] != len(timeseries[modality+"_clean"])/sampling_rate and sliding['step'] == 0:
+            if sliding['duration'] != len(timeseries_data)/sampling_rate and sliding['step'] == 0:
                 start = int(i * window_samples)
             else:
                 start = int(i * step_samples)
@@ -86,27 +89,30 @@ def computing_sqi(
             )
             end = int(start + window_samples)
             end_idx = int(end / sampling_rate)
-            window = timeseries[modality+"_clean"][start:end]
+            
+            window = timeseries_data[start:end]
 
-            if modality in ["ppg", "cardiac_ppg"]:
+            if modality.lower() in ["ppg", "cardiac_ppg"]:
                 summary_tmp[f"{start_idx}-{end_idx}"] = sqi_cardiac(
                     window,
                     extracted_features[modality],
                     window=[start, end],
                 )
-            elif modality in ["ecg", "cardiac_ecg"]:
+            elif modality.lower() in ["ecg", "cardiac_ecg"]:
                 summary_tmp[f"{start_idx}-{end_idx}"] = sqi_cardiac(
                     window,
                     extracted_features[modality],
                     window=[start, end],
                 )
-            elif modality in ["eda", "gsr", "electrodermal"]:
-                if modality+"_phasic" in timeseries.keys():
-                    phasic = timeseries[modality+"_phasic"][start:end]
+            elif modality.lower() in ["eda", "gsr", "electrodermal"]:
+                phasic_key = [key for key in timeseries.keys() if "phasic" in key.lower()]
+                tonic_key = [key for key in timeseries.keys() if "tonic" in key.lower()]
+                if len(phasic_key)==1:
+                    phasic = timeseries[phasic_key[0]][start:end]
                 else:
                     phasic = None
-                if modality+"_tonic" in timeseries.keys():
-                    tonic = timeseries[modality+"_tonic"][start:end]
+                if len(tonic_key)==1:
+                    tonic = timeseries[tonic_key[0]][start:end]
                 else:
                     tonic = None
 
@@ -117,25 +123,27 @@ def computing_sqi(
                     extracted_features[modality],
                     window=[start, end],
                 )
-            elif modality in ["rsp", "resp", "respiratory"]:
+            elif modality.lower() in ["rsp", "resp", "respiratory"]:
                 # Retrieve or compute the respiratory amplitude
-                if modality+"_amplitude" in timeseries.keys():
-                    amplitude = timeseries[modality+"_amplitude"][start:end]
+                amplitude_key = [key for key in timeseries.keys() if "amplitude" in key.lower()]
+                if len(amplitude_key)==1:
+                    amplitude = timeseries[amplitude_key][start:end]
                 else:
                     amplitude = nk.rsp_amplitude(
-                        timeseries[modality+"_clean"], 
+                        np.array(timeseries_data), 
                         np.array(extracted_features[modality]['inhale_max']),
                         troughs=np.array(extracted_features[modality]['exhale_max'])
                     )
                     amplitude = amplitude[start:end]
                 # Retrieve or compute the respiratory rate
-                if modality+"_rate" in timeseries.keys():
-                    rate = timeseries[modality+"_rate"][start:end]
+                rate_key = [key for key in timeseries.keys() if "rate" in key.lower()]
+                if len(rate_key)==1:
+                    rate = timeseries[rate_key][start:end]
                 else:
                     rate = nk.signal_rate(
                         np.array(extracted_features[modality]['exhale_max']),
                         sampling_rate=sampling_rate,
-                        desired_length=len(timeseries[modality+"_clean"]),
+                        desired_length=len(timeseries_data),
                         interpolation_method='monotone_cubic'
                     )
                     rate = rate[start:end]
@@ -146,8 +154,20 @@ def computing_sqi(
                     rate
                 )
 
+        # Generate short summary
+        quality_window = 0
+        for window in summary_tmp.keys():
+            if summary_tmp[window]['Quality'] == "Acceptable":
+                quality_window += 1
+
+        summary_short[modality] = {
+            "Description": workflow[modality]['Description'],
+            "PercentageValid": np.round(quality_window/len(summary_tmp.keys()), 2),
+            "QualityAssessment": "Pass" if quality_window/len(summary_tmp.keys()) > 0.8 else "Fail"
+        }
+
         # Descriptive metrics on the overall run
-        if modality in ["ppg", "ecg", "cardiac_ppg", "cardiac_ecg"]:
+        if modality.lower() in ["ppg", "ecg", "cardiac_ppg", "cardiac_ecg"]:
             summary[modality] = {
                 "Overview": sqi_cardiac_overview(
                     extracted_features[modality],
@@ -155,17 +175,19 @@ def computing_sqi(
                 )
             }
             summary[modality].update(summary_tmp)
-        elif modality in ["eda", "electrodermal", "gsr"]:
+        elif modality.lower() in ["eda", "electrodermal", "gsr"]:
             summary[modality] = {
                 "Overview": sqi_eda_overview(
                     len(extracted_features[modality]["scr_peak"])
                 )
             }
             summary[modality].update(summary_tmp)
-        elif modality in ["rsp", "resp", "respiratory"]:
+        elif modality.lower() in ["rsp", "resp", "respiratory"]:
             summary[modality] = summary_tmp
-            #except Exception:
-            #    print(f"Not able to compute {modality}")
-            #    traceback.print_exc()
 
-    return summary
+    summary_short["Description"] = {
+        "PercentageValid": f"Percentage of acceptable {sliding['duration']/60}min windows within a run based on modality specific criterion",
+        "QualityAssessment": "Quality assessment of the run. Pass if more than 80% of the run is classified as Acceptable, otherwise Fail"
+    }
+
+    return summary, summary_short

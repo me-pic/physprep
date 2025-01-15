@@ -197,26 +197,30 @@ def plot_raw(
     else:
         source = ColumnDataSource(data={"time": time[::decim], "signal": signal[::decim]})
 
-    if modality == "cardiac_ppg":
+    if modality.lower() in ["cardiac_ppg", "ppg"]:
         # title = "PPG recording"
         ylabel = "PPG level (a.u.)"
         peaks_label = "Systolic peaks"
         signal_label = "PPG signal"
-    elif modality == "cardiac_ecg":
+    elif modality.lower() in ["cardiac_ecg", "ecg"]:
         # title = "ECG recording"
         ylabel = "ECG (mV)"
         peaks_label = "R wave"
         signal_label = "ECG signal"
-    elif modality == "respiratory":
+    elif modality.lower() in ["respiratory", "rsp", "resp"]:
         # title = "Respiration"
         ylabel = "Respiratory signal"
         peaks_label = "End of inspiration"
         signal_label = "Respiratory signal"
-    elif modality == "electrodermal":
+    elif modality in ["electrodermal", "eda", "gsr"]:
         # title = "EDA recording"
         ylabel = "EDA (uSiemens)"
         peaks_label = "SCR Peaks"
         signal_label = "EDA signal"
+    else:
+        ylabel=""
+        peaks_label=""
+        signal_label=""
 
     ############
     # Raw plot #
@@ -330,7 +334,7 @@ def plot_raw(
         return cols[0]
 
 
-def generate_plot(data, info, modality):
+def generate_plot(data, features, metadata, modality):
     """
     Parameters
     ----------
@@ -343,36 +347,49 @@ def generate_plot(data, info, modality):
         The options include "ECG", "PPG", "EDA", and "RSP".
     """
     print(f"Plotting {modality} signal: begin")
+    if isinstance(metadata['SamplingFrequency'], list):
+        sampling_frequency = metadata['SamplingFrequency'][metadata['Columns'].index(f'{modality}_clean')]
+    else:
+        sampling_frequency = metadata['SamplingFrequency']
+
     try:
         # Plot cleaned signal during MRI sequence
-        if modality == "respiratory":
+        if modality.lower() in ["respiratory", "rsp", "resp"]:
+            peaks = [1 if idx in features[modality]["inhale_max"] else 0 for idx, i in enumerate([0]*len(data[f"{modality}_clean"]))]
+
             figure_signal = plot_raw(
-                signal=data[modality]["rsp_clean"],
-                peaks=data[modality]["rsp_peaks"].astype(bool),
-                sfreq=info[modality]["SamplingFrequency"],
+                signal=data[f"{modality}_clean"],
+                peaks=np.array(peaks).astype(bool),
+                sfreq=sampling_frequency,
                 modality=modality,
                 title=f"{modality} : Scanner on - Clean",
                 show_heart_rate=False,
                 show_artefacts=True,
             )
-        elif modality == "electrodermal":
+        elif modality.lower() in ["electrodermal", "eda", "gsr"]:
+            peaks = [1 if idx in features[modality]["scr_peak"] else 0 for idx, i in enumerate([0]*len(data[f"{modality}_clean"]))]
+            onsets = [1 if idx in features[modality]["scr_onset"] else 0 for idx, i in enumerate([0]*len(data[f"{modality}_clean"]))]
+
             figure_signal = plot_raw(
-                signal=data[modality]["eda_clean"],
-                eda_scr=data[modality]["eda_phasic"],
-                eda_scl=data[modality]["eda_tonic"],
-                peaks=data[modality]["scr_peaks"],
-                onsets=data[modality]["scr_onsets"],
-                sfreq=info[modality]["SamplingFrequency"],
+                signal=data[f"{modality}_clean"],
+                eda_scr=data[f"{modality}_phasic"],
+                eda_scl=data[f"{modality}_tonic"],
+                peaks=np.array(peaks).astype(bool),
+                onsets=np.array(onsets).astype(bool),
+                sfreq=sampling_frequency,
                 modality=modality,
                 title=f"{modality} : Scanner on - Clean",
                 show_heart_rate=False,
                 show_artefacts=True,
             )
-        elif modality in ["cardiac_ecg", "cardiac_ppg"]:
+        elif modality.lower() in ["cardiac", "ecg", "ppg"]:
+            peak_key = [key for key in features[modality].keys() if 'peak_corrected' in key][0]
+            peaks = [1 if idx in features[modality][peak_key] else 0 for idx, i in enumerate([0]*len(data[f"{modality}_clean"]))]
+
             figure_signal = plot_raw(
-                signal=data[modality][f"{modality}_clean"],
-                peaks=data[modality][f"{modality}_peaks_nk"].astype(bool),
-                sfreq=info[modality]["SamplingFrequency"],
+                signal=data[f"{modality}_clean"],
+                peaks=np.array(peaks).astype(bool),
+                sfreq=sampling_frequency,
                 modality=modality.lower(),
                 title=f"{modality} : Scanner on - Clean",
                 show_heart_rate=True,

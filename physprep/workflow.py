@@ -89,6 +89,7 @@ from physprep.quality import report, qa
     is_flag=True,
     help="If specified, an quality report will be generated and saved for each run.",
 )
+
 def main(
     workflow_strategy,
     indir_bids,
@@ -100,7 +101,7 @@ def main(
     skip_convert=False,
     heur = None,
     padding=9,
-    save_report=False,
+    save_report=False
 ):
     """Physprep workflow.
 
@@ -283,29 +284,30 @@ def main(
 
         # Generate quality report
         print("Assessing quality of the data...\n")
-        qa_signals = qa.computing_sqi(
+        qa_metrics, qa_short = qa.computing_sqi(
             workflow,
             preprocessed_signals,
             features,
             metadata_derivatives
         )
+        print("Saving quality assessment...\n")
+        utils.save_qa(derivatives_dir, file.get_entities(), qa_metrics)
+        utils.save_qa(derivatives_dir, file.get_entities(), qa_short, short=True)
         print("Data quality assessed.\n")
-
-        breakpoint()
 
         if save_report:
             print("Generating QC report... \n")
-            report.generate_report(
+            qa_report = report.generate_report(
                 workflow,
-                qa_signals,
+                qa_metrics,
                 preprocessed_signals,
                 features,
+                metadata_derivatives,
                 derivatives_dir,
                 file.get_entities()
             )
             print("QC report generated. \n")
-
-
+            utils.save_qa(derivatives_dir, file.get_entities(), qa_report, report=True)
 
 
 if __name__ == "__main__":

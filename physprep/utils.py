@@ -278,6 +278,39 @@ def save_features(outdir, bids_entities, events):
     events.to_csv(filename, sep='\t', index=False)
 
 
+def save_qa(outdir, bids_entities, qa_output, short=False, report=False):
+    # Get BIDS layout
+    layout_deriv = _check_bids_validity(outdir, is_derivative=True)
+    # Define pattern
+    if report:
+        bids_entities['desc'] = 'qareport'
+        bids_entities['suffix'] = 'html'
+    else:
+        if short:
+            bids_entities['desc'] = 'quality'
+        else:
+            bids_entities['desc'] = 'qualitydesc'
+        bids_entities['suffix'] = 'json'
+    deriv_pattern = 'sub-{subject}[/ses-{session}]/{datatype}/sub-{subject}[_ses-{session}][_task-{task}][_run-{run}][_recording-{recording}]_desc-{desc}.{suffix}'
+    # Build path
+    filename = layout_deriv.build_path(bids_entities, deriv_pattern, validate=False)
+    # Make sure directory exists
+    Path(BIDSFile(filename).dirname).mkdir(parents=True, exist_ok=True)
+
+    # Save qa
+    if report:
+        with open(filename, "w") as f:
+            f.write(qa_output)
+            f.close()
+    else:
+        with open(filename, "w") as f:
+            json.dump(qa_output, f, indent=4)
+            f.close()
+
+
+    
+
+
 def create_config_preprocessing(outdir, filename, overwrite=False):
     """
     Generate a configuration file for the preprocessing strategy based on the user inputs.

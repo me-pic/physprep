@@ -56,7 +56,7 @@ def features_extraction_workflow(
 
     # if data is a dataframe, convert to dict
     if isinstance(data, pd.DataFrame):
-        data = data.to_dict(index="list")
+        data = data.to_dict("list")
     
     # Extract features for each signal type in the `workflow_strategy`
     for idx, signal_type in enumerate(workflow_strategy):
@@ -71,7 +71,10 @@ def features_extraction_workflow(
             if signal_type not in '\t'.join(data.keys()):
                 raise ValueError(f"Signal type {signal_type} not found in the data.")
 
-            signal = as_vector(data[f"{signal_type}_clean"])
+           
+            signal_key = f"{signal_type}_clean"  if f"{signal_type}_clean" in data.keys() else signal_type
+
+            signal = as_vector(data[signal_key])
             print(f"Extracting features for {signal_type}...\n")
             start_time = timeit.default_timer()
 

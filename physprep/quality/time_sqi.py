@@ -241,8 +241,11 @@ def sqi_eda(signal_eda, signal_phasic, signal_tonic, info, sampling_rate=10000, 
     if min_index != max_index and max_index != 0:
         summary["Number_of_detected_peaks"] = len(info["scr_peak"][min_index:max_index])
     
-    if eda_sqi_bottcher(x=np.array(signal_eda), sampling_rate=sampling_rate) == 1:
+    rac, qa_bottcher = rac_sqi(signal_eda, sampling_rate)
+    if qa_bottcher == 1:
         summary['Quality'] = "Acceptable"
+    elif qa_bottcher > 0.5:
+        summary['Quality'] = "Mostly acceptable"
     else:
         summary['Quality'] = "Not acceptable"
 
@@ -369,7 +372,7 @@ def minimal_range_sqi(signal, threshold):
     return np.round(minimal_range, 4)
 
 
-def rac_sqi(signal, threshold, duration=2):
+def rac_sqi(signal, sampling_rate, threshold=0.2, duration=2):
     """
     Compute the Rate of Amplitude Change (RAC) in the signal for windows
     of length defines by `duration`.
@@ -398,23 +401,28 @@ def rac_sqi(signal, threshold, duration=2):
         & Loddenkemper, T. (2022). Data quality evaluation in wearable monitoring.
         Scientific reports, 12(1), 21412.
     """
-    nb_windows = len(signal) // duration
-    rac_values = []
+    nb_windows = len(signal) // (duration * sampling_rate)
+    rac_values, qa_scores = [], []
 
     for i in range(nb_windows):
-        window_start = i * duration
-        window_end = window_start + duration
+        window_start = i * (duration*sampling_rate)
+        window_end = window_start + (duration*sampling_rate)
 
         window = signal[window_start:window_end]
-        highest_value = max(window)
-        lowest_value = min(window)
+        highest_value, highest_idx = max(window), np.argmax(window)
+        lowest_value, lowest_idx = min(window), np.argmin(window)
 
-        rac = abs(highest_value - lowest_value) / min(highest_value, lowest_value)
+        if lowest_idx<highest_idx:
+            rac = abs(highest_value - lowest_value) / lowest_value
+        elif lowest_idx>highest_idx:
+            rac = abs(highest_value - lowest_value) / highest_value
         rac_values.append(rac)
+        qa_scores.append((rac < threshold) & (np.mean(window)>0.05))
 
-    rac_ratio = np.count_nonzero(np.array(rac_values) > threshold) / len(signal)
+    rac_ratio = np.count_nonzero(np.array(rac_values) < threshold) / nb_windows
+    qa_ratio = np.count_nonzero(np.array(qa_scores)) / nb_windows
 
-    return np.round(rac_ratio, 4)
+    return np.round(rac_ratio, 2), np.round(qa_ratio, 2)
 
 
 def threshold_sqi(metric, threshold, op=None):

@@ -1,5 +1,11 @@
 [
     {
+        "sliding":{
+            "duration": 60,
+            "step": 0
+        }
+    },
+    {
         "metric": "Mean",
         "feature": "Amplitude"
     },
