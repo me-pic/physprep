@@ -141,48 +141,62 @@ def sqi_cardiac(
     if window is not None:
         start, end = min(window), max(window)
         sub_list = [x for x in info[peaks] if start <= x <= end]
-        min_index = np.where(info[peaks] == min(sub_list))[0][0]
-        max_index = np.where(info[peaks] == max(sub_list))[0][0] + 1
+        if len(sub_list) > 0:
+            min_index = np.where(info[peaks] == min(sub_list))[0][0]
+            max_index = np.where(info[peaks] == max(sub_list))[0][0] + 1
+        else:
+            min_index = None
     else:
         min_index = 0
         max_index = len(info[peaks])
 
-    # Descriptive indices on NN intervals
-    for metric in MAPPING_METRICS:
-        summary[f"{metric}_NN_intervals (ms)"] = np.round(
-            MAPPING_METRICS[metric](corrected_rr[min_index:max_index]), 4
-        )
-
-    # Descriptive indices on heart rate
-    for metric in MAPPING_METRICS:
-        summary[f"{metric}_HR (bpm)"] = metrics_hr_sqi(
-            corrected_rr[min_index:max_index],
-            metric=metric.lower(),
-        )
     # Descriptive indices on overall signal
     summary["Skewness"] = np.round(kurtosis(signal_cardiac), 4)
     summary["Kurtosis"] = np.round(skew(signal_cardiac), 4)
 
-    # Quality assessment based on mean NN intervals and std
-    if (
-        threshold_sqi(
-            np.mean(corrected_rr[min_index:max_index]),
-            mean_NN,
-        )
-        == "Acceptable"
-        and threshold_sqi(
-            np.std(
+    if min_index is not None:
+        # Descriptive indices on NN intervals
+        for metric in MAPPING_METRICS:
+            summary[f"{metric}_NN_intervals (ms)"] = np.round(
+                MAPPING_METRICS[metric](corrected_rr[min_index:max_index]), 4
+            )
+
+        # Descriptive indices on heart rate
+        for metric in MAPPING_METRICS:
+            summary[f"{metric}_HR (bpm)"] = metrics_hr_sqi(
                 corrected_rr[min_index:max_index],
-                ddof=1,
-            ),
-            std_NN,
-            operator.lt,
-        )
-        == "Acceptable"
-    ):
-        summary["Quality"] = "Acceptable"
+                metric=metric.lower(),
+            )
+
+        # Quality assessment based on mean NN intervals and std
+        if (
+            threshold_sqi(
+                np.mean(corrected_rr[min_index:max_index]),
+                mean_NN,
+            )
+            == "Acceptable"
+            and threshold_sqi(
+                np.std(
+                    corrected_rr[min_index:max_index],
+                    ddof=1,
+                ),
+                std_NN,
+                operator.lt,
+            )
+            == "Acceptable"
+        ):
+            summary["Quality"] = "Acceptable"
+        else:
+            summary["Quality"] = "Not acceptable"
     else:
-        summary["Quality"] = "Not acceptable"
+        # Descriptive indices on NN intervals
+        for metric in MAPPING_METRICS:
+            summary[f"{metric}_NN_intervals (ms)"] = None
+
+        # Descriptive indices on heart rate
+        for metric in MAPPING_METRICS:
+            summary[f"{metric}_HR (bpm)"] = None
+        summary['Quality'] = "Not acceptable"
 
     return summary
 
@@ -414,7 +428,7 @@ def rac_sqi(signal, sampling_rate, threshold=0.2, duration=2):
 
         if lowest_idx<highest_idx:
             rac = abs(highest_value - lowest_value) / lowest_value
-        elif lowest_idx>highest_idx:
+        elif lowest_idx>=highest_idx:
             rac = abs(highest_value - lowest_value) / highest_value
         rac_values.append(rac)
         qa_scores.append((rac < threshold) & (np.mean(window)>0.05))
