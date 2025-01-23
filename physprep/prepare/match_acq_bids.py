@@ -69,7 +69,7 @@ def match_all_bolds(bids_path, biopac_path, overwrite=True):
         list_matches_out = session_sourcedata / (
             sub_ses_prefix + "_physio_fmri_matches.tsv"
         )
-        breakpoint()
+
         if list_matches_out.exists() and not overwrite:
             continue
         matches = []
