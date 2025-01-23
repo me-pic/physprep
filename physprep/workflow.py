@@ -203,12 +203,11 @@ def main(
 
     # Get workflow info as defined in the configuration file `workflow_strategy`
     workflow = utils.get_config(workflow_strategy, strategy="workflow")
-    """
+    
     # Match acq files with bold files if specified
     if not skip_match_acq_bids:
-        raw_dir = indir_bids / 'sourcedata' / sub
-        raw_dir.mkdir(parents=True, exist_ok=True)
         match_acq_bids(indir_bids, indir_raw_physio)
+    """
     if not skip_convert:
         # Get information about the physiological recordings
         info_sessions = get_info.get_info(
