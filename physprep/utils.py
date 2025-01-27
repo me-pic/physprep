@@ -154,20 +154,23 @@ def _check_ses_validity(ses, bids_ses):
 def _check_bids_validity(path, is_derivative=False):
     # Check if path is a BIDS dataset, otherwise create a `dataset_description.json` file
     # Reference: https://github.com/bids-standard/bids-starter-kit/blob/main/pythonCode/createBIDS_dataset_description_json.py
-    try:
-        layout = BIDSLayout(path, validate=False, is_derivative=is_derivative)
-    except BIDSValidationError:
-        warnings.warn(f'Because {path} is not a BIDS dataset, an empty `dataset_description.json` file will be created at the root. MAKE SURE TO FILL THAT FILE AFTERWARD !')
-        if is_derivative:
-            descrip = pkgutil.get_data(__name__, 'data/boilerplates/dataset_description_derivatives.json')
-        else:
-            descrip = pkgutil.get_data(__name__, 'data/boilerplates/dataset_description.json')
-        with open(f'{path}/dataset_description.json', "w") as f:
-            json.dump(json.loads(descrip.decode()), f, indent=4)
-        f.close()
-        layout = BIDSLayout(path, validate=False, is_derivative=is_derivative)
+    if isinstance(path, BIDSLayout):
+        return path
+    else:
+        try:
+            layout = BIDSLayout(path, validate=False, is_derivative=is_derivative)
+        except BIDSValidationError:
+            warnings.warn(f'Because {path} is not a BIDS dataset, an empty `dataset_description.json` file will be created at the root. MAKE SURE TO FILL THAT FILE AFTERWARD !')
+            if is_derivative:
+                descrip = pkgutil.get_data(__name__, 'data/boilerplates/dataset_description_derivatives.json')
+            else:
+                descrip = pkgutil.get_data(__name__, 'data/boilerplates/dataset_description.json')
+            with open(f'{path}/dataset_description.json', "w") as f:
+                json.dump(json.loads(descrip.decode()), f, indent=4)
+            f.close()
+            layout = BIDSLayout(path, validate=False, is_derivative=is_derivative)
 
-    return layout
+        return layout
         
 
 def load_json(filename):
