@@ -8,12 +8,11 @@ report.
 from pathlib import Path
 
 import click
-import pandas as pd
 
 from physprep import utils
 from physprep.prepare import convert, get_info, match_acq_bids, rename
 from physprep.processing import clean, process
-from physprep.quality import report
+from physprep.quality import report, qa
 
 
 @click.command()
@@ -25,8 +24,24 @@ from physprep.quality import report
     "indir_bids",
     type=click.Path(),
 )
-@click.argument("sub", type=str)
-@click.option("--ses", type=str, default=None, required=False, help="Session label.")
+@click.option(
+    "--sub",
+    type=str,
+    default=None,
+    required=False,
+    help="Subject id. Use only to process the data of that specific subject. "
+    "For example: if you specify --sub 01, only sub-01 data will be processed.",
+)
+@click.option(
+    "--ses",
+    type=str,
+    default=None,
+    required=False,
+    help="Session label. Use only to process the data of that specific session. "
+    "For example: if you specify --ses 001, only data from ses-001 will be "
+    "processed. If specify, but --sub not specified, data from the specified "
+    "session (e.g. ses-001) across all subjects will be processed.",
+)
 @click.option(
     "--indir_raw_physio",
     type=click.Path(),
@@ -34,6 +49,12 @@ from physprep.quality import report
     help="Path to the directory containing the raw physiological data. Specify if raw "
     "physiological data is not in the BIDS directory. For more details, about the BIDS "
     "data structure, please refer to the documentation.",
+)
+@click.option(
+    "--derivatives_dir",
+    type=click.Path(),
+    default=None,
+    help="Path to the derivatives directory.",
 )
 @click.option(
     "--skip_match_acq_bids",
@@ -51,22 +72,36 @@ from physprep.quality import report
     "following the BIDS recommandations.",
 )
 @click.option(
+    "--heur",
+    type=str,
+    help="File needed to convert raw data into BIDS format. For more details, check the "
+    "phys2bids documentation.",
+)
+@click.option(
     "--padding",
     type=int,
     default=9,
     help="Time (in seconds) of padding to add at the beginning and end of each run. "
     "Default to 9.",
 )
+@click.option(
+    "--save_report",
+    is_flag=True,
+    help="If specified, an quality report will be generated and saved for each run.",
+)
+
 def main(
     workflow_strategy,
     indir_bids,
-    sub,
+    sub=None,
     ses=None,
     indir_raw_physio=None,
+    derivatives_dir=None,
     skip_match_acq_bids=False,
     skip_convert=False,
+    heur = None,
     padding=9,
-    n_jobs=None,
+    save_report=False
 ):
     """Physprep workflow.
 
@@ -89,18 +124,24 @@ def main(
 
         Path to the directory containing the BIDS-like dataset.
 
-    sub : str
+    sub : str, optional
 
-        Subject label.
+        Subject id. E.g. '01'
 
     ses : str, optional
 
-        Session label, by default `None`.
+        Session id, by default `None`. E.g. '001'
 
     indir_raw_physio : str or pathlib.Path
 
         Path to the directory containing the raw physiological data. Specify if raw
         physiological data is not in the BIDS directory.
+
+    derivatives_dir : str or pathlib.Path
+
+        Path to the output directory. If `None`, a `derivatives/` directory will be 
+        created in the root of the directory specified by `indir_bids` (i.e., source BIDS 
+        dataset), as per [BIDS specification](https://bids-specification.readthedocs.io/en/stable/common-principles.html#storage-of-derived-datasets).
 
     skip_match_acq_bids : bool, optional
 
@@ -112,44 +153,61 @@ def main(
         If specified, the workflow will not convert the physiological data recordings
         in BIDS format.
 
+    heur : str, optional
+
+        File needed to convert raw data into BIDS format. For more details, check the
+        phys2bids documentation.
+
     padding : int, optional
 
         Time (in seconds) of padding to add at the beginning and end of each run. This
         parameter is used if `skip_convert` is set to False. See Phys2BIDS documentation
         for more details. By default, 9.
+
+    save_report : bool, optional
+
+        If specified, an quality report will be generated and saved for each run.
+
     """
     # Set up directories
     # Check if directories exist
     indir_bids = Path(indir_bids)
     if not indir_bids.exists():
         raise FileNotFoundError(f"{indir_bids} does not exist.")
+    # Check if indir_bids is already a bids dataset
+    layout = utils._check_bids_validity(indir_bids)
+
     if indir_raw_physio is not None:
         indir_raw_physio = Path(indir_raw_physio)
         if not indir_raw_physio.exists():
             raise FileNotFoundError(f"{indir_raw_physio} does not exist.")
 
+    ls_ses = layout.get_sessions()
+    """
     if ses is not None and not isinstance(ses, list):
         ls_ses = [ses]
     elif ses is None:
-        ls_ses = sorted(Path(indir_bids / sub).glob("ses-*"))
+        ls_ses = sorted(Path(indir_bids / sub).glob('ses-*'))
         # If multiple ses-* subdirectory in sub
         if len(ls_ses) != 0:
             ses = ls_ses
-
+    """
     # Create output directories
-    raw_dir = indir_bids / "sourcedata" / sub
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    segmented_dir = indir_bids / sub
-    segmented_dir.mkdir(parents=True, exist_ok=True)
-    derivatives_dir = indir_bids / "derivatives" / "physprep" / sub
+    #segmented_dir = indir_bids / sub
+    #segmented_dir.mkdir(parents=True, exist_ok=True)
+    if derivatives_dir is None:
+        derivatives_dir = indir_bids / 'derivatives' / 'physprep' 
+    else : 
+        derivatives_dir = Path(derivatives_dir)
     derivatives_dir.mkdir(parents=True, exist_ok=True)
 
     # Get workflow info as defined in the configuration file `workflow_strategy`
     workflow = utils.get_config(workflow_strategy, strategy="workflow")
-
+    
     # Match acq files with bold files if specified
     if not skip_match_acq_bids:
         match_acq_bids(indir_bids, indir_raw_physio)
+    """
     if not skip_convert:
         # Get information about the physiological recordings
         info_sessions = get_info.get_info(
@@ -157,8 +215,8 @@ def main(
             sub,
             ses,
             count_vol=True,
-            save=indir_bids / "sourcedata",
-            tr_channel=workflow["trigger"]["channel"],
+            save=indir_bids / 'sourcedata',
+            tr_channel=workflow['trigger']['channel'],
         )
         # Convert physiological data to BIDS format with phys2bids
         # Session-level
@@ -171,92 +229,84 @@ def main(
             convert.convert(raw_dir, segmented_dir, sub, info=info_sessions, pad=padding)
         # Rename physiological data to BIDS format
         rename.co_register_physio(segmented_dir, sub, ses=ses)
-
+    """
     # Clean & process physiological data
-    if len(ls_ses) >= 1:
-        for s in ls_ses:
-            runs = sorted(s.glob("func/*_physio.*"))
-            # Remove duplicated elements in runs with same filename but different
-            # extension
-            runs = list(set([run.parent / run.stem for run in runs]))
-            # Need to run it twice because of the tsv.gz extension
-            runs = list(set([run.parent / run.stem for run in runs]))
-            runs.sort()
+    # Change to iterate through files and not sessions + files by using BIDSLayout:
+    # Defines parameters to get the physio files
+    info_layout = {"extension": "tsv.gz", "suffix": "physio"}
+    if sub is not None:
+        info_layout["subject"] = utils._check_sub_validity(sub, layout.get_subjects())
+    if ses is not None:
+        info_layout["session"] = utils._check_ses_validity(ses, layout.get_sessions())
+    # Get directory for files containing physio timeseries
+    files = layout.get(**info_layout)
+    # Make sure `files` is not an empty list
+    if len(files) == 0:
+        raise FileNotFoundError(
+            "No files found. Please make sure you specified the correct directory, "
+            "and if applicable the correct values for `sub` and/or `ses`."
+        )
 
-            for run in runs:
-                filename = run.stem
-                print(f"\nLoading {filename}...\n")
-                # Load data
-                metadata = utils.load_json(run.with_suffix(".json"))
-                data = pd.read_csv(
-                    run.with_suffix(".tsv.gz"), sep="\t", names=metadata["Columns"]
-                )
-                print("Data loaded.\n")
-                print("Preprocessing data...\n")
-                # Preprocess data
-                preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
-                    data, metadata, workflow, Path(derivatives_dir / s.stem), filename
-                )
-                print("Preprocessing done.\n")
-                print("Extracting features...\n")
-                # Extract features
-                timeseries, features = process.features_extraction_workflow(
-                    preprocessed_signals,
-                    metadata_derivatives,
-                    workflow,
-                    Path(derivatives_dir / s.stem),
-                    filename,
-                )
-                print("Features extracted.\n")
-                print("Generating quality report...\n")
-                # Generate quality report
-                report.computing_sqi(
-                    workflow,
-                    timeseries,
-                    features,
-                    Path(derivatives_dir / s.stem),
-                    filename,
-                )
-                print("Quality report generated.\n")
-    else:
-        runs = sorted(segmented_dir.glob("func/*_physio.*"))
-        # Remove duplicated elements in runs with same filename but different
-        # extension
-        runs = list(set([run.parent / run.stem for run in runs]))
-        # Need to run it twice because of the tsv.gz extension
-        runs = list(set([run.parent / run.stem for run in runs]))
-        runs.sort()
-        for run in runs:
-            filename = run.stem
-            print(f"\nLoading {filename}...\n")
-            # Load data
-            metadata = utils.load_json(run.with_suffix(".json"))
-            data = pd.read_csv(
-                run.with_suffix(".tsv.gz"), sep="\t", names=metadata["Columns"]
-            )
-            print("Data loaded.\n")
-            print("Preprocessing data...\n")
-            # Preprocess data
-            preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
-                data, metadata, workflow, derivatives_dir, filename
-            )
-            print("Preprocessing done.\n")
-            print("Extracting features...\n")
-            # Extract features
-            timeseries, features = process.features_extraction_workflow(
-                preprocessed_signals,
-                metadata_derivatives,
+    for file in files:
+        # Load metada
+        metadata = file.get_metadata()
+        if not bool(metadata):
+            raise FileNotFoundError(f"No metadata file associated with {file}.")
+        # Load data
+        print(f"\nLoading {file}...\n")
+        data = file.get_df()
+        print("Data loaded.\n")
+
+        # Preprocess data
+        print("Preprocessing data...\n")
+        preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
+            data, metadata, workflow
+        )
+        print("Saving preprocessed signals...\n")
+        utils.save_processing(
+            derivatives_dir,
+            file.get_entities(),
+            "preproc",
+            preprocessed_signals,
+            metadata_derivatives,
+        )
+        print("Preprocessing done.\n")
+
+        # Extract features
+        print("Extracting features...\n")
+        features, events = process.features_extraction_workflow(
+            preprocessed_signals, metadata_derivatives, workflow
+        )
+        print("Saving extracted features...\n")
+        utils.save_features(derivatives_dir, file.get_entities(), events)
+        print("Features extraction done.\n")
+
+        # Generate quality report
+        print("Assessing quality of the data...\n")
+        qa_metrics, qa_short = qa.computing_sqi(
+            workflow,
+            preprocessed_signals,
+            features,
+            metadata_derivatives
+        )
+        print("Saving quality assessment...\n")
+        utils.save_qa(derivatives_dir, file.get_entities(), qa_metrics)
+        utils.save_qa(derivatives_dir, file.get_entities(), qa_short, short=True)
+        print("Data quality assessed.\n")
+
+        if save_report:
+            print("Generating QC report... \n")
+            qa_report = report.generate_report(
                 workflow,
+                qa_metrics,
+                preprocessed_signals,
+                features,
+                metadata_derivatives,
                 derivatives_dir,
-                filename,
+                file.get_entities()
             )
-            print("Features extracted.\n")
-            print("Generating quality report...\n")
-            # Generate quality report
-            report.computing_sqi(
-                workflow, timeseries, features, derivatives_dir, filename
-            )
-            print("Quality report generated.\n")
+            print("QC report generated. \n")
+            utils.save_qa(derivatives_dir, file.get_entities(), qa_report, report=True)
 
 
 if __name__ == "__main__":

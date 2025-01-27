@@ -1,0 +1,65 @@
+[
+    {
+        "sliding":{
+            "duration": 60,
+            "step": 0
+        }
+    },
+    {
+        "metric": "Mean",
+        "feature": "Amplitude"
+    },
+    {
+        "metric": "Median",
+        "feature": "Amplitude"
+    },
+    {
+        "metric": "SD",
+        "feature": "Amplitude"
+    },
+    {
+        "metric": "Min",
+        "feature": "Amplitude"
+    },
+    {
+        "metric": "Max",
+        "feature": "Amplitude"
+    },
+    {
+        "metric": "CV",
+        "feature": "Amplitude"
+    },
+    {
+        "metric": "Variability",
+        "feature": "Amplitude"
+    },
+    {
+        "metric": "Mean",
+        "feature": "Rate"
+    },
+    {
+        "metric": "Median",
+        "feature": "Rate"
+    },
+    {
+        "metric": "SD",
+        "feature": "Rate"
+    },
+    {
+        "metric": "Min",
+        "feature": "Rate"
+    },
+    {
+        "metric": "Max",
+        "feature": "Rate"
+    },
+    {
+        "metric": "CV",
+        "feature": "Rate"
+    },
+    {
+        "metric": "Quality",
+        "feature": "Rate",
+        "threshold": {"Mean": "<0.5"}
+    }
+]

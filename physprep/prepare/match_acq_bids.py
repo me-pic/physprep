@@ -1,32 +1,19 @@
-import argparse
 import datetime
 import logging
 import os
 
 import bioread
 import click
-import pandas
+import pandas as pd
+from pathlib import Path
 from pytz import timezone
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawTextHelpFormatter,
-    )
-    parser.add_argument(
-        "--debug",
-        dest="debug_level",
-        action="store",
-        default="info",
-        help="debug level",
-    )
-    return parser.parse_args()
-
-
 @click.command()
-@click.argument("bids_path", type=str)
-@click.argument("biopac_path", type=str)
-def match_all_bolds(bids_path, biopac_path):
+@click.argument("bids_path", type=click.Path())
+@click.argument("biopac_path", type=click.Path())
+@click.option("--overwrite", is_flag=True)
+def match_all_recordings(bids_path, biopac_path, overwrite=True):
     """
     Match the Acqknowldge files (.acq) with the bold files (.nii.gz).
     The correspondence between the acq and the nii files is saved in
@@ -39,10 +26,11 @@ def match_all_bolds(bids_path, biopac_path):
     biopac_path : str
         Biopac data directory.
     """
+    bids_path = Path(bids_path)
+    biopac_path = Path(biopac_path)
     tz = timezone("Canada/Eastern")
-
     # get acq file starts and end datetimes
-    acqk_files = sorted(list(biopac_path.glob("*.acq")))
+    acqk_files = sorted(list(biopac_path.glob('*.acq')))
     acqk_files_startends = []
     for acqk in acqk_files:
         try:
@@ -66,28 +54,60 @@ def match_all_bolds(bids_path, biopac_path):
         session_sourcedata = sourcedata / session_bids_path
         session_sourcedata.mkdir(parents=True, exist_ok=True)
         sub_ses_prefix = str(session_bids_path).replace(os.path.sep, "_")
-        scans = pandas.read_csv(
-            session / (sub_ses_prefix + "_scans.tsv"),
-            delimiter="\t",
-            parse_dates=["acq_time"],
-        )
+
+        try:
+            scans = pd.read_csv(
+                session / (sub_ses_prefix + "_scans.tsv"),
+                delimiter="\t",
+                parse_dates=["acq_time"],
+            )
+        except Exception as e:
+            logging.error(f"read error for file: {session / (sub_ses_prefix + '_scans.tsv')}")
+            raise ValueError(f"Please verify that {session / (sub_ses_prefix + '_scans.tsv')} exits")
+
+            
         list_matches_out = session_sourcedata / (
-            sub_ses_prefix + "_physio_fmri_matches.tsv"
+            sub_ses_prefix + "_matches.tsv"
         )
-        if list_matches_out.exists():
+
+        if list_matches_out.exists() and not overwrite:
             continue
-        matches = []
+
         for idx, scan in scans.iterrows():
-            if "_bold.nii.gz" in scan.filename:
+            acq_files = []
+            if any(suffix in scan.filename for suffix in ["bold.nii.gz", "eeg.edf"]):
+                if "eeg.edf" in scan.filename:
+                    modality = "eeg"
+                else:
+                    modality = 'func'
+                if "matches" not in locals():
+                    matches = pd.DataFrame(columns=[modality, "physio"])
+
                 acq_time = tz.localize(scan.acq_time.to_pydatetime())
-                acq_files = [
-                    acqk_wtiming
-                    for acqk_wtiming in acqk_files_startends
-                    if acqk_wtiming[1] < acq_time and acqk_wtiming[2] > acq_time
-                ]
+
+                for acqk_wtiming in acqk_files_startends:
+                    # Takes into account that the start time of the bold or eeg 
+                    # acquisition is somewhere between the start and end of the acq 
+                    # recording
+                    if acqk_wtiming[1] < acq_time and acqk_wtiming[2] > acq_time:
+                        acq_files.append(acqk_wtiming)
+                    # Try to see if the acq recording started after the bold or eeg 
+                    # acquisition
+                    else:
+                        # Get the end time of `scan` file for eeg data
+                        if modality == "eeg":
+                            from mne.io import read_raw_edf
+                            tmp = read_raw_edf(session / scan.filename)
+                            tmp_date = pd.Timestamp(tmp.info["meas_date"])
+                            acq_time_end = tmp_date.tz_convert(tz) + datetime.timedelta(seconds=tmp.times[-1])
+                            # Takes into account that the start time of the acq recording
+                            # is somewhere between the start and end of the eeg acquisition
+                            if acq_time < acqk_wtiming[1] and acq_time_end > acqk_wtiming[2]:
+                                acq_files.append(acqk_wtiming)
+
                 if len(acq_files) == 0:
                     logging.error(f"No acq file found for: {scan.filename}")
-                    matches.append((session / scan.filename, None))
+                    matches.loc[idx] = pd.Series({modality: session / scan.filename, 'physio': None})
                 else:
                     if len(acq_files) > 1:
                         if not all(
@@ -99,19 +119,15 @@ def match_all_bolds(bids_path, biopac_path):
                             )
                     bname = os.path.basename(acq_files[0][0])
                     dest_path = session_sourcedata / bname
-                    matches.append(
-                        (
-                            session / scan.filename,
-                            dest_path.relative_to(bids_path),
-                        )
-                    )
+                    matches.loc[idx] = pd.Series({modality: session / scan.filename, 'physio': dest_path.relative_to(bids_path)})
+
                     if not dest_path.exists() and acq_files[0][0].exists():
                         logging.info(f"moving {acq_files[0][0]} to {dest_path}")
                         os.rename(acq_files[0][0], dest_path)
-        list_matches_out.write_text("\n".join([f"{m[0]}\t{m[1]}" for m in matches]))
+
+        matches.to_csv(list_matches_out, sep="\t", index=False)
 
 
 if __name__ == "__main__":
-    parsed = parse_args()
-    logging.basicConfig(level=logging.getLevelName(parsed.debug_level.upper()))
-    match_all_bolds()
+    logging.basicConfig(level=logging.getLevelName('INFO'))
+    match_all_recordings()

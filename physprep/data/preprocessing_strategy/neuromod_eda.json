@@ -23,5 +23,11 @@
         "parameters": {
             "desired_sampling_rate": 1000
         }
+    },
+    {
+        "step": "phasic",
+        "parameters":{
+            "method": "highpass"
+        }
     }
 ]

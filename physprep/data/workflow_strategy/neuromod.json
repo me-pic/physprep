@@ -1,31 +1,35 @@
 {
-    "cardiac_ppg": {
+    "PPG": {
         "id": "PPG",
         "Description": "continuous pulse measurement",
         "Units": "V",
         "Channel": "PPG100C",
-        "preprocessing_strategy": "neuromod_ppg"
+        "preprocessing_strategy": "neuromod_ppg",
+        "qa_strategy": "neuromod_cardiac"
     },
-    "cardiac_ecg": {
+    "ECG": {
         "id": "ECG",
         "Description": "continuous electrocardiogram measurement",
         "Units": "mV",
         "Channel": "ECG100C",
-        "preprocessing_strategy": "neuromod_ecg"
+        "preprocessing_strategy": "neuromod_ecg",
+        "qa_strategy": "neuromod_cardiac"
     },
-    "electrodermal": {
+    "EDA": {
         "id": "EDA",
         "Description": "continuous electrodermal measurement",
         "Units": "microsiemens",
         "Channel": "EDA100C-MRI",
-        "preprocessing_strategy": "neuromod_eda"
+        "preprocessing_strategy": "neuromod_eda",
+        "qa_strategy": "neuromod_eda"
     },
-    "respiratory": {
+    "RSP": {
         "id": "RSP",
         "Description": "continuous breathing measurement",
         "Units": "cm H2O",
         "Channel": "DA100C",
-        "preprocessing_strategy": "neuromod_rsp"
+        "preprocessing_strategy": "neuromod_rsp",
+        "qa_strategy": "neuromod_rsp"
     },
     "trigger": {
         "id": "TTL",

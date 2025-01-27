@@ -1,5 +1,11 @@
 [
     {
+        "step": "signal_resample",
+        "parameters": {
+            "desired_sampling_rate": 1000
+        }
+    },
+    {
         "step": "filtering",
         "parameters": {
             "method": "butterworth",
@@ -41,12 +47,6 @@
             "year": "",
             "title": "Application Note 242: ECG Signal Processing During fMRI",
             "url": "https://www.biopac.com/application-note/fmri-recording-ecg-ekg-electrocardiogram-data/"
-        }
-    },
-    {
-        "step": "signal_resample",
-        "parameters": {
-            "desired_sampling_rate": 1000
         }
     }
 ]

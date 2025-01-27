@@ -4,9 +4,15 @@ import json
 import os
 import pickle
 import re
+import shutil
+import pkgutil
 from pathlib import Path
 
 import pandas as pd
+import warnings
+from bids import BIDSLayout
+from bids.layout import parse_file_entities, BIDSFile
+from bids.exceptions import BIDSValidationError
 from pkg_resources import resource_filename
 
 WORKFLOW_STRATEGIES = ["neuromod"]
@@ -15,6 +21,11 @@ PREPROCESSING_STRATEGIES = [
     "neuromod_eda",
     "neuromod_ppg",
     "neuromod_rsp",
+]
+QA_STRATEGIES = [
+    "neuromod_cardiac",
+    "neuromod_eda",
+    "neuromod_rsp"
 ]
 
 
@@ -115,6 +126,49 @@ def _create_ref():
 
     return ref
 
+def _check_sub_validity(sub, bids_sub):
+    # Make sure sub is a list
+    if isinstance(sub, str):
+        sub=[sub]
+    # Get the common elements between the specified subjects in `sub`, and the ones founds in`bids_sub`
+    valid_sub = list(set(sub).intersection(bids_sub))
+    invalid_sub = list(set(sub) - set(valid_sub))
+    if len(invalid_sub) > 0:
+        warnings.warn(f'The following subject were specified in `sub`, but were not found in {bids_sub}: {invalid_sub}. \n Only {valid_sub} will be preprocessed')
+
+    return valid_sub
+
+def _check_ses_validity(ses, bids_ses):
+    # Make sure sub is a list
+    if isinstance(ses, str):
+        ses=[ses]
+    # Get the common elements between the specified subjects in `ses`, and the ones founds in`bids_ses`
+    valid_ses = list(set(ses).intersection(bids_ses))
+    invalid_ses = list(set(ses) - set(valid_ses))
+    if len(invalid_ses) > 0:
+        warnings.warn(f'The following sessions were specified in `ses`, but were not found in {bids_ses}: {invalid_ses}. \n Only {valid_ses} will be preprocessed')
+    
+    return valid_ses
+
+
+def _check_bids_validity(path, is_derivative=False):
+    # Check if path is a BIDS dataset, otherwise create a `dataset_description.json` file
+    # Reference: https://github.com/bids-standard/bids-starter-kit/blob/main/pythonCode/createBIDS_dataset_description_json.py
+    try:
+        layout = BIDSLayout(path, validate=False, is_derivative=is_derivative)
+    except BIDSValidationError:
+        warnings.warn(f'Because {path} is not a BIDS dataset, an empty `dataset_description.json` file will be created at the root. MAKE SURE TO FILL THAT FILE AFTERWARD !')
+        if is_derivative:
+            descrip = pkgutil.get_data(__name__, 'data/boilerplates/dataset_description_derivatives.json')
+        else:
+            descrip = pkgutil.get_data(__name__, 'data/boilerplates/dataset_description.json')
+        with open(f'{path}/dataset_description.json', "w") as f:
+            json.dump(json.loads(descrip.decode()), f, indent=4)
+        f.close()
+        layout = BIDSLayout(path, validate=False, is_derivative=is_derivative)
+
+    return layout
+        
 
 def load_json(filename):
     """
@@ -143,45 +197,118 @@ def load_json(filename):
     return data
 
 
-def save_processing(outdir, filename, descriptor, timeseries, info):
+def save_processing(outdir, bids_entities, descriptor, data, metadata, save_raw=False):
     """
     outdir: str or pathlib.Path
         Path to the directory where the preprocessed physiological data will be saved.
-    filename: str
-        Filename to use to save the output
+    bids_entities: str
+        BIDS entities to use for saving data
     descriptor; str
         Descriptor that will be used for filename
-    timeseries: dict
+    data: dict
         Dictionary containing the timeseries for each signal.
-    info: dict
-        Dictionary containing the info for each signal
+    metadata: dict
+        Dictionary containing the metadata for each signal
+    save_raw: bool
+        If True, save the raw timeseries. Otherwise, only save the processed timeseries
     """
     # Save preprocessed signal
     if outdir is not None:
         outdir = Path(outdir)
         outdir.mkdir(parents=True, exist_ok=True)
     else:
-        print(
-            "WARNING! No output directory specified. Data will be saved in the "
+        warnings.warn(
+            "No output directory specified. Data will be saved in the "
             f"current working directory: {Path.cwd()}\n"
         )
         outdir = Path.cwd()
-    # Iterating through signal types
-    for timeserie in timeseries:
-        name = timeserie.replace("_", "-")
-        filename_signal = filename.replace("physio", f"{descriptor}_{name}")
-        df_timeseries = pd.DataFrame(timeseries[timeserie])
-        # Save timeseries
-        df_timeseries.to_csv(
-            Path(outdir / filename_signal).with_suffix(".tsv.gz"),
-            sep="\t",
-            index=False,
-            compression="gzip",
-        )
-        # Save info
-        with open(Path(outdir, filename_signal).with_suffix(".json"), "wb") as f:
-            pickle.dump(info[timeserie], f, protocol=4)
+
+    # Define BIDS layout for derivatives dataset
+    layout_deriv = _check_bids_validity(outdir, is_derivative=True)
+    # Add desc entity to dict
+    bids_entities['desc'] = descriptor
+    # Define pattern to build path for derivatives
+    deriv_pattern = 'sub-{subject}[/ses-{session}]/{datatype}/sub-{subject}[_ses-{session}][_task-{task}][_run-{run}][_recording-{recording}][_desc-{desc}]_{suffix}.{extension}'
+
+    # Separate modalities given their SamplingFrequency
+    # All modalities with the same SamplingFrequency will be saved together
+    modalities = [*metadata]
+
+    if not save_raw:
+        to_keep = [col for col in data.keys() if 'raw' not in col]
+    else:
+        to_keep = [col for col in data.keys()]
+
+    if isinstance(metadata['SamplingFrequency'], list):
+        unique_sf = list(set(metadata['SamplingFrequency']))
+        # Save derivatives with different SamplingFrequency in different files
+        for f in unique_sf:
+            get_idx = [i for i, s in enumerate(metadata['SamplingFrequency']) if s == f]
+            cols = [metadata['Columns'][i] for i in get_idx if metadata['Columns'][i] in to_keep]
+
+            df = pd.DataFrame({col: data[col] for col in cols})
+
+            bids_entities['recording'] = f'{f}Hz'
+
+            filename = layout_deriv.build_path(bids_entities, deriv_pattern, validate=False)
+            # Make sure directory exists
+            Path(BIDSFile(filename).dirname).mkdir(parents=True, exist_ok=True)
+            # Save data
+            df.to_csv(filename, sep='\t', index=False, compression='gzip')
+    else:
+        df = pd.DataFrame({col: data[col] for col in to_keep})
+
+        filename = layout_deriv.build_path(bids_entities, deriv_pattern, validate=False)
+        # Make sure directory exists
+        Path(BIDSFile(filename).dirname).mkdir(parents=True, exist_ok=True)
+        # Save data
+        df.to_csv(filename, sep='\t', index=False, compression='gzip')
+        
+
+def save_features(outdir, bids_entities, events):
+    # Get BIDS layout
+    layout_deriv = _check_bids_validity(outdir, is_derivative=True)
+    # Define pattern
+    deriv_pattern = 'sub-{subject}[/ses-{session}]/{datatype}/sub-{subject}[_ses-{session}][_task-{task}][_run-{run}][_recording-{recording}]_desc-physio_events.tsv'
+    # Build path
+    filename = layout_deriv.build_path(bids_entities, deriv_pattern, validate=False)
+    # Make sure directory exists
+    Path(BIDSFile(filename).dirname).mkdir(parents=True, exist_ok=True)
+    # Save data
+    events.to_csv(filename, sep='\t', index=False)
+
+
+def save_qa(outdir, bids_entities, qa_output, short=False, report=False):
+    # Get BIDS layout
+    layout_deriv = _check_bids_validity(outdir, is_derivative=True)
+    # Define pattern
+    if report:
+        bids_entities['desc'] = 'qareport'
+        bids_entities['suffix'] = 'html'
+    else:
+        if short:
+            bids_entities['desc'] = 'quality'
+        else:
+            bids_entities['desc'] = 'qualitydesc'
+        bids_entities['suffix'] = 'json'
+    deriv_pattern = 'sub-{subject}[/ses-{session}]/{datatype}/sub-{subject}[_ses-{session}][_task-{task}][_run-{run}][_recording-{recording}]_desc-{desc}.{suffix}'
+    # Build path
+    filename = layout_deriv.build_path(bids_entities, deriv_pattern, validate=False)
+    # Make sure directory exists
+    Path(BIDSFile(filename).dirname).mkdir(parents=True, exist_ok=True)
+
+    # Save qa
+    if report:
+        with open(filename, "w") as f:
+            f.write(qa_output)
             f.close()
+    else:
+        with open(filename, "w") as f:
+            json.dump(qa_output, f, indent=4)
+            f.close()
+
+
+    
 
 
 def create_config_preprocessing(outdir, filename, overwrite=False):
@@ -511,6 +638,9 @@ def get_config(strategy_name, strategy="workflow"):
     elif strategy == "preprocessing":
         valid_strategies = PREPROCESSING_STRATEGIES
         preset_path = "preprocessing_strategy"
+    elif strategy == "qa":
+        valid_strategies = QA_STRATEGIES
+        preset_path = "qa_strategy"
     else:
         raise ValueError(
             "The given strategy is not valid. Choose among `workflow` or `preprocessing`."
