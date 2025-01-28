@@ -12,7 +12,9 @@ import os
 import click
 
 import pandas as pd
+import numpy as np
 import pprintpp
+from bioread import read_file
 from neurokit2 import read_acqknowledge
 
 from physprep.utils import load_json, _check_bids_validity
@@ -192,6 +194,45 @@ def volume_counter(root, sub, metadata_physio, ses=None, tr=1.49, trigger_ch="TT
     return ses_runs, ch_names, chsel
 
 
+def duration_counter(trigger_ch, sampling_rate, thr=5):
+    """
+    Duration counting for each run in a session.
+
+    Parameters
+    ----------
+    data : ndarray
+        Trigger timeserie on which to count the segments duration
+    sampling_rate : float
+        Sampling rate for trigger channel
+    trigger_ch : str
+        Name of the trigger channel used on Acknowledge.
+        Default to 'TTL'.
+
+    Returns
+    -------
+    segments: list
+        Listing duration of segments based on `trigger_ch`
+    """
+    idx = np.where(trigger_ch>=thr)[0].tolist()
+    runs = []
+    start, end = idx[0], None
+    for i, tp in enumerate(idx):
+        # If index not the first or last in the list
+        if tp != idx[-1] and tp != idx[0]:
+            # If index not continuous
+            if tp != idx[i-1] + 1:
+                end = np.where(trigger_ch[start: tp]<thr)[0][0] + start
+                if end is not None and start is not None:
+                    runs.append(float(np.floor(100*(int(end)-start)/sampling_rate)/100))
+                    start = tp
+                    end = None
+        elif tp != idx[0]:
+            # Make sure we include the last take
+            runs.append(float(np.floor(100*(tp-start)/sampling_rate)/100))
+            
+    return runs
+
+
 @click.command()
 @click.argument(
     "root",
@@ -235,7 +276,6 @@ def volume_counter(root, sub, metadata_physio, ses=None, tr=1.49, trigger_ch="TT
     required=False,
     help="Name of the trigger channel used on Acknowledge. "
 )
-
 
 def get_info(
     root,
@@ -301,6 +341,7 @@ def get_info(
     LGR = logging.getLogger(__name__)
     # Get BIDSLayout from root
     layout = _check_bids_validity(root)
+    metadata_physio = load_json(metadata_physio)
 
     # list matches for a whole subject's dir
     ses_runs_matches = list_sub(
@@ -348,14 +389,10 @@ def get_info(
         nb_expected_volumes_run = {}
         tasks = []
 
-        # iterate through _bold.json
+        # iterate through matches (concurrent recordings)
         for idx, match in enumerate(list_matches):
             entities = match.get_entities()
             metadata = match.get_metadata()
-            # Check if metadata are there
-            if not metadata:
-                LGR.info(f"No metadata to match : {exp}")
-                continue
 
             if entities['datatype'] == "eeg":
                 # For physio runs that are delimited by a continuous trigger,
@@ -363,11 +400,19 @@ def get_info(
                 # to be really long tr. So the number of expected timepoints will be
                 # one per run, and the tr duration will be equal to the duration
                 # of each run
-                # TODO: compute "tr"
-                nb_expected_volumes_run[f"{idx+1:02d}"] = [1]*len(list_matches)
+                from mne.io import read_raw_edf
+                data_eeg = read_raw_edf(match)
+                tr = duration_counter(data_eeg['Trigger'][0][0], data_eeg.info['sfreq'], thr=4)
+                nb_expected_volumes_run[f"{idx+1:02d}"] = [1]*len(tr)
+                 
             else:
                 # we want to have the TR in a _bold.json to later use it in the
                 # volume_counter function
+                # Check if metadata are there
+                if not metadata:
+                    LGR.info(f"No metadata to match : {exp}")
+                    continue
+
                 tr = metadata["RepetitionTime"]
                 # we want to GET THE NB OF VOLUMES in the _bold.json of a given run
                 try:
@@ -408,24 +453,30 @@ def get_info(
                 else:
                     # count the triggers in physfile otherwise
                     try:
-                        vol_in_biopac, ch_names, chsel = volume_counter(
-                            os.path.join(layout.root, "sourcedata/physio/"),
-                            sub,
-                            metadata_physio,
-                            ses=exp,
-                            tr=tr,
-                            trigger_ch=tr_channel,
-                        )
-                        LGR.info(f"finished counting volumes in physio file for: {exp}")
-                        try:
-                            for i, run in enumerate(vol_in_biopac[exp]):
-                                run_dict.update({f"run-{i+1:02d}": run})
-                        except TypeError:
-                            # there were no triggers so stocking a place holder
-                            run_dict = vol_in_biopac
-                        nb_expected_runs[exp]["recorded_triggers"] = run_dict
-                        nb_expected_runs[exp]["ch_names"] = list(ch_names)
-                        nb_expected_runs[exp]["chsel"] = list(chsel)
+                        if entities['datatype'] == "eeg":
+                            tr_physio = read_file(os.path.join(layout.root, "sourcedata/physio/", sub, ses, ses_info[exp][0]))
+                            tr_physio = [(channels.data, channels.samples_per_second) for channels in tr_physio.channels if channels.name == metadata_physio['trigger']['Channel']]
+                            vol_in_biopac = duration_counter(tr_physio[0][0], tr_physio[0][1])
+                            # TODO: continue implementation
+                        else:
+                            vol_in_biopac, ch_names, chsel = volume_counter(
+                                os.path.join(layout.root, "sourcedata/physio/"),
+                                sub,
+                                metadata_physio,
+                                ses=exp,
+                                tr=tr,
+                                trigger_ch=tr_channel,
+                            )
+                            LGR.info(f"finished counting volumes in physio file for: {exp}")
+                            try:
+                                for i, run in enumerate(vol_in_biopac[exp]):
+                                    run_dict.update({f"run-{i+1:02d}": run})
+                            except TypeError:
+                                # there were no triggers so stocking a place holder
+                                run_dict = vol_in_biopac
+                            nb_expected_runs[exp]["recorded_triggers"] = run_dict
+                            nb_expected_runs[exp]["ch_names"] = list(ch_names)
+                            nb_expected_runs[exp]["chsel"] = list(chsel)
 
                     # skip the session if we did not find the file
                     except KeyError:
