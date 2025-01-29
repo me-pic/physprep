@@ -10,14 +10,14 @@ If the `skip_convert` flag is not specified when running the workflow, all of th
 will be save at the participant level under `sub-<sub_id>/ses-<ses_id>/<func/eeg>`. If the 
 physiological data were acquired concurrently with fmri data, the output will be save 
 under the `func` subfolder. If they were acquired concurrently with eeg data, the output 
-will be save under the `eeg` folder.
+will be save under the `eeg` subfolder.
 
 ### Data and metadata files
 
 For each session (or run) the following files wille be generated:
 
-- [matches]_physio.tsv.gz : raw segmented physiological timeseries.
-- [matches]_physio.json : metadata file containing the tsv columns names, start time, and 
+- `[matches]_physio.tsv.gz` : raw segmented physiological timeseries.
+- `[matches]_physio.json` : metadata file containing the tsv columns names, start time, and 
 signal sampling frequency information.
 
 ## Physiological derivatives
@@ -30,6 +30,6 @@ be save at the participant level under `<indir_bids>/derivatives/physprep`.
 
 For each session (or run) the following files wille be generated:
 
-- [matches]_desc-preproc_physio.tsv.gz : preprocessed timeseries.
-- [matches]_desc-quality.json : quality assessment on the preprocessed timeseries.
-- [matches]_desc-physio_events.tsv : extracted features.
+- `[matches]_desc-preproc_physio.tsv.gz` : preprocessed timeseries.
+- `[matches]_desc-quality.json` : quality assessment on the preprocessed timeseries.
+- `[matches]_desc-physio_events.tsv` : extracted features.
