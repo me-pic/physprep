@@ -42,7 +42,7 @@ Contents
    workflow.md
    tutorials.rst
    outputs.md
-   authors.md
+   contribution.md
    api.rst
 
 Indices and tables
