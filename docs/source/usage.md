@@ -2,8 +2,9 @@
 
 ```bash
 usage: physprep [--help] [--workflow_strategy WORKFLOW_STRATEGY] [--indir_bids INDIR_BIDS] [--sub SUB]
-                [--ses SES] [--indir_raw_physio INDIR_RAW_PHYSIO] [--skip_match_acq_bids]
-                [--skip_convert] [--padding PADDING]
+                [--ses SES] [--indir_raw_physio INDIR_RAW_PHYSIO] [--derivatives_dir DERIVATIVES_DIR]
+                [--skip_match_acq_bids] [--skip_convert] [--heur HEUR] [--padding PADDING] 
+                [--save_report]
 
 Preprocess raw physiological data acquired in MRI, extract features, and
 generate quality report.
