@@ -51,11 +51,6 @@ def order_channels(acq_channels, metadata_physio):
             "No correspondence between channels in the acq file and "
             "channels defined in workflow configuration file."
         )
-    if len(metadata_physio) != len(chsel):
-        raise ValueError(
-            "Some channels defined in the workflow configuration file "
-            "are not present in the acq file."
-        )
 
     return ch_names, chsel
 
@@ -115,6 +110,7 @@ def volume_counter(root, sub, metadata_physio, ses=None, tr=1.49, trigger_ch="TT
             else:
                 path_to_file = os.path.join(root, sub, exp, file)
             bio_df, fs = read_acqknowledge(path_to_file)
+            print(bio_df)
             # find the correct index of Trigger channel
             if trigger_ch in bio_df.columns:
                 trigger_index = list(bio_df.columns).index(trigger_ch)
@@ -200,18 +196,17 @@ def duration_counter(trigger_ch, sampling_rate, thr=5):
 
     Parameters
     ----------
-    data : ndarray
-        Trigger timeserie on which to count the segments duration
+    trigger_ch : nd.array
+        Trigger timeserie
     sampling_rate : float
-        Sampling rate for trigger channel
-    trigger_ch : str
-        Name of the trigger channel used on Acknowledge.
-        Default to 'TTL'.
+        Sampling_rate of `trigger_ch`
+    thr : int
+        Threshold to using for trigger counting
 
     Returns
     -------
-    segments: list
-        Listing duration of segments based on `trigger_ch`
+    runs : List
+        Duration of each run based
     """
     idx = np.where(trigger_ch>=thr)[0].tolist()
     runs = []
@@ -454,10 +449,19 @@ def get_info(
                     # count the triggers in physfile otherwise
                     try:
                         if entities['datatype'] == "eeg":
-                            tr_physio = read_file(os.path.join(layout.root, "sourcedata/physio/", sub, ses, ses_info[exp][0]))
-                            tr_physio = [(channels.data, channels.samples_per_second) for channels in tr_physio.channels if channels.name == metadata_physio['trigger']['Channel']]
-                            vol_in_biopac = duration_counter(tr_physio[0][0], tr_physio[0][1])
-                            # TODO: continue implementation
+                            bio_data = read_file(os.path.join(layout.root, "sourcedata/physio/", sub, exp, ses_info[exp][0]))
+                            trigger_ch = [(channels.data, channels.samples_per_second) for channels in bio_data.channels if channels.name == metadata_physio['trigger']['Channel']]
+                            
+                            vol_in_biopac = duration_counter(
+                                trigger_ch = trigger_ch[0][0],
+                                sampling_rate = trigger_ch[0][1],
+                            )
+                            vol_in_biopac = {exp: [vol_in_biopac]}
+                            ch_names, chsel = order_channels(
+                                [channel.name for channel in bio_data.channels], 
+                                metadata_physio
+                            )
+                            LGR.info(f"finished counting duration of segments in physio file for: {exp}")
                         else:
                             vol_in_biopac, ch_names, chsel = volume_counter(
                                 os.path.join(layout.root, "sourcedata/physio/"),
@@ -468,15 +472,15 @@ def get_info(
                                 trigger_ch=tr_channel,
                             )
                             LGR.info(f"finished counting volumes in physio file for: {exp}")
-                            try:
-                                for i, run in enumerate(vol_in_biopac[exp]):
-                                    run_dict.update({f"run-{i+1:02d}": run})
-                            except TypeError:
-                                # there were no triggers so stocking a place holder
-                                run_dict = vol_in_biopac
-                            nb_expected_runs[exp]["recorded_triggers"] = run_dict
-                            nb_expected_runs[exp]["ch_names"] = list(ch_names)
-                            nb_expected_runs[exp]["chsel"] = list(chsel)
+                        try:
+                            for i, run in enumerate(vol_in_biopac[exp]):
+                                run_dict.update({f"run-{i+1:02d}": run})
+                        except TypeError:
+                            # there were no triggers so stocking a place holder
+                            run_dict = vol_in_biopac
+                        nb_expected_runs[exp]["recorded_triggers"] = run_dict
+                        nb_expected_runs[exp]["ch_names"] = list(ch_names)
+                        nb_expected_runs[exp]["chsel"] = list(chsel)
 
                     # skip the session if we did not find the file
                     except KeyError:
