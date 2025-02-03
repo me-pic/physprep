@@ -2,8 +2,9 @@
 
 ```bash
 usage: physprep [--help] [--workflow_strategy WORKFLOW_STRATEGY] [--indir_bids INDIR_BIDS] [--sub SUB]
-                [--ses SES] [--indir_raw_physio INDIR_RAW_PHYSIO] [--skip_match_acq_bids]
-                [--skip_convert] [--padding PADDING]
+                [--ses SES] [--indir_raw_physio INDIR_RAW_PHYSIO] [--derivatives_dir DERIVATIVES_DIR]
+                [--skip_match_acq_bids] [--skip_convert] [--heur HEUR] [--padding PADDING] 
+                [--save_report]
 
 Preprocess raw physiological data acquired in MRI, extract features, and
 generate quality report.
@@ -27,6 +28,8 @@ Options:
                            directory. For more details, about the BIDS
                            data structure, please refer to the
                            documentation.
+  --derivatives_dir PATH   Path to the derivatives directory. If not specified,
+                           derivatives will be save in the `indir_bids` directory.
   --skip_match_acq_bids    If specified, the workflow will not match the
                            acq files with the bold files. If acq files are
                            already organized properly, this flag can be
@@ -38,8 +41,12 @@ Options:
                            in runs, organized in a BIDS-like structure
                            (i.e., one tsv.gz and one json file per run),
                            and named following the BIDS recommandations.
+  --heur PATH              File needed to convert raw data into BIDS format. 
+                           For more details, check the phys2bids documentation.
   --padding INTEGER        Time (in seconds) of padding to add at the
                            beginning and end of each run. Default to 9.
+  --save_report            If specified, an quality report will be generated and 
+                           saved for each run.
   --help                   Show this message and exit.
 ```
 
