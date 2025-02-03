@@ -182,16 +182,7 @@ def main(
         if not indir_raw_physio.exists():
             raise FileNotFoundError(f"{indir_raw_physio} does not exist.")
 
-    ls_ses = layout.get_sessions()
-    """
-    if ses is not None and not isinstance(ses, list):
-        ls_ses = [ses]
-    elif ses is None:
-        ls_ses = sorted(Path(indir_bids / sub).glob('ses-*'))
-        # If multiple ses-* subdirectory in sub
-        if len(ls_ses) != 0:
-            ses = ls_ses
-    """
+
     # Create output directories
     #segmented_dir = indir_bids / sub
     #segmented_dir.mkdir(parents=True, exist_ok=True)
@@ -220,6 +211,10 @@ def main(
         )
         # Convert physiological data to BIDS format with phys2bids
         # Session-level
+        ls_ses = layout.get_sessions()
+        if ses is not None :
+            ls_ses = list(ses)
+            
         if len(ls_ses) == 1:
             convert.convert(
                 raw_dir, segmented_dir, sub, ses=ses, info=info_sessions, pad=padding

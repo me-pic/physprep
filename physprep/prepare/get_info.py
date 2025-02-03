@@ -9,12 +9,15 @@ import json
 import logging
 import math
 import os
+import click
 
 import pandas as pd
+import numpy as np
 import pprintpp
+from bioread import read_file
 from neurokit2 import read_acqknowledge
 
-from physprep.utils import load_json
+from physprep.utils import load_json, _check_bids_validity
 from physprep.prepare.list_sub import list_sub
 
 LGR = logging.getLogger(__name__)
@@ -47,11 +50,6 @@ def order_channels(acq_channels, metadata_physio):
         raise ValueError(
             "No correspondence between channels in the acq file and "
             "channels defined in workflow configuration file."
-        )
-    if len(metadata_physio) != len(chsel):
-        raise ValueError(
-            "Some channels defined in the workflow configuration file "
-            "are not present in the acq file."
         )
 
     return ch_names, chsel
@@ -112,6 +110,7 @@ def volume_counter(root, sub, metadata_physio, ses=None, tr=1.49, trigger_ch="TT
             else:
                 path_to_file = os.path.join(root, sub, exp, file)
             bio_df, fs = read_acqknowledge(path_to_file)
+            print(bio_df)
             # find the correct index of Trigger channel
             if trigger_ch in bio_df.columns:
                 trigger_index = list(bio_df.columns).index(trigger_ch)
@@ -191,16 +190,96 @@ def volume_counter(root, sub, metadata_physio, ses=None, tr=1.49, trigger_ch="TT
     return ses_runs, ch_names, chsel
 
 
+def duration_counter(trigger_ch, sampling_rate, thr=5):
+    """
+    Duration counting for each run in a session.
+
+    Parameters
+    ----------
+    trigger_ch : nd.array
+        Trigger timeserie
+    sampling_rate : float
+        Sampling_rate of `trigger_ch`
+    thr : int
+        Threshold to using for trigger counting
+
+    Returns
+    -------
+    runs : List
+        Duration of each run based
+    """
+    idx = np.where(trigger_ch>=thr)[0].tolist()
+    runs = []
+    start, end = idx[0], None
+    for i, tp in enumerate(idx):
+        # If index not the first or last in the list
+        if tp != idx[-1] and tp != idx[0]:
+            # If index not continuous
+            if tp != idx[i-1] + 1:
+                end = np.where(trigger_ch[start: tp]<thr)[0][0] + start
+                if end is not None and start is not None:
+                    runs.append(float(np.floor(100*(int(end)-start)/sampling_rate)/100))
+                    start = tp
+                    end = None
+        elif tp != idx[0]:
+            # Make sure we include the last take
+            runs.append(float(np.floor(100*(tp-start)/sampling_rate)/100))
+            
+    return runs
+
+
+@click.command()
+@click.argument(
+    "root",
+    type=click.Path(),
+)
+@click.argument(
+    "sub",
+    type=str,
+)
+@click.argument(
+    "metadata_physio",
+    type=click.Path(),
+)
+@click.option(
+    "--ses",
+    type=str,
+    default=None,
+    required=False,
+    help="Session label. Use only to process the data of that specific session. "
+    "For example: if you specify --ses 001, only data from ses-001 will be "
+    "processed. If specify, but --sub not specified, data from the specified "
+    "session (e.g. ses-001) across all subjects will be processed.",
+)
+@click.option(
+    "--count_vol",
+    is_flag=True,
+    help="Specify if you want to count triggers in physio file.",
+)
+@click.option(
+    "--save",
+    type=click.Path(),
+    default=None,
+    required=False,
+    help="Specify where you want to save the dictionary in json format. "
+    "If not specified, the output will be saved where you run the script.",
+)
+@click.option(
+    "--tr_channel",
+    type=str,
+    default=None,
+    required=False,
+    help="Name of the trigger channel used on Acknowledge. "
+)
+
 def get_info(
     root,
     sub,
     metadata_physio,
     ses=None,
     count_vol=False,
-    show=True,
     save=None,
     tr_channel=None,
-    scanning_sheet=None,
 ):
     """
     Get all volumes taken for a sub.
@@ -228,8 +307,8 @@ def get_info(
                             └── file.acq
     Arguments
     ---------
-    root : str or pathlib.Path
-        Root directory of dataset containing the data. Example: "/home/user/dataset/".
+    root : str or pathlib.Path or BIDSLayout
+        Root directory of the BIDS dataset containing the data. Example: "/home/user/dataset/".
     sub : str
         Name of path for a specific subject. Example: "sub-01".
     metadata_physio : dict
@@ -240,9 +319,6 @@ def get_info(
     count_vol : bool
         Specify if you want to count triggers in physio file.
         Default to False.
-    show : bool
-        Specify if you want to print the dictionary.
-        Default to True.
     save : str or pathlib.Path
         Specify where you want to save the dictionary in json format.
         If not specified, the output will be saved where you run the script.
@@ -258,81 +334,90 @@ def get_info(
         triggers/volumes per run, sourcedata file location.
     """
     LGR = logging.getLogger(__name__)
+    # Get BIDSLayout from root
+    layout = _check_bids_validity(root)
+    metadata_physio = load_json(metadata_physio)
+
     # list matches for a whole subject's dir
     ses_runs_matches = list_sub(
         os.path.join(root, "sourcedata/physio/"),
         sub,
         ses=ses,
         ext=".tsv",
-        show=show,
+        show=True,
     )
 
     # go to fmri matches and get entries for each run of a session
     nb_expected_runs = {}
 
     # If there is a tsv file matching the acq file and the nii.gz files in root
-    ses_info = list_sub(os.path.join(root, "sourcedata/physio/"), sub, ses, ext=".acq")
+    ses_info = list_sub(os.path.join(layout.root, "sourcedata/physio/"), sub, ses, ext=".acq")
+
     # iterate through sessions and get _matches.tsv with list_sub dict
     for exp in sorted(ses_runs_matches):
         LGR.info(exp)
-        matches = glob.glob(os.path.join(root, sub, exp, "func", "*bold.json"))
-        path_to_source = os.path.join(root, "sourcedata/physio", sub, exp)
+
         if ses_info[exp] == []:
             LGR.info("No acq file found for this session")
             continue
         elif exp == "files":
             LGR.info("No SES IDs")
-            path_to_nifti = os.path.join(root, sub, "func")
-            path_to_source = os.path.join(root, "sourcedata/physio", sub)
-            matches = glob.glob(os.path.join(path_to_nifti, "*bold.json"))
+            path_to_source = os.path.join(layout.root, "sourcedata/physio", sub)
+        else:
+            path_to_source = os.path.join(layout.root, "sourcedata/physio", sub, exp)
+        
+        if len(ses_runs_matches[exp])==0:
+            LGR.info("No tsv file matching concurrent recordings found for this session")
+            continue
+        elif len(ses_runs_matches[exp])>1:
+            LGR.info("Multiple tsv files matching concurrent recordings found for this session")
+            LGR.info(f"Will not proceed with {exp}. Please check the tsv files in {os.path.join(root, 'sourcedata/physio', sub)}")
+            continue
+
+        # Load tsv file outputted from match_acq_bids
+        matches = pd.read_csv(os.path.join(path_to_source, ses_runs_matches[exp][0]), sep='\t')
+        # Get all the files related to concurrent recordings
+        list_matches = matches.iloc[:, 0].tolist()
+        list_matches = [layout.get_file(match) for match in list_matches]
 
         # initialize a counter and a dictionary
         nb_expected_volumes_run = {}
         tasks = []
-        if matches == []:
-            LGR.info(f"No Nifti metadata to match : {exp}")
-            continue
-        # we want only want to keep 1 of the two files per run
-        if "mario" in matches[0]:
-            matches = fnmatch.filter(matches, "*-mag*")
-        matches.sort()
-        # iterate through _bold.json
-        for idx, filename in enumerate(matches):
-            if exp == "files":
-                task = filename.find(f"func/{sub}") + 12
-            else:
-                task = filename.rfind(f"{exp}_") + 8
-            task_end = filename.rfind("_")
-            tasks += [filename[task:task_end]]
 
-            # read metadata
-            with open(filename) as f:
-                bold = json.load(f)
-            # we want to have the TR in a _bold.json to later use it in the
-            # volume_counter function
-            tr = bold["RepetitionTime"]
-            # we want to GET THE NB OF VOLUMES in the _bold.json of a given run
-            try:
-                nb_expected_volumes_run[f"{idx+1:02d}"] = bold["dcmmeta_shape"][-1]
-            except KeyError:
-                pprintpp.pprint(f"{exp} .json info non-existent")
-                if scanning_sheet is not None:
-                    pprintpp.pprint(f"checking scanning sheet for {sub}/{exp}")
-                    df_sheet = pd.read_csv(scanning_sheet)
-                    vol_idx = (
-                        df_sheet[df_sheet[sub] == f"p{sub[-2:]}_friends{exp[-3:]}"].index
-                        + idx
-                    )
-                    vols = int(df_sheet["#volumes"].iloc[vol_idx])
-                    nb_expected_volumes_run[f"{idx+1:02d}"] = vols
-                # log that we are unable to run the thing
-                else:
-                    LGR.info("Cannot access Nifti BIDS metadata nor scanning sheet")
+        # iterate through matches (concurrent recordings)
+        for idx, match in enumerate(list_matches):
+            entities = match.get_entities()
+            metadata = match.get_metadata()
+
+            if entities['datatype'] == "eeg":
+                # For physio runs that are delimited by a continuous trigger,
+                # to be able to use phys2bids, we will consider the triggers
+                # to be really long tr. So the number of expected timepoints will be
+                # one per run, and the tr duration will be equal to the duration
+                # of each run
+                from mne.io import read_raw_edf
+                data_eeg = read_raw_edf(match)
+                tr = duration_counter(data_eeg['Trigger'][0][0], data_eeg.info['sfreq'], thr=4)
+                nb_expected_volumes_run[f"{idx+1:02d}"] = [1]*len(tr)
+                 
+            else:
+                # we want to have the TR in a _bold.json to later use it in the
+                # volume_counter function
+                # Check if metadata are there
+                if not metadata:
+                    LGR.info(f"No metadata to match : {exp}")
                     continue
+
+                tr = metadata["RepetitionTime"]
+                # we want to GET THE NB OF VOLUMES in the _bold.json of a given run
+                try:
+                    nb_expected_volumes_run[f"{idx+1:02d}"] = metadata["dcmmeta_shape"][-1]
+                except KeyError:
+                    LGR.info("Cannot access Nifti BIDS metadata")
 
         # print the thing to show progress
         LGR.info(
-            f"Nifti BIDS metadata; number of volumes per run:\n{nb_expected_volumes_run}"
+            f"BIDS metadata; number of volumes per run:\n{nb_expected_volumes_run}"
         )
         # push all info in run in dict
         nb_expected_runs[exp] = {}
@@ -340,7 +425,7 @@ def get_info(
         nb_expected_runs[exp] = nb_expected_volumes_run
         nb_expected_runs[exp]["expected_runs"] = len(matches)
         # nb_expected_runs[exp]['processed_runs'] = idx  # counter is used here
-        nb_expected_runs[exp]["task"] = tasks
+        nb_expected_runs[exp]["task"] = entities["task"]
         nb_expected_runs[exp]["tr"] = tr
 
         # save the name
@@ -358,20 +443,35 @@ def get_info(
                 if os.path.isfile(os.path.join(path_to_source, name[0])) is False:
                     LGR.info(
                         f"cannot find session directory for sourcedata :\n"
-                        f"{os.path.join(root, 'sourcedata/physio', sub, exp, name[0])}"
+                        f"{os.path.join(layout.root, 'sourcedata/physio', sub, exp, name[0])}"
                     )
                 else:
                     # count the triggers in physfile otherwise
                     try:
-                        vol_in_biopac, ch_names, chsel = volume_counter(
-                            os.path.join(root, "sourcedata/physio/"),
-                            sub,
-                            metadata_physio,
-                            ses=exp,
-                            tr=tr,
-                            trigger_ch=tr_channel,
-                        )
-                        LGR.info(f"finished counting volumes in physio file for: {exp}")
+                        if entities['datatype'] == "eeg":
+                            bio_data = read_file(os.path.join(layout.root, "sourcedata/physio/", sub, exp, ses_info[exp][0]))
+                            trigger_ch = [(channels.data, channels.samples_per_second) for channels in bio_data.channels if channels.name == metadata_physio['trigger']['Channel']]
+                            
+                            vol_in_biopac = duration_counter(
+                                trigger_ch = trigger_ch[0][0],
+                                sampling_rate = trigger_ch[0][1],
+                            )
+                            vol_in_biopac = {exp: [vol_in_biopac]}
+                            ch_names, chsel = order_channels(
+                                [channel.name for channel in bio_data.channels], 
+                                metadata_physio
+                            )
+                            LGR.info(f"finished counting duration of segments in physio file for: {exp}")
+                        else:
+                            vol_in_biopac, ch_names, chsel = volume_counter(
+                                os.path.join(layout.root, "sourcedata/physio/"),
+                                sub,
+                                metadata_physio,
+                                ses=exp,
+                                tr=tr,
+                                trigger_ch=tr_channel,
+                            )
+                            LGR.info(f"finished counting volumes in physio file for: {exp}")
                         try:
                             for i, run in enumerate(vol_in_biopac[exp]):
                                 run_dict.update({f"run-{i+1:02d}": run})
@@ -395,8 +495,7 @@ def get_info(
                 LGR.info(f"skipping :{exp} for task {filename}")
         print("~" * 80)
 
-    if show:
-        pprintpp.pprint(nb_expected_runs)
+    pprintpp.pprint(nb_expected_runs)
 
     if save is not None:
         if os.path.exists(os.path.join(save, sub)) is False:
@@ -405,3 +504,7 @@ def get_info(
         with open(os.path.join(save, sub, filename), "w") as f:
             json.dump(nb_expected_runs, f, indent=4)
     return nb_expected_runs
+
+
+if __name__ == "__main__":
+    get_info()
