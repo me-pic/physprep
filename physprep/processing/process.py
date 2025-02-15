@@ -14,7 +14,7 @@ from neurokit2 import (
     ecg_peaks,
     eda_process,
     ppg_findpeaks,
-    rsp_process,
+    rsp_peaks,
     signal_fixpeaks,
     signal_rate,
 )
@@ -265,7 +265,7 @@ def extract_respiratory_peaks(signal, sampling_rate=1000, method="khodadad2018")
     https://neuropsychology.github.io/NeuroKit/functions/rsp.html#preprocessing
     """
     try:
-        _, info = rsp_process(signal, sampling_rate=sampling_rate, method=method)
+        _, info = rsp_peaks(signal, sampling_rate=sampling_rate, method=method)
         # Renaming cols/keys
         info = {
             'inhale_max': info['RSP_Peaks'],

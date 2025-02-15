@@ -735,3 +735,58 @@ def _is_camel_case(input):
 
     # Use re.match to see if the entire string matches the pattern
     return bool(re.match(pattern, input))
+
+
+def create_scans_file_eeg(path, sub, ses, overwrite=False):
+    """
+    Generate the *scans files
+
+    Parameters
+    ----------
+    path: str or pathlib.Path
+        BIDS directory
+    modality: str
+        Modality that was acquired concurrent with the physiological data. Value should
+        be `func` or `eeg`.
+    """
+    filenames, acq_times = [], []
+
+    path = Path(path)
+    
+    if os.path.isfile(path / f'sub-{sub}' / f'ses-{ses}' / f'sub-{sub}_ses-{ses}_scans.tsv') and not overwrite:
+        warnings.warn(f'sub-{sub}_ses-{ses}_scans.tsv already exists. If you want to'
+        'overwrite that file, please specify `overwrite=True`')
+    else:
+        # Define BIDS Layout
+        layout = _check_bids_validity(path)
+
+        # Get the files to list in the *scans file
+        files = layout.get(subject=sub, session=ses, suffix='eeg', extension='edf')
+
+        if len(files) == 0:
+            raise ValueError(f'No *eeg.edf files found for sub-{sub}_ses-{ses}')
+        else:  
+            for file in files:
+                # Adding the filename of `file` to the list
+                filenames.append(f'eeg/{file.filename}')
+                # Get the acquisition time
+                from mne.io import read_raw_edf
+                tmp = read_raw_edf(file)
+                acq_times.append(tmp.info['meas_date'].strftime('%Y-%m-%dT%H:%M:%S'))
+
+        # Saving the *scans.json sidecar
+        scans_json = {
+            "filename": {
+                "Description": "Name of the edf file"
+            },
+            "acq_time": {
+                "LongName": "Acquisition time",
+                "Description": "Acquisition time of the particular scan"
+            }
+        }
+        with open(path / f'sub-{sub}' / f'ses-{ses}' / f'sub-{sub}_ses-{ses}_scans.json', "w") as f:
+            json.dump(scans_json, f, indent=4)
+
+        # Saving the *scans.tsv file
+        scans_tsv = pd.DataFrame({'filename': filenames, 'acq_time': acq_times})
+        scans_tsv.to_csv(path / f'sub-{sub}' / f'ses-{ses}' / f'sub-{sub}_ses-{ses}_scans.tsv', sep='\t', index=False)
