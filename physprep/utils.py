@@ -311,8 +311,115 @@ def save_qa(outdir, bids_entities, qa_output, short=False, report=False):
             f.close()
 
 
-    
 
+def create_config_qa(outdir, filename, modality, overwrite=False):
+    """
+    Generate a configuration file for the qa strategy based on the user inputs.
+
+    Parameters
+    ----------
+    outdir: str, pathlib.Path
+        Saving directory.
+    filename: str
+        Saving filename.
+    modality: str
+        Modality to consider. Possible choices: 'PPG', 'ECG', 'EDA', 'RSP'.
+    overwrite: bool
+        If `True`, overwrite the existing file with the specified `filename` in the
+        `outdir` directory. Default is False.
+    """
+    # Instantiate variables
+    steps, tmp = [], []
+    valid_steps = ["sliding", "metric", "feature"]
+    
+    # Validate filename
+    filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
+
+    # Validate modality:
+    if modality not in ["ECG", "PPG", "RSP", "EDA"]:
+        raise ValueError(
+            f"modality {modality} is not a valid value. Please " 
+            "among ['ECG', 'PPG', 'RSP', 'EDA']"
+        )
+    
+    if modality in ["ECG", "PPG"]:
+        valid_metrics = ["Mean", "Median", "SD", "Min", "Max", "Skewness", "Kurtosis", "Quality"]
+        valid_features = ["NN_intervals", "HR", "signal"]
+    elif modality == "RSP":
+        valid_metrics = ["Mean", "Median", "SD", "Min", "Max", "Skewness", "Kurtosis", "CV", "Variability", "Quality"]
+        valid_features = ["Amplitude", "Rate"]
+    elif modality == "EDA":
+        valid_metrics = ["Mean", "Median", "SD", "Min", "Max", "Skewness", "Kurtosis", "Detected_peaks", "Quality"]
+        valid_features = ["signal", "Tonic", "Phasic", "Peaks"]
+
+    while True:
+        step = input(
+            "\nEnter a qa step among the following: `sliding` to "
+            "specify a window in which to compute some qa metrics. \nIf "
+            "you want the metrics to be compute on the whole signal, "
+            "do not enter `sliding`. \nIf you want to enter a metric, "
+            "enter `metric`. \nIf you do not want to add a step, just "
+            "press enter.\n"
+        )
+        step = _check_input_validity(step.lower(), valid_steps, empty=True)
+
+        if step not in ["", " "]:
+            if step == 'sliding':
+                is_sliding = [True for elem in tmp if 'sliding' in elem.keys()]
+                if not is_sliding:
+                    duration = step_window = False
+                    while duration is False:
+                        duration = input(
+                                "\nEnter the duration of the window (in seconds): \n"
+                            )
+                        duration = _check_input_validity(
+                            duration, [int, float], empty=True
+                        )
+                    while step_window is False:
+                        step_window = input(
+                                "\nEnter the step of the window (in seconds), if you want "
+                                "to compute the metrics in rolling windows: \n"
+                            )
+                        if step_window in ["", " "]:
+                            step_window = 0
+                        step_window = _check_input_validity(
+                            step_window, [int, float], empty=True
+                        )
+                    tmp.append({"sliding": {"duration": duration, "step": step_window}})
+                else:
+                    print("\nA window was already specified. \n")
+            elif step == 'metric':
+                invalid_metric = True
+                while invalid_metric:
+                    metric = input(
+                        "\nEnter the metric you want to compute among those options: "
+                        f"{', '.join(valid_metrics)}.\n"
+                    )
+                    if metric in valid_metrics:
+                        invalid_metric=False
+                    else:
+                        print("\n WARNING: invalid metric")
+                invalid_feature = True
+                while invalid_feature:
+                    feature = input(
+                        f"\nEnter the features on which you want to compute the {metric} "
+                        "among the following options: "
+                        f"{', '.join(valid_features)}.\n"
+                    )
+                    if feature in valid_features:
+                        invalid_feature=False
+                    else:
+                        print("\n WARNING: invalid feature")
+
+                tmp.append({"metric": metric, "feature": feature})
+        else:
+            # Save the configuration file only if there is at least one signal
+            if bool(tmp):
+                print("\n---Saving configuration file---")
+                with open(os.path.join(outdir, filename), "w") as f:
+                    json.dump(tmp, f, indent=4)
+            break
+    
 
 def create_config_preprocessing(outdir, filename, overwrite=False):
     """
@@ -469,7 +576,7 @@ def create_config_preprocessing(outdir, filename, overwrite=False):
             break
 
 
-def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=False):
+def create_config_workflow(outdir, filename, overwrite=False):
     """
     Generate a configuration file for the workflow strategy based on the user inputs.
 
@@ -477,9 +584,6 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
     ----------
     outdir: str, pathlib.Path
         Saving directory.
-    dir_preprocessing: str, pathlib.Path
-        Directory of the preprocessing configuration files. If `None`, assumes that
-        the configuration files are located in the `outdir`. Default: `None`.
     filename: str
         Saving filename.
     overwrite: bool
@@ -490,10 +594,16 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
     signals = {}
     valid_signals = [
         "cardiac_ppg",
+        "PPG",
         "cardiac_ecg",
+        "ECG",
         "electrodermal",
+        "EDA",
         "respiratory",
+        "RSP",
+        "RESP",
         "trigger",
+        "TTL"
     ]
     preprocessing_strategy = [
         os.path.splitext(f)[0]
@@ -501,13 +611,16 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
     ]
     preprocessing_strategy.append("new")
 
-    if dir_preprocessing is None:
-        dir_preprocessing = outdir
+    qa_strategy = [
+        os.path.splitext(f)[0]
+        for f in os.listdir("./physprep/data/qa_strategy/")
+    ]
+    qa_strategy.append("new")
 
     filename = _check_filename(outdir, filename, extension=".json", overwrite=overwrite)
 
     while True:
-        signal = preprocessing = False
+        signal = preprocessing = qa = False
         while signal is False:
             signal = input(
                 "\n Enter the type of signal to process. Currently only the (pre-)"
@@ -592,7 +705,7 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
                     signals[signal].update(
                         {
                             "preprocessing_strategy": os.path.join(
-                                dir_preprocessing, filename_preprocessing
+                                outdir, filename_preprocessing
                             )
                         }
                     )
@@ -603,10 +716,60 @@ def create_config_workflow(outdir, filename, dir_preprocessing=None, overwrite=F
                     signals[signal].update(
                         {
                             "preprocessing_strategy": os.path.join(
-                                dir_preprocessing, filename_preprocessing
+                                outdir, filename_preprocessing
                             )
                         }
                     )
+                # Add qa strategy to the workflow
+                while qa is False:
+                    qa = input(
+                        "\n Enter the name of the qa "
+                        f"strategy to clean the {signal} signal. Choose among the "
+                        "current configuration files by providing the name of the "
+                        "strategy, \n or create a new configuration file. To create a "
+                        "new configuration file type `new`.\n Otherwise, choose among "
+                        f"those strategy: {', '.join(qastrategy[:-1])}.\n"
+                    )
+                    qa = _check_input_validity(
+                        qa, qa_strategy, empty=True
+                    )
+
+                if qa == "new":
+                    filename_qa = input(
+                        "\n Enter the name of the qa "
+                        "strategy. The given name will be used as the name of the json "
+                        "file.\n"
+                    )
+                    filename_qa = _check_filename(
+                        outdir,
+                        filename_qa,
+                        extension=".json",
+                        overwrite=overwrite,
+                    )
+                    # Create the qa configuration file
+                    create_config_qa(
+                        outdir, filename_qa, overwrite=overwrite
+                    )
+                    # Add qa config file directory to the workflow config file
+                    signals[signal].update(
+                        {
+                            "qa_strategy": os.path.join(
+                                outdir, filename_qa
+                            )
+                        }
+                    )
+                else:
+                    filename_qa = _check_filename(
+                        outdir, qa, extension=".json", overwrite=overwrite
+                    )
+                    signals[signal].update(
+                        {
+                            "qa_strategy": os.path.join(
+                                outdir, filename_qa
+                            )
+                        }
+                    )
+            
 
         else:
             # Save the configuration file only if there is at least one signal
@@ -627,8 +790,8 @@ def get_config(strategy_name, strategy="workflow"):
         Name of the workflow_strategy if using a preset or path to the configuration file
         if using a custom workflow strategy.
     strategy: str
-        Type of strategy to load. Choose among `workflow` or `preprocessing`. Default:
-        `workflow`.
+        Type of strategy to load. Choose among `workflow`, `preprocessing` or `qa`. 
+        Default: `workflow`.
 
     Returns
     -------
@@ -745,11 +908,14 @@ def create_scans_file_eeg(path, sub, ses, overwrite=False):
     ----------
     path: str or pathlib.Path
         BIDS directory
-    modality: str
-        Modality that was acquired concurrent with the physiological data. Value should
-        be `func` or `eeg`.
+    sub: str
+        sub id (e.g. `01`)
+    ses: str
+        ses id (e.g. `001`)
+    overwrite: bool
+        Whether or not overwriting existing *scans files
     """
-    filenames, acq_times = [], []
+    filenames, acq_times, durations = [], [], []
 
     path = Path(path)
     
