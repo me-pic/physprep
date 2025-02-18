@@ -1,10 +1,10 @@
 import datetime
 import logging
 import os
+from pathlib import Path
 
 import bioread
 import pandas as pd
-from pathlib import Path
 from pytz import timezone
 
 
@@ -64,7 +64,9 @@ def match_all_recordings(bids_path, biopac_path, overwrite=True):
         session_sourcedata = bids_path / "sourcedata" / modality / session_bids_path
         session_sourcedata.mkdir(parents=True, exist_ok=True)
 
-        list_matches_out = bids_path / "code" / session_bids_path / (sub_ses_prefix + "_matches.tsv")
+        list_matches_out = (
+            bids_path / "code" / session_bids_path / (sub_ses_prefix + "_matches.tsv")
+        )
 
         if list_matches_out.exists() and not overwrite:
             print(
