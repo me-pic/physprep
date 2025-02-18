@@ -102,7 +102,7 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
         # Iterate through files in each session and run phys2bids
         filename = info[col]["in_file"]
         logger.info(f"Converting : {col}")
-        if info[col]['tr'] is not False:
+        if info[col]["tr"] is not False:
             if isinstance(filename, list):
                 filename.sort()
                 for i in range(len(filename)):
@@ -116,7 +116,9 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
                         ses=ses_id,
                         chtrig=chtrig,
                         chsel=info[col]["chsel"],
-                        num_timepoints_expected=info[col]["recorded_triggers"][f"run-0{i+1}"],
+                        num_timepoints_expected=info[col]["recorded_triggers"][
+                            f"run-0{i+1}"
+                        ],
                         tr=info[col]["tr"],
                         thr=4,
                         pad=pad,
@@ -182,5 +184,7 @@ def convert(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False
         print("~" * 30)
 
 
-def convert_other(root, save, sub, ses=None, info=None, ch_names=None, overwrite=False, pad=0):
+def convert_other(
+    root, save, sub, ses=None, info=None, ch_names=None, overwrite=False, pad=0
+):
     return
