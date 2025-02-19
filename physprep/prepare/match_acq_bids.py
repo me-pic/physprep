@@ -7,8 +7,7 @@ import bioread
 import pandas as pd
 from pytz import timezone
 
-
-def match_all_recordings(bids_path, biopac_path, overwrite=True):
+def match_acq_bids(bids_path, biopac_path, overwrite=True):
     """
     Match the Acqknowldge files (.acq) with the bold files (.nii.gz).
     The correspondence between the acq and the nii files is saved in
@@ -21,6 +20,9 @@ def match_all_recordings(bids_path, biopac_path, overwrite=True):
     biopac_path : str
         Biopac data directory.
     """
+    logging.basicConfig(level=logging.getLevelName('INFO'))
+
+    # get the paths
     bids_path = Path(bids_path)
     biopac_path = Path(biopac_path)
     tz = timezone("Canada/Eastern")

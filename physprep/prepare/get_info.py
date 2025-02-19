@@ -8,7 +8,6 @@ import logging
 import math
 import os
 
-import click
 import numpy as np
 import pandas as pd
 import pprintpp
@@ -229,50 +228,7 @@ def duration_counter(trigger_ch, sampling_rate, thr=5):
     return runs
 
 
-@click.command()
-@click.argument(
-    "root",
-    type=click.Path(),
-)
-@click.argument(
-    "sub",
-    type=str,
-)
-@click.argument(
-    "workflow",
-    type=click.Path(),
-)
-@click.option(
-    "--ses",
-    type=str,
-    default=None,
-    required=False,
-    help="Session label. Use only to process the data of that specific session. "
-    "For example: if you specify --ses 001, only data from ses-001 will be "
-    "processed. If specify, but --sub not specified, data from the specified "
-    "session (e.g. ses-001) across all subjects will be processed.",
-)
-@click.option(
-    "--count_vol",
-    is_flag=True,
-    help="Specify if you want to count triggers in physio file.",
-)
-@click.option(
-    "--save",
-    type=click.Path(),
-    default=None,
-    required=False,
-    help="Specify where you want to save the dictionary in json format. "
-    "If not specified, the output will be saved where you run the script.",
-)
-@click.option(
-    "--tr_channel",
-    type=str,
-    default=None,
-    required=False,
-    help="Name of the trigger channel used on Acknowledge. ",
-)
-def get_info(root, sub, workflow, ses=None, count_vol=False, save=None, tr_channel=None):
+def get_info(root, sub, workflow, ses=None, count_vol=False):
     """
     Get all volumes taken for a sub.
     `get_info` pushes the info necessary to execute the phys2bids multi-run
@@ -291,13 +247,6 @@ def get_info(root, sub, workflow, ses=None, count_vol=False, save=None, tr_chann
     count_vol : bool
         Specify if you want to count triggers in physio file.
         Default to False.
-    save : str or pathlib.Path
-        Specify where you want to save the dictionary in json format.
-        If not specified, the output will be saved where you run the script.
-        Default to None.
-    tr_channel : str
-        Name of the trigger channel used on Acknowledge.
-        Defaults to None.
 
     Returns
     -------
@@ -320,7 +269,7 @@ def get_info(root, sub, workflow, ses=None, count_vol=False, save=None, tr_chann
 
     # list matches for a whole subject's dir
     ses_runs_matches = list_sub(
-        os.path.join(root, f"sourcedata/{modality}/"),
+        os.path.join(root, "code"),
         sub,
         ses=ses,
         ext=".tsv",
@@ -365,7 +314,7 @@ def get_info(root, sub, workflow, ses=None, count_vol=False, save=None, tr_chann
 
         # Load tsv file outputted from match_acq_bids
         matches = pd.read_csv(
-            os.path.join(path_to_source, ses_runs_matches[exp][0]), sep="\t"
+            os.path.join(root, "code", sub, ses, ses_runs_matches[exp][0]), sep="\t"
         )
         # Get all the files related to concurrent recordings
         list_matches = matches.iloc[:, 0].tolist()
@@ -373,12 +322,13 @@ def get_info(root, sub, workflow, ses=None, count_vol=False, save=None, tr_chann
 
         # initialize a counter and a dictionary
         nb_expected_volumes_run = {}
-        tr = []
+        tr, concurrent_file = [], []
 
         # iterate through matches (concurrent recordings)
         for idx, match in enumerate(list_matches):
             entities = match.get_entities()
             metadata = match.get_metadata()
+            concurrent_file.append(match.filename)
 
             if entities["datatype"] == "eeg":
                 # For physio runs that are delimited by a continuous trigger,
@@ -424,6 +374,8 @@ def get_info(root, sub, workflow, ses=None, count_vol=False, save=None, tr_chann
         # nb_expected_runs[exp]['processed_runs'] = idx  # counter is used here
         nb_expected_runs[exp]["task"] = entities["task"]
         nb_expected_runs[exp]["tr"] = tr
+        nb_expected_runs[exp]["concurrent_with"] = entities["datatype"]
+        nb_expected_runs[exp]["concurrent_file"] = concurrent_file
 
         # save the name
         name = ses_info[exp]
@@ -488,7 +440,7 @@ def get_info(root, sub, workflow, ses=None, count_vol=False, save=None, tr_chann
                                     workflow,
                                     ses=exp,
                                     tr=tr,
-                                    trigger_ch=tr_channel,
+                                    trigger_ch=workflow["trigger"]["Channel"],
                                 )
                                 LGR.info(
                                     f"finished counting volumes in physio file for: {exp}"
@@ -523,12 +475,12 @@ def get_info(root, sub, workflow, ses=None, count_vol=False, save=None, tr_chann
 
     pprintpp.pprint(nb_expected_runs)
 
-    if save is not None:
-        if os.path.exists(os.path.join(save, sub)) is False:
-            os.mkdir(os.path.join(save, sub))
-        filename = f"{sub}_sessions.json"
-        with open(os.path.join(save, sub, filename), "w") as f:
-            json.dump(nb_expected_runs, f, indent=4)
+    if os.path.exists(os.path.join(root, 'code', sub)) is False:
+        os.mkdir(os.path.join(root, 'code', sub))
+    filename = f"{sub}_sessions.json"
+    with open(os.path.join(root, 'code', sub, filename), "w") as f:
+        json.dump(nb_expected_runs, f, indent=4)
+
     return nb_expected_runs
 
 
