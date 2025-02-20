@@ -20,8 +20,6 @@ from neurokit2 import (
 )
 from neurokit2.misc import as_vector
 from neurokit2.signal.signal_formatpeaks import _signal_from_indices
-from systole.correction import correct_peaks, correct_rr
-from systole.utils import input_conversion
 
 from physprep.utils import load_json, rename_in_bids, save_processing
 
