@@ -417,13 +417,12 @@ def rac_sqi(signal, sampling_rate, threshold=0.2, duration=2):
         & Loddenkemper, T. (2022). Data quality evaluation in wearable monitoring.
         Scientific reports, 12(1), 21412.
     """
-    nb_windows = len(signal) // (duration * sampling_rate)
+    nb_windows = int(len(signal) // (duration * sampling_rate))
     rac_values, qa_scores = [], []
 
     for i in range(nb_windows):
-        window_start = i * (duration*sampling_rate)
-        window_end = window_start + (duration*sampling_rate)
-
+        window_start = int(i * (duration*sampling_rate))
+        window_end = int(window_start + (duration*sampling_rate))
         window = signal[window_start:window_end]
         highest_value, highest_idx = max(window), np.argmax(window)
         lowest_value, lowest_idx = min(window), np.argmin(window)
