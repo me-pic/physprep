@@ -96,12 +96,14 @@ def computing_sqi(
                 summary_tmp[f"{start_idx}-{end_idx}"] = sqi_cardiac(
                     window,
                     extracted_features[modality],
+                    sampling_rate=sampling_rate,
                     window=[start, end],
                 )
             elif modality.lower() in ["ecg", "cardiac_ecg"]:
                 summary_tmp[f"{start_idx}-{end_idx}"] = sqi_cardiac(
                     window,
                     extracted_features[modality],
+                    sampling_rate=sampling_rate,
                     window=[start, end],
                 )
             elif modality.lower() in ["eda", "gsr", "electrodermal"]:
@@ -121,6 +123,7 @@ def computing_sqi(
                     phasic,
                     tonic,
                     extracted_features[modality],
+                    sampling_rate=sampling_rate,
                     window=[start, end],
                 )
             elif modality.lower() in ["rsp", "resp", "respiratory"]:

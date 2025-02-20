@@ -16,7 +16,6 @@ from bokeh.layouts import column, gridplot
 from bokeh.models import BoxAnnotation, ColumnDataSource, RangeTool
 from bokeh.plotting import figure, output_file, save
 from pandas.core.indexes.datetimes import DatetimeIndex
-from systole.plots import plot_rr
 
 from physprep.utils import load_json
 
@@ -282,23 +281,27 @@ def plot_raw(
             )
             event_range.level = "underlay"
             raw.add_layout(event_range)
+    
+    try:
+        from systole.plots import plot_rr
+        # Instantaneous heart rate
+        ##########################
+        if show_heart_rate is True:
+            instantaneous_hr = plot_rr(
+                peaks.astype(bool),
+                input_type="peaks",
+                backend="bokeh",
+                figsize=figsize,
+                slider=False,
+                line=True,
+                show_artefacts=show_artefacts,
+                events_params=events_params,
+            )
+            instantaneous_hr.x_range = raw.x_range
 
-    # Instantaneous heart rate
-    ##########################
-    if show_heart_rate is True:
-        instantaneous_hr = plot_rr(
-            peaks.astype(bool),
-            input_type="peaks",
-            backend="bokeh",
-            figsize=figsize,
-            slider=False,
-            line=True,
-            show_artefacts=show_artefacts,
-            events_params=events_params,
-        )
-        instantaneous_hr.x_range = raw.x_range
-
-        cols += (instantaneous_hr,)  # type: ignore
+            cols += (instantaneous_hr,)  # type: ignore
+    except ImportError:
+        print('Systole not imported... Can not plot instantaneous heart rate')
 
     if peaks is not None and modality in eda_strings:
         scr = plot_scr(eda_scr, peaks.astype(bool), onsets.astype(bool), sfreq)

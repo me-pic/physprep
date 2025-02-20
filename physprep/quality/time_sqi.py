@@ -99,6 +99,7 @@ def sqi_eda_overview(feature_quality, threshold=0):
 def sqi_cardiac(
     signal_cardiac,
     info,
+    sampling_rate=10000,
     mean_NN=[600, 1200],
     std_NN=300,
     window=None,
@@ -136,10 +137,7 @@ def sqi_cardiac(
     summary = {}
 
     peaks = [p for p in info.keys() if 'peak_corrected' in p][0]
- 
-    rr = input_conversion(info[peaks], input_type="peaks_idx", output_type="rr_ms")
-    corrected_rr, _ = correct_rr(rr)
-
+    rr = (np.diff(info[peaks]) / sampling_rate) * 1000
     
     # Segment info according to the specify window
     if window is not None:
@@ -162,26 +160,26 @@ def sqi_cardiac(
         # Descriptive indices on NN intervals
         for metric in MAPPING_METRICS:
             summary[f"{metric}_NN_intervals (ms)"] = np.round(
-                MAPPING_METRICS[metric](corrected_rr[min_index:max_index]), 4
+                MAPPING_METRICS[metric](rr[min_index:max_index]), 4
             )
 
         # Descriptive indices on heart rate
         for metric in MAPPING_METRICS:
             summary[f"{metric}_HR (bpm)"] = metrics_hr_sqi(
-                corrected_rr[min_index:max_index],
+                rr[min_index:max_index],
                 metric=metric.lower(),
             )
 
         # Quality assessment based on mean NN intervals and std
         if (
             threshold_sqi(
-                np.mean(corrected_rr[min_index:max_index]),
+                np.mean(rr[min_index:max_index]),
                 mean_NN,
             )
             == "Acceptable"
             and threshold_sqi(
                 np.std(
-                    corrected_rr[min_index:max_index],
+                    rr[min_index:max_index],
                     ddof=1,
                 ),
                 std_NN,
