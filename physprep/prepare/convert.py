@@ -7,6 +7,9 @@ Physiological data conversion to BIDS.
 import gc
 import logging
 import os
+import json
+import pandas as pd
+import numpy as np
 import shutil
 
 from bids import BIDSLayout
@@ -15,7 +18,7 @@ from phys2bids.phys2bids import phys2bids
 from physprep import utils
 
 
-def convert(root, sub, ses=None, pad=0, overwrite=False):
+def convert(root, sub, ses=None, pad=0, overwrite=False, validate=False):
     """
     Phys2Bids conversion for one subject data.
 
@@ -162,6 +165,10 @@ def convert(root, sub, ses=None, pad=0, overwrite=False):
                 ),
                 renamed,
             )
+            # Validate the segmentation
+            if validate:
+                validate_segmentation(renamed, tr, thr=4)
+
         gc.collect()
 
         # Make sure folder exists
@@ -169,9 +176,41 @@ def convert(root, sub, ses=None, pad=0, overwrite=False):
         os.makedirs(outdir_phys2bids, exist_ok=True)
 
         # Move code/ folder to appropriate directory
+        if os.path.exists(outdir_phys2bids):
+            # in case of the src and dst are the same file
+            if not os.path.samefile(os.path.join(root, sub, col, info[col]["concurrent_with"], "code"), outdir_phys2bids):
+                shutil.rmtree(outdir_phys2bids)
         shutil.move(
             os.path.join(root, sub, col, info[col]["concurrent_with"], "code"),
             outdir_phys2bids,
         )
 
         print("~" * 30)
+
+
+def validate_segmentation(segmented_file, tr, thr):
+    path_dir = os.path.dirname(segmented_file)
+    tmp_filename = os.path.basename(segmented_file).split('.')[0]
+    metadata = utils.load_json(os.path.join(path_dir, f"{tmp_filename}.json"))
+    tmp = pd.read_csv(segmented_file, sep='\t', names=metadata['Columns'])
+
+    if len(tmp[tmp['trigger']>thr])/metadata['SamplingFrequency'] > tr[0]:
+        print(f'Invalid segmentationfor {tmp_filename}')
+        print('Redoing segmentation...')
+        # Segmenting the timeseries based on the thr value
+        tmp['tmp'] = (tmp['trigger'] > thr).astype(int).diff().ne(0).cumsum()
+        segments = [group for group, group_df in tmp[tmp['trigger'] > thr].groupby('tmp')]
+        df_segments = [tmp[tmp['tmp']==seg] for seg in segments]
+        # Finding the appropriate segments
+        segmented_tmp =[seg for seg in df_segments if np.abs(len(seg)/metadata['SamplingFrequency'] - tr[0]) < 0.02] 
+        if len(segmented_tmp) > 1:
+            print(f"More than one segment found... Please check {tmp_filename}")
+        elif len(segmented_tmp) == 1:
+            print(f"One segment found for {tmp_filename}")
+            tmp = segmented_tmp[0].drop(['tmp'], axis=1).reset_index(drop=True)
+            # reset time
+            tmp['time'] = tmp['time']-tmp['time'].iloc[0]
+            metadata['StartTime'] = tmp['time'].iloc[0]
+            # Saving properly segmented run
+            tmp.to_csv(os.path.join(path_dir, f"{tmp_filename}.tsv.gz"), sep='\t', index=False, header=None)
+            json.dump(metadata, open(os.path.join(path_dir, f"{tmp_filename}.json"), 'w'), indent=4)

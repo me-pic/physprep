@@ -37,12 +37,13 @@ def preprocessing_workflow(data, metadata, workflow_strategy):
 
     # Remove padding in data if any
     if metadata["StartTime"] > 2e-3:
+        breakpoint()
         data = remove_padding(data, trigger_threshold=4)
 
     # Iterate over content of `workflow_strategy`
     for signal_type in workflow_strategy:
         print(f"Preprocessing {signal_type}...\n")
-        if signal_type != "trigger":
+        if signal_type not in ["trigger", "concurrentWith"]:
             if "preprocessing_strategy" in workflow_strategy[
                 signal_type
             ] and workflow_strategy[signal_type]["preprocessing_strategy"] not in [
