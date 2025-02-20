@@ -6,8 +6,6 @@ import operator
 import numpy as np
 from scipy.stats import kurtosis, skew
 from biosppy.quality import eda_sqi_bottcher
-from systole.utils import input_conversion
-from systole.correction import correct_rr
 
 # ==================================================================================
 # Signal Quality Indices
@@ -48,22 +46,28 @@ def sqi_cardiac_overview(info, sampling_rate):
     """
     # Descriptive indices on overall signal
     peaks = [p for p in info.keys() if 'peak_corrected' in p][0]
+    try:
+        from systole.utils import input_conversion
+        from systole.correction import correct_rr
+        rr = input_conversion(
+            info[peaks], 
+            'peaks_idx', 
+            output_type='rr_ms',
+            sfreq = sampling_rate)
+        
+        _, (missed, extra, ectopic, short, long) = correct_rr(rr)
 
-    rr = input_conversion(
-                info[peaks], 
-                'peaks_idx', 
-                output_type='rr_ms',
-                sfreq = sampling_rate)
+        summary = {
+            "Ectopic": ectopic,
+            "Missed": missed,
+            "Extra": extra,
+            "Long": long,
+            "Short": short
+        }
 
-    _, (missed, extra, ectopic, short, long) = correct_rr(rr)
-
-    summary = {
-        "Ectopic": ectopic,
-        "Missed": missed,
-        "Extra": extra,
-        "Long": long,
-        "Short": short
-    }
+    except ImportError as e:
+        print('Systole not imported... Can not run sqi_cardiac_overview function')
+        summary = {}
 
     return summary
 

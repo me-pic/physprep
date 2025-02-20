@@ -58,8 +58,6 @@ loguru==0.7.2
 looseversion==1.3.0
 lxml==5.3.0
 MarkupSafe==2.1.5
-matplotlib==3.9.4
-matplotlib-inline==0.1.6
 mccabe==0.7.0
 mne==1.8.0
 mock==5.1.0
@@ -69,9 +67,7 @@ mypy-extensions==1.0.0
 neurokit2==0.2.3
 nibabel==5.2.1
 num2words==0.5.13
-numba==0.59.0
 numpy==1.26.4
-opencv-python==4.10.0.84
 packaging==24.0
 pandas==1.2.3
 parso==0.8.3
@@ -79,7 +75,6 @@ pathspec==0.12.1
 peakdet==0.5.0
 pexpect==4.9.0
 phys2bids==2.10.0
-physioqc @ git+ssh://git@github.com/bbfrederick/physioqc.git/@688ae346d84ab9dd26cc7874d956ef947738c0b3
 -e git+ssh://git@github.com/me-pic/physprep.git@13e5884dd033a49835abb6c0f3d77fff1bf8a519#egg=physprep
 pickleshare==0.7.5
 pillow==10.2.0
@@ -120,7 +115,6 @@ six==1.16.0
 sleepecg==0.5.7
 SQLAlchemy==2.0.35
 stack-data==0.6.3
-systole==0.2.4
 tabulate==0.9.0
 threadpoolctl==3.3.0
 tomli==2.2.1
