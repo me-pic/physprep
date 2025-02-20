@@ -26,7 +26,7 @@ def generate_summary(workflow, bids_entities):
     """
     # Add info about recorded modalities
     for modality in workflow:
-        if modality != "trigger":
+        if modality not in ["trigger", "concurrentWith"]:
             processing_strategy = workflow[modality]["preprocessing_strategy"]
             html_report += f"""
                 <li>{modality} (channel - {workflow[modality]["Channel"]})</li>

@@ -60,7 +60,7 @@ def features_extraction_workflow(
     
     # Extract features for each signal type in the `workflow_strategy`
     for idx, signal_type in enumerate(workflow_strategy):
-        if signal_type != "trigger":
+        if signal_type not in ["trigger", "concurrentWith"]:
             # Retrieve SamplingFrequency
             if isinstance(metadata["SamplingFrequency"], list):
                 sampling_rate = metadata["SamplingFrequency"][idx]

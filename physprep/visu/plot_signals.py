@@ -338,8 +338,8 @@ def generate_plot(data, features, metadata, modality):
     """
     Parameters
     ----------
-    data : pd.DataFrame
-        Dataframe containing the timeserie to plot.
+    data : dict
+        Dictionary containing the timeserie to plot.
     info : dict
         Dictionary containing the features of the timeserie.
     modality : list
@@ -369,19 +369,30 @@ def generate_plot(data, features, metadata, modality):
         elif modality.lower() in ["electrodermal", "eda", "gsr"]:
             peaks = [1 if idx in features[modality]["scr_peak"] else 0 for idx, i in enumerate([0]*len(data[f"{modality}_clean"]))]
             onsets = [1 if idx in features[modality]["scr_onset"] else 0 for idx, i in enumerate([0]*len(data[f"{modality}_clean"]))]
-
-            figure_signal = plot_raw(
-                signal=data[f"{modality}_clean"],
-                eda_scr=data[f"{modality}_phasic"],
-                eda_scl=data[f"{modality}_tonic"],
-                peaks=np.array(peaks).astype(bool),
-                onsets=np.array(onsets).astype(bool),
-                sfreq=sampling_frequency,
-                modality=modality,
-                title=f"{modality} : Scanner on - Clean",
-                show_heart_rate=False,
-                show_artefacts=True,
-            )
+            if f"{modality}_phasic" in data.keys():
+                figure_signal = plot_raw(
+                    signal=data[f"{modality}_clean"],
+                    eda_scr=data[f"{modality}_phasic"],
+                    eda_scl=data[f"{modality}_tonic"],
+                    peaks=np.array(peaks).astype(bool),
+                    onsets=np.array(onsets).astype(bool),
+                    sfreq=sampling_frequency,
+                    modality=modality,
+                    title=f"{modality} : Scanner on - Clean",
+                    show_heart_rate=False,
+                    show_artefacts=True,
+                )
+            else:
+                figure_signal = plot_raw(
+                    signal=data[f"{modality}_clean"],
+                    peaks=np.array(peaks).astype(bool),
+                    onsets=np.array(onsets).astype(bool),
+                    sfreq=sampling_frequency,
+                    modality=modality,
+                    title=f"{modality} : Scanner on - Clean",
+                    show_heart_rate=False,
+                    show_artefacts=True,
+                )
         elif modality.lower() in ["cardiac", "ecg", "ppg"]:
             peak_key = [key for key in features[modality].keys() if 'peak_corrected' in key][0]
             peaks = [1 if idx in features[modality][peak_key] else 0 for idx, i in enumerate([0]*len(data[f"{modality}_clean"]))]
