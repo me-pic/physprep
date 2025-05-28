@@ -37,7 +37,6 @@ def preprocessing_workflow(data, metadata, workflow_strategy):
 
     # Remove padding in data if any
     if metadata["StartTime"] > 2e-3:
-        breakpoint()
         data = remove_padding(data, trigger_threshold=4)
 
     # Iterate over content of `workflow_strategy`
