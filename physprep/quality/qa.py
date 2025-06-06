@@ -133,9 +133,10 @@ def computing_sqi(
                     amplitude = timeseries[amplitude_key][start:end]
                 else:
                     amplitude = nk.rsp_amplitude(
-                        np.array(timeseries_data), 
+                        timeseries_data, 
                         np.array(extracted_features[modality]['inhale_max']),
-                        troughs=np.array(extracted_features[modality]['exhale_max'])
+                        troughs=np.array(extracted_features[modality]['exhale_max']),
+                        interpolation_method='monotone_cubic'
                     )
                     amplitude = amplitude[start:end]
                 # Retrieve or compute the respiratory rate

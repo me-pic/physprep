@@ -65,8 +65,10 @@ mock==5.1.0
 more-itertools==10.5.0
 msgpack==1.1.0
 mypy-extensions==1.0.0
-neurokit2==0.2.3
-numpy==1.23.5
+neurokit2==0.2.5
+nibabel==5.2.1
+num2words==0.5.13
+numpy==1.26.4
 packaging==24.0
 pandas==2.2.3
 parso==0.8.3
