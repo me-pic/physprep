@@ -5,7 +5,7 @@ Neuromod cleaning utilities.
 """
 import neurokit2 as nk
 import numpy as np
-from scipy import signal, ndimage
+from scipy import signal
 
 from physprep import utils
 
@@ -180,7 +180,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
             if step["parameters"]["method"] == "notch":
                 signal = comb_band_stop(signal, sampling_rate, step["parameters"])
             elif step["parameters"]["method"] == "median":
-                signal = median_filter(signal, step["parameters"])
+                signal = median_filter(signal, step["parameters"], sampling_rate)
             else:
                 signal = nk.signal_filter(
                     signal, sampling_rate=sampling_rate, **step["parameters"]
@@ -263,7 +263,7 @@ def comb_band_stop(data, sampling_rate, params):
     return data
 
 
-def median_filter(data, params):
+def median_filter(data, params, sampling_rate):
     """
     Series of notch filters aligned with the scanner gradient's harmonics.
 
@@ -273,6 +273,8 @@ def median_filter(data, params):
         The signal to be filtered.
     params : dict
         The parameters for the median filtering (i.e. `window_size`).
+    sampling_rate : float
+        The sampling frequency of `signal` (in Hz, i.e., samples/second).
 
     Returns
     -------
@@ -289,6 +291,6 @@ def median_filter(data, params):
 
     See also
     --------
-    https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.median_filter.html
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.medfilt.html
     """
-    return ndimage.median_filter(data, size=params['window_size'])
+    return signal.medfilt(data, kernel_size=int(params['window_size']*sampling_rate))
