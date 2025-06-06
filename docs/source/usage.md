@@ -62,6 +62,7 @@ The workflow configuration file is defined as the following:
     "<name_of_the_physiological_signal>": {
         "channel": "<name_of_the_channel>",
         "preprocessing_strategy": "<name_of_the_preprocessing_strategy>",
+        "qa_strategy": "<name_of_the_qa_strategy>",
     },
 }
 ```
@@ -70,8 +71,8 @@ See examples in `physprep/data/workflow_strategy`.
 
 Every item within the file corresponds to a supported physiological signal, such as "ECG",
 "PPG", "EDA", or "RSP". For each modality to (pre-)process, users have the possibility
-to specify the channel name in the acquisition file, and the filename/directory of
-the preprocessing strategy.
+to specify the channel name in the acquisition file, the filename/directory of
+the preprocessing strategy, and the filename/directory of the qa strategy.
 
 An helper function is provided in the `utils` module to create a customized workflow
 configuration file:
@@ -128,3 +129,27 @@ create_config_preprocessing(
     overwrite=True
 )
 ```
+
+### QA strategy
+
+```
+[
+    {
+        "sliding": {
+            "duration": <duration_in_seconds>,
+            "step": <duration_in_seconds>
+        }
+    },
+    {
+        "metric": "<metric>",
+        "feature": "<feature_name>"
+    },
+    {
+        "metric": "Quality",
+        "feature": "<feature_name>",
+        "threshold": {"feature": "criterion"}
+    }
+]
+```
+
+See presets in `physprep/data/qa_strategy`.

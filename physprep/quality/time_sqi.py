@@ -5,6 +5,7 @@ import operator
 
 import numpy as np
 from scipy.stats import kurtosis, skew
+from biosppy.quality import eda_sqi_bottcher
 
 # ==================================================================================
 # Signal Quality Indices
@@ -19,7 +20,7 @@ MAPPING_METRICS = {
 }
 
 
-def sqi_cardiac_overview(info):
+def sqi_cardiac_overview(info, sampling_rate):
     """
     Report artefacts identified by the library systole during
     the processing of the cardiac signals
@@ -43,18 +44,30 @@ def sqi_cardiac_overview(info):
         synchrony and analysis. Journal of Open Source Software, 7(69), 3832,
         https://doi.org/10.21105/joss.03832
     """
-    summary = {}
     # Descriptive indices on overall signal
-    overview_metrics = ["Ectopic", "Missed", "Extra", "Long", "Short"]
+    peaks = [p for p in info.keys() if 'peak_corrected' in p][0]
+    try:
+        from systole.utils import input_conversion
+        from systole.correction import correct_rr
+        rr = input_conversion(
+            info[peaks], 
+            'peaks_idx', 
+            output_type='rr_ms',
+            sfreq = sampling_rate)
+        
+        _, (missed, extra, ectopic, short, long) = correct_rr(rr)
 
-    for metric in overview_metrics:
-        if metric in info.keys():
-            summary.update({metric: info[metric]})
-        else:
-            print(
-                f"Warning: {metric} not found in the `info` dictionary. This metric "
-                "will thus not be reported."
-            )
+        summary = {
+            "Ectopic": ectopic,
+            "Missed": missed,
+            "Extra": extra,
+            "Long": long,
+            "Short": short
+        }
+
+    except ImportError as e:
+        print('Systole not imported... Can not run sqi_cardiac_overview function')
+        summary = {}
 
     return summary
 
@@ -86,6 +99,7 @@ def sqi_eda_overview(feature_quality, threshold=0):
 def sqi_cardiac(
     signal_cardiac,
     info,
+    sampling_rate=10000,
     mean_NN=[600, 1200],
     std_NN=300,
     window=None,
@@ -121,59 +135,75 @@ def sqi_cardiac(
         Frontiers in Physiology, 2248.
     """
     summary = {}
-    # Make sure the data_type string is in capital letters
-    peaks = "Peaks"
+
+    peaks = [p for p in info.keys() if 'peak_corrected' in p][0]
+    rr = (np.diff(info[peaks]) / sampling_rate) * 1000
+    
     # Segment info according to the specify window
     if window is not None:
         start, end = min(window), max(window)
         sub_list = [x for x in info[peaks] if start <= x <= end]
-        min_index = np.where(info[peaks] == min(sub_list))[0][0]
-        max_index = np.where(info[peaks] == max(sub_list))[0][0] + 1
+        if len(sub_list) > 0:
+            min_index = np.where(info[peaks] == min(sub_list))[0][0]
+            max_index = np.where(info[peaks] == max(sub_list))[0][0] + 1
+        else:
+            min_index = None
     else:
         min_index = 0
         max_index = len(info[peaks])
 
-    # Descriptive indices on NN intervals
-    for metric in MAPPING_METRICS:
-        summary[f"{metric}_NN_intervals (ms)"] = np.round(
-            MAPPING_METRICS[metric](info["CleanRRSystole"][min_index:max_index]), 4
-        )
-
-    # Descriptive indices on heart rate
-    for metric in MAPPING_METRICS:
-        summary[f"{metric}_HR (bpm)"] = metrics_hr_sqi(
-            info["CleanRRSystole"][min_index:max_index],
-            metric=metric.lower(),
-        )
     # Descriptive indices on overall signal
     summary["Skewness"] = np.round(kurtosis(signal_cardiac), 4)
     summary["Kurtosis"] = np.round(skew(signal_cardiac), 4)
 
-    # Quality assessment based on mean NN intervals and std
-    if (
-        threshold_sqi(
-            np.mean(info["CleanRRSystole"][min_index:max_index]),
-            mean_NN,
-        )
-        == "Acceptable"
-        and threshold_sqi(
-            np.std(
-                info["CleanRRSystole"][min_index:max_index],
-                ddof=1,
-            ),
-            std_NN,
-            operator.lt,
-        )
-        == "Acceptable"
-    ):
-        summary["Quality"] = "Acceptable"
+    if min_index is not None:
+        # Descriptive indices on NN intervals
+        for metric in MAPPING_METRICS:
+            summary[f"{metric}_NN_intervals (ms)"] = np.round(
+                MAPPING_METRICS[metric](rr[min_index:max_index]), 4
+            )
+
+        # Descriptive indices on heart rate
+        for metric in MAPPING_METRICS:
+            summary[f"{metric}_HR (bpm)"] = metrics_hr_sqi(
+                rr[min_index:max_index],
+                metric=metric.lower(),
+            )
+
+        # Quality assessment based on mean NN intervals and std
+        if (
+            threshold_sqi(
+                np.mean(rr[min_index:max_index]),
+                mean_NN,
+            )
+            == "Acceptable"
+            and threshold_sqi(
+                np.std(
+                    rr[min_index:max_index],
+                    ddof=1,
+                ),
+                std_NN,
+                operator.lt,
+            )
+            == "Acceptable"
+        ):
+            summary["Quality"] = "Acceptable"
+        else:
+            summary["Quality"] = "Not acceptable"
     else:
-        summary["Quality"] = "Not acceptable"
+        # Descriptive indices on NN intervals
+        for metric in MAPPING_METRICS:
+            summary[f"{metric}_NN_intervals (ms)"] = None
+
+        # Descriptive indices on heart rate
+        for metric in MAPPING_METRICS:
+            summary[f"{metric}_HR (bpm)"] = None
+        summary['Quality'] = "Not acceptable"
 
     return summary
 
 
-def sqi_eda(signal_eda, info, window=None):
+def sqi_eda(signal_eda, signal_phasic, signal_tonic, info, sampling_rate=10000, window=None):
     """
     Extract SQI for EDA processed signal.
 
@@ -196,60 +226,49 @@ def sqi_eda(signal_eda, info, window=None):
     if window is not None:
         try:
             start, end = min(window), max(window)
-            sub_list = [x for x in info["ScrPeaks"] if start <= x <= end]
-            min_index = info["ScrPeaks"].index(min(sub_list))
-            max_index = info["ScrPeaks"].index(max(sub_list))
+            sub_list = [x for x in info["scr_peak"] if start <= x <= end]
+            min_index = info["scr_peak"].index(min(sub_list))
+            max_index = info["scr_peak"].index(max(sub_list))
         except Exception:
             print("No SCR detected...")
             min_index = max_index = 0
     else:
         min_index = 0
-        max_index = len(info["ScrPeaks"])
+        max_index = len(info["scr_peak"])
+
     # Description indices on EDA
     for metric in MAPPING_METRICS:
         summary[f"{metric}_EDA"] = np.round(
-            MAPPING_METRICS[metric](signal_eda["eda_clean"]), 4
+            MAPPING_METRICS[metric](signal_eda), 4
         )
     # Descriptive indices on SCL
-    for metric in MAPPING_METRICS:
-        summary[f"{metric}_SCL"] = np.round(
-            MAPPING_METRICS[metric](signal_eda["eda_tonic"]), 4
-        )
+    if signal_tonic is not None:
+        for metric in MAPPING_METRICS:
+            summary[f"{metric}_SCL"] = np.round(
+                MAPPING_METRICS[metric](signal_tonic), 4
+            )
     # Descriptive indices on SCR
-    for metric in MAPPING_METRICS:
-        summary[f"{metric}_SCR"] = np.round(
-            MAPPING_METRICS[metric](signal_eda["eda_phasic"]), 4
-        )
+    if signal_phasic is not None:
+        for metric in MAPPING_METRICS:
+            summary[f"{metric}_SCR"] = np.round(
+                MAPPING_METRICS[metric](signal_phasic), 4
+            )
     # Descriptive indices on SCR
     if min_index != max_index and max_index != 0:
-        summary["Number_of_detected_peaks"] = len(info["ScrPeaks"][min_index:max_index])
-        # Descriptive indices on SCR rise time
-        for metric in MAPPING_METRICS:
-            summary[f"{metric}_rise_time"] = np.round(
-                MAPPING_METRICS[metric](info["ScrRisetime"][min_index:max_index]), 4
-            )
-        # Descriptive indices on SCR Recovery
-        for metric in MAPPING_METRICS:
-            summary[f"{metric}_recovery_time"] = np.round(
-                MAPPING_METRICS[metric](info["ScrRecoverytime"][min_index:max_index]), 4
-            )
+        summary["Number_of_detected_peaks"] = len(info["scr_peak"][min_index:max_index])
+    
+    rac, qa_bottcher = rac_sqi(signal_eda, sampling_rate)
+    if qa_bottcher == 1:
+        summary['Quality'] = "Acceptable"
+    elif qa_bottcher > 0.5:
+        summary['Quality'] = "Mostly acceptable"
     else:
-        summary["Number_of_detected_peaks"] = 0
-        summary["Mean_rise_time"] = np.nan
-        summary["SD_rise_time"] = np.nan
-        summary["Median_rise_time"] = np.nan
-        summary["Min_rise_time"] = np.nan
-        summary["Max_rise_time"] = np.nan
-        summary["Mean_recovery_time"] = np.nan
-        summary["SD_recovery_time"] = np.nan
-        summary["Median_recovery_time"] = np.nan
-        summary["Min_recovery_time"] = np.nan
-        summary["Max_recovery_time"] = np.nan
+        summary['Quality'] = "Not acceptable"
 
     return summary
 
 
-def sqi_rsp(signal_rsp, mean_rate=0.5):
+def sqi_rsp(signal_rsp, signal_amplitude, signal_rate, mean_rate=0.5):
     """
     Extract SQI for respiratory processed signal.
 
@@ -268,27 +287,27 @@ def sqi_rsp(signal_rsp, mean_rate=0.5):
     """
     summary = {}
     # Descriptive indices on signal amplitude
-    summary["Mean_Amp"] = np.round(np.mean(signal_rsp["rsp_amplitude"]), 4)
-    summary["Median_Amp"] = np.round(np.median(signal_rsp["rsp_amplitude"]), 4)
-    summary["SD_Amp"] = np.round(np.std(signal_rsp["rsp_amplitude"]), 4)
-    summary["Min_Amp"] = np.round(np.min(signal_rsp["rsp_amplitude"]), 4)
-    summary["CV_Amp"] = np.round(np.max(signal_rsp["rsp_amplitude"]), 4)
+    for metric in MAPPING_METRICS:
+            summary[f"{metric}_Amp"] = np.round(
+                MAPPING_METRICS[metric](signal_amplitude), 4
+            )
     summary["variability_Amp"] = np.round(
-        np.std(signal_rsp["rsp_amplitude"]) / np.mean(signal_rsp["rsp_amplitude"]),
+        np.std(signal_amplitude) / np.mean(signal_amplitude),
         4,
     )
     # Descriptive indices on signal rate
-    summary["Mean_Rate"] = np.round(np.mean(signal_rsp["rsp_rate"]), 4)
-    summary["Median_Rate"] = np.round(np.median(signal_rsp["rsp_rate"]), 4)
-    summary["SD_Rate"] = np.round(np.std(signal_rsp["rsp_rate"]), 4)
-    summary["Min_Rate"] = np.round(np.min(signal_rsp["rsp_rate"]), 4)
-    summary["Max_Rate"] = np.round(np.max(signal_rsp["rsp_rate"]), 4)
-    summary["CV_Rate"] = np.round(
-        np.std(signal_rsp["rsp_rate"]) / np.mean(signal_rsp["rsp_rate"]), 4
+    for metric in MAPPING_METRICS:
+            summary[f"{metric}_Rate"] = np.round(
+                MAPPING_METRICS[metric](signal_rate), 4
+            )
+    summary["variability_Rate"] = np.round(
+        np.std(signal_rate) / np.mean(signal_rate),
+        4,
     )
+
     # Quality assessment based on the mean respiratory rate
     if (
-        threshold_sqi(np.mean(signal_rsp["rsp_rate"]) / 60, mean_rate, operator.lt)
+        threshold_sqi(np.mean(signal_rate) / 60, mean_rate, operator.lt)
         == "Acceptable"
     ):
         summary["Quality"] = "Acceptable"
@@ -369,7 +388,7 @@ def minimal_range_sqi(signal, threshold):
     return np.round(minimal_range, 4)
 
 
-def rac_sqi(signal, threshold, duration=2):
+def rac_sqi(signal, sampling_rate, threshold=0.2, duration=2):
     """
     Compute the Rate of Amplitude Change (RAC) in the signal for windows
     of length defines by `duration`.
@@ -398,23 +417,28 @@ def rac_sqi(signal, threshold, duration=2):
         & Loddenkemper, T. (2022). Data quality evaluation in wearable monitoring.
         Scientific reports, 12(1), 21412.
     """
-    nb_windows = len(signal) // duration
-    rac_values = []
+    nb_windows = len(signal) // (duration * sampling_rate)
+    rac_values, qa_scores = [], []
 
     for i in range(nb_windows):
-        window_start = i * duration
-        window_end = window_start + duration
+        window_start = i * (duration*sampling_rate)
+        window_end = window_start + (duration*sampling_rate)
 
         window = signal[window_start:window_end]
-        highest_value = max(window)
-        lowest_value = min(window)
+        highest_value, highest_idx = max(window), np.argmax(window)
+        lowest_value, lowest_idx = min(window), np.argmin(window)
 
-        rac = abs(highest_value - lowest_value) / min(highest_value, lowest_value)
+        if lowest_idx<highest_idx:
+            rac = abs(highest_value - lowest_value) / lowest_value
+        elif lowest_idx>=highest_idx:
+            rac = abs(highest_value - lowest_value) / highest_value
         rac_values.append(rac)
+        qa_scores.append((rac < threshold) & (np.mean(window)>0.05))
 
-    rac_ratio = np.count_nonzero(np.array(rac_values) > threshold) / len(signal)
+    rac_ratio = np.count_nonzero(np.array(rac_values) < threshold) / nb_windows
+    qa_ratio = np.count_nonzero(np.array(qa_scores)) / nb_windows
 
-    return np.round(rac_ratio, 4)
+    return np.round(rac_ratio, 2), np.round(qa_ratio, 2)
 
 
 def threshold_sqi(metric, threshold, op=None):

@@ -3,7 +3,6 @@
 """
 Neuromod cleaning utilities.
 """
-
 import neurokit2 as nk
 import numpy as np
 from scipy import signal
@@ -11,9 +10,7 @@ from scipy import signal
 from physprep import utils
 
 
-def preprocessing_workflow(
-    data, metadata, workflow_strategy, outdir=None, filename=None, save=True
-):
+def preprocessing_workflow(data, metadata, workflow_strategy):
     """
     Apply the preprocessing workflow to a physiological recordings.
 
@@ -35,6 +32,8 @@ def preprocessing_workflow(
     """
     clean_signals = {}
     metadata_derivatives = {}
+    col = []
+    sf = []
 
     # Remove padding in data if any
     if metadata["StartTime"] > 2e-3:
@@ -43,7 +42,7 @@ def preprocessing_workflow(
     # Iterate over content of `workflow_strategy`
     for signal_type in workflow_strategy:
         print(f"Preprocessing {signal_type}...\n")
-        if signal_type != "trigger":
+        if signal_type not in ["trigger", "concurrentWith"]:
             if "preprocessing_strategy" in workflow_strategy[
                 signal_type
             ] and workflow_strategy[signal_type]["preprocessing_strategy"] not in [
@@ -59,42 +58,52 @@ def preprocessing_workflow(
                 else:
                     raise ValueError(f"Signal type {signal_type} not found in the data.")
                 # Apply the preprocessing strategy
-                raw, clean, sampling_rate = preprocess_signal(
+                raw, clean, components, sampling_rate = preprocess_signal(
                     raw,
                     workflow_strategy[signal_type]["preprocessing_strategy"],
                     sampling_rate=metadata["SamplingFrequency"],
                 )
+
+                sf = [*sf, sampling_rate, sampling_rate]
+
                 clean_signals.update(
-                    {
-                        signal_type: {
-                            f"{signal_type}_raw": raw,
-                            f"{signal_type}_clean": clean,
-                        }
-                    }
+                    {f'{signal_type}_raw': raw}
                 )
-                metadata_derivatives.update(
-                    {
-                        signal_type: {
-                            "StartTime": data["time"].loc[0],
-                            "SamplingFrequency": sampling_rate,
-                            "Columns": [f"{signal_type}_raw", f"{signal_type}_clean"],
-                        }
-                    }
+                clean_signals.update(
+                    {f'{signal_type}_clean': clean}
                 )
+
+                col = [*col, f'{signal_type}_raw', f'{signal_type}_clean']
+
+                if components is not None:
+                    clean_signals.update(
+                        {f'{signal_type}_tonic': np.array(components['EDA_Tonic'])}
+                    )
+                    clean_signals.update(
+                        {f'{signal_type}_phasic': np.array(components['EDA_Phasic'])}
+                    )
+
+                    col = [*col, 'electrodermal_tonic', 'electrodermal_phasic']
+                
             else:
                 print(
                     f"No preprocessing strategy specified for {signal_type}. "
                     "The preprocessing step will be skipped."
                 )
 
-    if save:
-        print("Saving preprocessed signals...\n")
-        utils.save_processing(
-            outdir, filename, "desc-preproc", clean_signals, metadata_derivatives
-        )
-        print("Preprocessed signals saved.\n")
+    # Checking if there are different sampling frequencies
+    if  all(f == sf[0] for f in sf):
+        sf = sf[0]
 
-        return clean_signals, metadata_derivatives
+    metadata_derivatives.update(
+        {
+            "StartTime": data["time"].loc[0],
+            "SamplingFrequency": sf,
+            "Columns": col,
+        }
+    )
+
+    return clean_signals, metadata_derivatives
 
 
 def remove_padding(data, start_time=None, end_time=None, trigger_threshold=None):
@@ -161,14 +170,17 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
         The cleaned physiological signal.
     """
     raw = signal
+    components = None
     # Retrieve preprocessing steps
     preprocessing = utils.get_config(preprocessing_strategy, strategy="preprocessing")
     # Iterate over preprocessing steps as defined in the configuration file
     for step in preprocessing:
-        print(f"   Applying {step['step']}\n")
+        print(f"...Applying {step['step']}\n")
         if step["step"] == "filtering":
             if step["parameters"]["method"] == "notch":
                 signal = comb_band_stop(signal, sampling_rate, step["parameters"])
+            elif step["parameters"]["method"] == "median":
+                signal = median_filter(signal, step["parameters"], sampling_rate)
             else:
                 signal = nk.signal_filter(
                     signal, sampling_rate=sampling_rate, **step["parameters"]
@@ -182,15 +194,18 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
                 raw, sampling_rate=sampling_rate, **step["parameters"]
             )
             sampling_rate = step["parameters"]["desired_sampling_rate"]
+        elif step["step"] == "phasic":
+            # This step is only to extract phasic and tonic components from EDA signal
+            components = nk.eda_phasic(signal, sampling_rate=sampling_rate, **step["parameters"])
         else:
             raise ValueError(
                 f"Unknown preprocessing step: {step['step']}. Make sure the "
                 "preprocessing strategy is properly defined. For more "
                 "details, please refer to the Physprep documentation."
             )
-        print(f"   {step} done !\n")
+        print(f"   step: {step['step']}, parameters: {step['parameters']} done !\n")
 
-    return raw, signal, sampling_rate
+    return raw, signal, components, sampling_rate
 
 
 def comb_band_stop(data, sampling_rate, params):
@@ -246,3 +261,36 @@ def comb_band_stop(data, sampling_rate, params):
             b, a = signal.iirnotch(w0, Q)
             data = signal.filtfilt(b, a, data)
     return data
+
+
+def median_filter(data, params, sampling_rate):
+    """
+    Series of notch filters aligned with the scanner gradient's harmonics.
+
+    Parameters
+    ----------
+    data : array
+        The signal to be filtered.
+    params : dict
+        The parameters for the median filtering (i.e. `window_size`).
+    sampling_rate : float
+        The sampling frequency of `signal` (in Hz, i.e., samples/second).
+
+    Returns
+    -------
+    filtered : array
+        The filtered signal.
+
+    References
+    ----------
+    Privratsky, A. A., Bush, K. A., Bach, D. R., Hahn, E. M., & Cisler, J. M. (2020). 
+        Filtering and model-based analysis independently improve skin-conductance response 
+        measures in the fMRI environment: Validation in a sample of women with PTSD. 
+        International Journal of Psychophysiology, 158, 86-95.
+        https://doi.org/10.1016/j.ijpsycho.2020.09.015
+
+    See also
+    --------
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.medfilt.html
+    """
+    return signal.medfilt(data, kernel_size=int(params['window_size']*sampling_rate))

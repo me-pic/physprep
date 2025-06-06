@@ -1,0 +1,117 @@
+[
+    {
+        "sliding":{
+            "duration": 60,
+            "step": 0
+        }
+    },
+    {
+        "metric": "Mean",
+        "feature": "signal"
+    },
+    {
+        "metric": "Median",
+        "feature": "signal"
+    },
+    {
+        "metric": "SD",
+        "feature": "signal"
+    },
+    {
+        "metric": "Min",
+        "feature": "signal"
+    },
+    {
+        "metric": "Max",
+        "feature": "signal"
+    },
+    {
+        "metric": "Mean",
+        "feature": "Tonic"
+    },
+    {
+        "metric": "Median",
+        "feature": "Tonic"
+    },
+    {
+        "metric": "SD",
+        "feature": "Tonic"
+    },
+    {
+        "metric": "Min",
+        "feature": "Tonic"
+    },
+    {
+        "metric": "Max",
+        "feature": "Tonic"
+    },
+    {
+        "metric": "Mean",
+        "feature": "Phasic"
+    },
+    {
+        "metric": "Median",
+        "feature": "Phasic"
+    },
+    {
+        "metric": "SD",
+        "feature": "Phasic"
+    },
+    {
+        "metric": "Min",
+        "feature": "Phasic"
+    },
+    {
+        "metric": "Max",
+        "feature": "Phasic"
+    },
+    {
+        "metric": "Detected_peaks",
+        "feature": "Peaks"
+    },
+    {
+        "metric": "Mean",
+        "feature": "Rise_time"
+    },
+    {
+        "metric": "Median",
+        "feature": "Rise_time"
+    },
+    {
+        "metric": "SD",
+        "feature": "Rise_time"
+    },
+    {
+        "metric": "Min",
+        "feature": "Rise_time"
+    },
+    {
+        "metric": "Max",
+        "feature": "Rise_time"
+    },
+    {
+        "metric": "Mean",
+        "feature": "Recovery_time"
+    },
+    {
+        "metric": "Median",
+        "feature": "Recovery_time"
+    },
+    {
+        "metric": "SD",
+        "feature": "Recovery_time"
+    },
+    {
+        "metric": "Min",
+        "feature": "Recovery_time"
+    },
+    {
+        "metric": "Max",
+        "feature": "Recovery_time"
+    },
+    {
+        "metric": "Quality",
+        "feature": "signal",
+        "method": "bottcher"
+    }
+]
