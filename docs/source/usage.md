@@ -1,9 +1,8 @@
 # Usage Notes
 
 ```bash
-usage: physprep [--help] [--workflow_strategy WORKFLOW_STRATEGY] [--indir_bids INDIR_BIDS] [--sub SUB]
-                [--ses SES] [--indir_raw_physio INDIR_RAW_PHYSIO] [--skip_match_acq_bids]
-                [--skip_convert] [--padding PADDING]
+usage: physprep [workflow_strategy WORKFLOW_STRATEGY] [indir_bids INDIR_BIDS] [--sub SUB]
+                [--ses SES] [--derivatives_dir DERIVATIVES_DIR] [--save_report] [--help]
 
 Preprocess raw physiological data acquired in MRI, extract features, and
 generate quality report.
@@ -17,29 +16,14 @@ Required:
                            properly formatted.
   indir_bids               Path to the directory containing the BIDS-like
                            dataset.
-  sub                      Subject label.
 
 Options:
-  --ses TEXT               Session label.
-  --indir_raw_physio PATH  Path to the directory containing the raw
-                           physiological data. Specify if raw
-                           physiological data is not in the BIDS
-                           directory. For more details, about the BIDS
-                           data structure, please refer to the
-                           documentation.
-  --skip_match_acq_bids    If specified, the workflow will not match the
-                           acq files with the bold files. If acq files are
-                           already organized properly, this flag can be
-                           specified. For more details, see the
-                           documentation of the mathc_acq_bids.py script.
-  --skip_convert           If specified, the workflow will not convert the
-                           physiological data recordings in BIDS format.
-                           This implies that the data is already segmented
-                           in runs, organized in a BIDS-like structure
-                           (i.e., one tsv.gz and one json file per run),
-                           and named following the BIDS recommandations.
-  --padding INTEGER        Time (in seconds) of padding to add at the
-                           beginning and end of each run. Default to 9.
+  --sub TEXT               Subject label (e.g., `01`).
+  --ses TEXT               Session label (e.g., `001`).
+  --derivatives_dir PATH   Path to the derivatives directory. If not specified,
+                           derivatives will be save in the `indir_bids` directory.
+  --save_report            If specified, an quality report will be generated and 
+                           saved for each run.
   --help                   Show this message and exit.
 ```
 
@@ -60,14 +44,17 @@ The workflow configuration file is defined as the following:
 ```
 {
     "<name_of_the_physiological_signal>": {
-        "channel": "<name_of_the_channel>",
+        "id": "<signal id>",
+        "Description": "description of the signal",
+        "Units": "recording units",
+        "Channel": "<name_of_the_channel>",
         "preprocessing_strategy": "<name_of_the_preprocessing_strategy>",
         "qa_strategy": "<name_of_the_qa_strategy>",
     },
 }
 ```
 
-See examples in `physprep/data/workflow_strategy`.
+See example in `physprep/data/workflow_strategy`.
 
 Every item within the file corresponds to a supported physiological signal, such as "ECG",
 "PPG", "EDA", or "RSP". For each modality to (pre-)process, users have the possibility
@@ -153,3 +140,22 @@ create_config_preprocessing(
 ```
 
 See presets in `physprep/data/qa_strategy`.
+
+Users also have the possibility to create their own qa configuration file using
+the `create_config_qa` function from the utils module:
+
+```python
+from physprep.utils import create_config_qa
+
+# Check the function documentation
+help(create_config_qa)
+
+# Call the function specifying the parameters value. You will be asked to enter different
+# parameters from a set of currently supported values.
+create_config_qa(
+    "/path/to/your/config/file",
+    "your_amazing_qa.json",
+    "ECG",
+    overwrite=True
+)
+```
