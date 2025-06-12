@@ -20,10 +20,6 @@ as user-friendly and flexible by providing customization options through configu
 files. The (pre-)processing of cardiac signals (ECG and PPG), electrodermal signals (EDA),
 and respiratory signals is currently supported.
 
-.. note::
-
-   This project is under active development.
-
 Physprep was originally developed to preprocess physiological data acquired concurrently
 with large-scale individual functional MRI as part of the `CNeuromMod project
 <https://docs.cneuromod.ca/en/latest/>`_. This workflow combines well-maintained,

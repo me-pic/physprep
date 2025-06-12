@@ -1,6 +1,6 @@
 # Outputs
 
-Two main kinds of output can be produced by the `physprep` workflow: raw physiolocal data
+Two main kinds of output can be produced by the `Physprep` workflow: raw physiolocal data
 organized in BIDS format (according to the BIDS specification v1.10.0), and physiological 
 derivatives.
 
@@ -9,7 +9,7 @@ derivatives.
 If the `skip_convert` flag is not specified when running the workflow, all of the output 
 will be save at the participant level under `sub-<sub_id>/ses-<ses_id>/<func/eeg>`. If the 
 physiological data were acquired concurrently with fmri data, the output will be save 
-under the `func` subfolder. If they were acquired concurrently with eeg data, the output 
+under the `func` subfolder. If they were acquired concurrently with EEG data, the output 
 will be save under the `eeg` subfolder.
 
 ### Data and metadata files
