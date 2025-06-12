@@ -9,7 +9,7 @@ python3 -m venv <venv_name>
 source <venv_name>/bin/activate
 ```
 
-3. Install the project:
+2. Install the project:
 
 ```bash
 pip install git+https://github.com/courtois-neuromod/physprep.git
