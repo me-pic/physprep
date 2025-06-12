@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+
+title: "physprep"
+
+abstract:
+  "Physiological data preprocessing workflow adapted for MR settings."
+
+message: "If you use this software, please cite it as below."
+
+repository-code: "https://github.com/courtois-neuromod/physprep"
+
+identifiers:
+  - type: doi
+    value: 
+
+license: Apache-2.0
+
+contact:
+  - email: marie-eve.picard.2@umontreal.ca
+    family-names: Picard
+    given-names: Marie-Eve
+
+authors:
+  - family-names: Picard
+    given-names: Marie-Eve
+    email: marie-eve.picard.2@umontreal.ca
+    orcid: https://orcid.org/0009-0001-2412-7829
+  - family-names: Lespinasse
+    given-names: François
+    orcid: https://orcid.org/0000-0002-6897-2119
+  - family-names: Pinsard
+    given-names: Basile
+    orcid: https://orcid.org/0000-0002-4391-3075
