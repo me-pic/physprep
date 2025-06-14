@@ -11,7 +11,7 @@ repository-code: "https://github.com/courtois-neuromod/physprep"
 
 identifiers:
   - type: doi
-    value: 
+    value: 10.5281/zenodo.15664327
 
 license: Apache-2.0
 
