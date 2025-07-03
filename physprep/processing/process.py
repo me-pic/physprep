@@ -150,9 +150,17 @@ def extract_cardiac_peaks(signal, sampling_rate=1000, data_type="ppg"):
                 interval_max=1.5,
                 method="neurokit",
             )
+            corrected_peaks = local_maxima_peak_correction(
+                signal, 
+                info["CleanPeaksNK"], 
+                window=0.02, 
+                sampling_rate=sampling_rate
+            )
+
+            # Add peaks to dictionnary
             info = {
                 'r_peak': info['ECG_R_Peaks'],
-                'r_peak_corrected': info['CleanPeaksNK']
+                'r_peak_corrected': corrected_peaks
             }
             print("Formatting peaks into signal")
             peak_list = _signal_from_indices(info['r_peak'], desired_length=len(signal))
@@ -314,3 +322,24 @@ def convert_2_events(features, metadata):
                         
 
     return df_events.sort_values(('onset'), ignore_index=True)
+
+
+def local_maxima_peak_correction(signal, peaks, window=0.02, sampling_rate=1000):
+    """
+    signal : np.array
+        Array containing the continuous timeserie on which the peaks were extracted
+    peaks : np.array
+        Array containing the index of the extracted peaks
+    window : int
+        Window to consider before and after the peak (in ms)
+    sampling_rate : int
+        Sampling rate of the signal
+    """
+    for idx, peak in enumerate(peaks):
+        start = int(peak - window * sampling_rate)
+        end = int (peak + window * sampling_rate)
+
+        idx_local_maxima = np.argmax(signal[start:end])
+        peaks[idx] = idx_local_maxima + start
+
+    return peaks    
