@@ -11,7 +11,7 @@ Peripheral biosignals are valuable for capturing fluctuations in cognitive and a
 
 ## Quick start
 
-Clone the project and create a virtual environment !
+Clone the project and create a virtual environment with Python >=3.8 and <=3.11 !
 ```
 git clone git@github.com:courtois-neuromod/physprep.git
 
