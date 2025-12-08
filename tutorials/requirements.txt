@@ -1,0 +1,11 @@
+bioread==3.0.1
+matplotlib==3.9.2
+matplotlib-inline==0.1.7
+notebook==7.2.2
+numpy==1.23.5
+pandas==2.2.3
+peakdet==0.5.2
+physutils==0.3.0
+pybids==0.17.2
+PyQt5==5.15.11
+scipy==1.13.1
