@@ -24,6 +24,7 @@ pybids = "^0.16.0"
 biosppy = "2.2.2"
 matplotlib = "3.6.0"
 setuptools = "<81"
+codecarbon = "3.2.1"
 
 [tool.poetry.dev-dependencies]
 black = "22.3.0"
