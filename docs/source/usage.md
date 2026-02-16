@@ -2,7 +2,8 @@
 
 ```bash
 usage: physprep [workflow_strategy WORKFLOW_STRATEGY] [indir_bids INDIR_BIDS] [--sub SUB]
-                [--ses SES] [--derivatives_dir DERIVATIVES_DIR] [--save_report] [--help]
+                [--ses SES] [--derivatives_dir DERIVATIVES_DIR] [--save_report]
+                [--track_carbon] [--country_code] [--help]
 
 Preprocess raw physiological data acquired in MRI, extract features, and
 generate quality report.
@@ -22,8 +23,12 @@ Options:
   --ses TEXT               Session label (e.g., `001`).
   --derivatives_dir PATH   Path to the derivatives directory. If not specified,
                            derivatives will be save in the `indir_bids` directory.
-  --save_report            If specified, an quality report will be generated and 
+  --save_report            If specified, an quality report will be generated and
                            saved for each run.
+  --track_carbon           If specified, carbon tracker will be used to track power
+                           use of the pipeline.
+  --country_code           Country ISO code used by carbon trackers. Will only be
+                           used if --track_carbon flag is specified.
   --help                   Show this message and exit.
 ```
 
@@ -159,3 +164,8 @@ create_config_qa(
     overwrite=True
 )
 ```
+
+(carbon-tracker)=
+## Carbon tracker
+
+`physprep` workflow integrates [`codecarbon`](https://mlco2.github.io/codecarbon/#) to track the energy usage and carbon emissions related to the preprocessing of your physiological data. The carbon emissions are estimated based on the energy consumption and the carbon intensity of electricity for the country specified in the `--country_code` parameter (default to "CAN" - Canada). However, since the carbon intensity of the electricity is based on the national average, a more precise estimate could be calculated by taking the carbon intensity value of a specific province/state/region (see [electricitymaps](https://app.electricitymaps.com)). To track the energy consumption with physprep, specify the flag `--track_carbon` in the CLI. The `codecarbon` output will be saved under `code/emissions.csv`.
