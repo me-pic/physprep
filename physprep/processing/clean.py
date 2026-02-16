@@ -32,6 +32,7 @@ def preprocessing_workflow(data, metadata, workflow_strategy):
     """
     clean_signals = {}
     metadata_derivatives = {}
+    strategies = {}
     col = []
     sf = []
 
@@ -58,7 +59,7 @@ def preprocessing_workflow(data, metadata, workflow_strategy):
                 else:
                     raise ValueError(f"Signal type {signal_type} not found in the data.")
                 # Apply the preprocessing strategy
-                raw, clean, components, sampling_rate = preprocess_signal(
+                raw, clean, components, sampling_rate, preproc_strategy = preprocess_signal(
                     raw,
                     workflow_strategy[signal_type]["preprocessing_strategy"],
                     sampling_rate=metadata["SamplingFrequency"],
@@ -85,6 +86,9 @@ def preprocessing_workflow(data, metadata, workflow_strategy):
 
                     col = [*col, 'electrodermal_tonic', 'electrodermal_phasic']
                 
+                strategies.update(
+                    {f'{signal_type}': preproc_strategy}
+                )
             else:
                 print(
                     f"No preprocessing strategy specified for {signal_type}. "
@@ -103,7 +107,7 @@ def preprocessing_workflow(data, metadata, workflow_strategy):
         }
     )
 
-    return clean_signals, metadata_derivatives
+    return clean_signals, metadata_derivatives, strategies
 
 
 def remove_padding(data, start_time=None, end_time=None, trigger_threshold=None):
@@ -205,7 +209,7 @@ def preprocess_signal(signal, preprocessing_strategy, sampling_rate=1000):
             )
         print(f"   step: {step['step']}, parameters: {step['parameters']} done !\n")
 
-    return raw, signal, components, sampling_rate
+    return raw, signal, components, sampling_rate, preprocessing
 
 
 def comb_band_stop(data, sampling_rate, params):
@@ -293,4 +297,9 @@ def median_filter(data, params, sampling_rate):
     --------
     https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.medfilt.html
     """
-    return signal.medfilt(data, kernel_size=int(params['window_size']*sampling_rate))
+    window_size = int(params['window_size']*sampling_rate)
+    # window_size must be odd
+    if window_size % 2 == 0:
+        window_size += 1
+        
+    return signal.medfilt(data, kernel_size=window_size)

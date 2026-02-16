@@ -6,13 +6,17 @@ report.
 """
 
 from pathlib import Path
+from codecarbon import OfflineEmissionsTracker
 
+import sys
 import click
 
 from physprep import utils
 from physprep.processing import clean, process
 from physprep.quality import qa, report
 
+import logging
+logger = logging.getLogger(__name__)
 
 @click.command()
 @click.argument(
@@ -52,6 +56,17 @@ from physprep.quality import qa, report
     is_flag=True,
     help="If specified, an quality report will be generated and saved for each run.",
 )
+@click.option(
+    "--track_carbon",
+    is_flag=True,
+    help="If specified, carbon tracker will be used to track power use of the pipeline."
+)
+@click.option(
+    "--country_code",
+    type=str,
+    default="CAN",
+    help="Country ISO code used by carbon trackers. Will only be used if --track_carbon flag is specified."
+)
 def main(
     workflow_strategy,
     indir_bids,
@@ -59,6 +74,8 @@ def main(
     ses=None,
     derivatives_dir=None,
     save_report=False,
+    track_carbon=False,
+    country_code="CAN"
 ):
     """Physprep workflow.
 
@@ -119,6 +136,29 @@ def main(
     else:
         derivatives_dir = Path(derivatives_dir)
     derivatives_dir.mkdir(parents=True, exist_ok=True)
+    code_dir = Path(derivatives_dir / "code")
+    code_dir.mkdir(parents=True, exist_ok=True)
+
+    log_file = code_dir / "log.txt"
+
+    logging.basicConfig(
+        filename=log_file,
+        level=logging.INFO,
+        format="%(asctime)s - %(message)s",
+        force=True
+    )
+
+    logger.info("Command: %s", " ".join([sys.executable] + sys.argv))
+
+    if track_carbon:
+        logger.info("CodeCarbon started")
+        logger.info("Using country_iso_code=%s", country_code)
+        logger.info("Saving report at: %s", code_dir)
+
+        tracker = OfflineEmissionsTracker(
+            output_dir=code_dir, country_iso_code=country_code
+        )
+        tracker.start()
 
     # Get workflow info as defined in the configuration file `workflow_strategy`
     workflow = utils.get_config(workflow_strategy, strategy="workflow")
@@ -135,57 +175,62 @@ def main(
     files = layout.get(**info_layout)
     # Make sure `files` is not an empty list
     if len(files) == 0:
+        error_msg = "No files found. Please make sure you specified the correct directory, and if applicable the correct values for `sub` and/or `ses`."
+        logger.error(error_msg)
         raise FileNotFoundError(
-            "No files found. Please make sure you specified the correct directory, "
-            "and if applicable the correct values for `sub` and/or `ses`."
+            error_msg
         )
 
     for file in files:
         # Load metada
         metadata = file.get_metadata()
         if not bool(metadata):
-            raise FileNotFoundError(f"No metadata file associated with {file}.")
+            error_msg = f"No metadata file associated with {file}."
+            logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
         # Load data
-        print(f"\nLoading {file}...\n")
+        logger.info("\nLoading %s...\n", file)
         data = file.get_df()
-        print("Data loaded.\n")
+        logger.info("Data loaded.\n")
+
 
         # Preprocess data
-        print("Preprocessing data...\n")
-        preprocessed_signals, metadata_derivatives = clean.preprocessing_workflow(
+        logger.info("Preprocessing data...\n")
+        preprocessed_signals, metadata_derivatives, preproc_strategy = clean.preprocessing_workflow(
             data, metadata, workflow
         )
-        print("Saving preprocessed signals...\n")
+        logger.info("Saving preprocessed signals...\n")
         utils.save_processing(
             derivatives_dir,
             file.get_entities(),
             "preproc",
             preprocessed_signals,
             metadata_derivatives,
+            preproc_strategy
         )
-        print("Preprocessing done.\n")
+        logger.info("Preprocessing done.\n")
 
         # Extract features
-        print("Extracting features...\n")
+        logger.info("Extracting features...\n")
         features, events = process.features_extraction_workflow(
             preprocessed_signals, metadata_derivatives, workflow
         )
-        print("Saving extracted features...\n")
+        logger.info("Saving extracted features...\n")
         utils.save_features(derivatives_dir, file.get_entities(), events)
-        print("Features extraction done.\n")
+        logger.info("Features extraction done.\n")
 
         # Generate quality report
-        print("Assessing quality of the data...\n")
+        logger.info("Assessing quality of the data...\n")
         qa_metrics, qa_short = qa.computing_sqi(
             workflow, preprocessed_signals, features, metadata_derivatives
         )
-        print("Saving quality assessment...\n")
+        logger.info("Saving quality assessment...\n")
         utils.save_qa(derivatives_dir, file.get_entities(), qa_metrics)
         utils.save_qa(derivatives_dir, file.get_entities(), qa_short, short=True)
-        print("Data quality assessed.\n")
+        logger.info("Data quality assessed.\n")
 
         if save_report:
-            print("Generating QC report... \n")
+            logger.info("Generating QC report... \n")
             qa_report = report.generate_report(
                 workflow,
                 qa_metrics,
@@ -195,8 +240,14 @@ def main(
                 derivatives_dir,
                 file.get_entities(),
             )
-            print("QC report generated. \n")
+            logger.info("QC report generated. \n")
             utils.save_qa(derivatives_dir, file.get_entities(), qa_report, report=True)
+    
+    if track_carbon:
+        emissions = tracker.stop()
+        logger.info("CodeCarbon stopped")
+        logger.info("Saving report at %s", code_dir)
+        logger.info("Carbon emissions: %s kg", emissions)
 
 
 if __name__ == "__main__":

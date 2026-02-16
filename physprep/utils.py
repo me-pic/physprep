@@ -213,7 +213,7 @@ def load_json(filename):
     return data
 
 
-def save_processing(outdir, bids_entities, descriptor, data, metadata, save_raw=False):
+def save_processing(outdir, bids_entities, descriptor, data, metadata, preproc_strategy, save_raw=False):
     """
     outdir: str or pathlib.Path
         Path to the directory where the preprocessed physiological data will be saved.
@@ -232,6 +232,8 @@ def save_processing(outdir, bids_entities, descriptor, data, metadata, save_raw=
     if outdir is not None:
         outdir = Path(outdir)
         outdir.mkdir(parents=True, exist_ok=True)
+        code = outdir / 'code'
+        code.mkdir(parents=True, exist_ok=True)
     else:
         warnings.warn(
             "No output directory specified. Data will be saved in the "
@@ -281,6 +283,10 @@ def save_processing(outdir, bids_entities, descriptor, data, metadata, save_raw=
         Path(BIDSFile(filename).dirname).mkdir(parents=True, exist_ok=True)
         # Save data
         df.to_csv(filename, sep="\t", index=False, compression="gzip")
+
+    # Save preproc_strategy
+    with open(code / "preprocessing_strategy.json", "w") as json_file:
+        json.dump(preproc_strategy, json_file, indent=4)
 
 
 def save_features(outdir, bids_entities, events):
